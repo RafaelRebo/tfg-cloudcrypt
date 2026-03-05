@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Cloud Crypt TFG - Explorador de Archivos</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+    <div id="app" class="container">
+        <h1>Cloud Crypt</h1>
+
+        <div v-if="!isLoggedIn" class="box">
+            <h2>Acceso al Sistema</h2>
+            <input v-model="username" placeholder="Nombre de usuario">
+            <input v-model="password" type="password" placeholder="Contraseña">
+            <div style="margin-top: 10px;">
+                <button @click="handleLogin" class="btn-primary">Entrar</button>
+                <button @click="handleRegister" class="btn-success" style="margin-left: 10px;">Registrar</button>
+            </div>
+        </div>
+
+        <div v-else>
+            <div style="overflow: hidden; margin-bottom: 20px;">
+                <button @click="logout" class="btn-danger" style="float: right;">Cerrar Sesión</button>
+                <h2>Bienvenido, {{ username }}</h2>
+            </div>
+
+            <div class="box stats-container">
+                <h3>Estado del Almacenamiento</h3>
+                <p>Archivos: {{ stats.fileCount }} | Espacio: {{ formatSize(stats.totalSize) }} de 100 MB</p>
+                <div class="progress-bar">
+                    <div class="progress-fill" :style="{ width: quotaPercentage + '%' }"></div>
+                </div>
+            </div>
+
+            <div class="box">
+                <div style="display: flex; flex-direction: column; gap: 15px;">
+                    <div>
+                        <strong>Subir archivo suelto:</strong>
+                        <input type="file" ref="fileInput" style="margin-top: 5px;">
+                        <button @click="onUpload" class="btn-primary">Subir a Carpeta Actual</button>
+                    </div>
+                    <hr>
+                    <div>
+                        <strong>Subir carpeta completa (recursivo):</strong>
+                        <input type="file" ref="folderInput" webkitdirectory directory multiple style="margin-top: 5px;">
+                        <button @click="uploadFolder" class="btn-primary">Subir Directorio</button>
+                    </div>
+                </div>
+                <p class="status" style="margin-top: 10px; font-weight: bold; color: #3182ce;">{{ status }}</p>
+            </div>
+
+            <div class="box" style="background-color: #edf2f7;">
+                <strong>📍 Ubicación actual:</strong> 
+                <button @click="goToFolder('/')" class="btn-nav">🏠 Raíz</button>
+                <span v-for="(seg, index) in pathSegments" :key="index">
+                    / <button @click="goToFolder(seg.path)" class="btn-nav">{{ seg.name }}</button>
+                </span>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Tamaño</th>
+                        <th>Acción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr v-if="currentFolder !== '/'" @click="goBack" style="cursor:pointer; background-color: #fffaf0;">
+                        <td colspan="3" style="color: #3182ce; font-weight: bold;">📁 .. (Volver atrás)</td>
+                    </tr>
+
+                    <tr v-for="folderName in subFolders" :key="folderName" @click="enterFolder(folderName)" style="cursor:pointer; background-color: #f7fafc;">
+                        <td><strong>📁 {{ folderName }}</strong></td>
+                        <td>---</td>
+                        <td><small style="color: #a0aec0;">Carpeta de archivos</small></td>
+                    </tr>
+
+                    <tr v-for="f in filesInCurrentFolder" :key="f.id">
+                        <td>📄 {{ f.fileName }}</td>
+                        <td>{{ (f.fileSize / 1024).toFixed(2) }} KB</td>
+                        <td>
+                            <div style="display: flex; gap: 5px;">
+                                <a :href="getDownloadUrl(f.id)" target="_blank">
+                                    <button class="btn-success" style="padding: 5px 10px;">Descargar</button>
+                                </a>
+                                <button @click="handleDelete(f.id)" class="btn-danger" style="padding: 5px 10px;">Eliminar</button>
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr v-if="subFolders.length === 0 && filesInCurrentFolder.length === 0">
+                        <td colspan="3" style="text-align:center; padding: 40px; color: #a0aec0;">
+                            Esta carpeta está vacía.
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
