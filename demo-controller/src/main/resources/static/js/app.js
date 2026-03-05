@@ -30,25 +30,14 @@ const appInstance = createApp({
         },
         subFolders() {
             const folders = new Set();
-            
-            // Normalizamos la carpeta actual: que siempre empiece por / y NUNCA termine en /
-            let current = this.currentFolder.replace(/\/+$/, ""); // Quita barras al final
-            if (!current.startsWith('/')) current = '/' + current;
-            if (current === "") current = "/";
+            const current = this.currentFolder.endsWith('/') ? this.currentFolder : this.currentFolder + '/';
 
             this.allUserFiles.forEach(f => {
                 let path = f.folderPath || '/';
-                
-                // Normalizamos el path del archivo igual
-                path = path.replace(/\/+$/, "");
-                if (!path.startsWith('/')) path = '/' + path;
+                if (!path.endsWith('/')) path += '/';
 
-                // Si el archivo vive "dentro" de donde estamos
                 if (path.startsWith(current) && path !== current) {
-                    // Sacamos lo que sobra: "/Fotos/Verano" -> "Verano" (si estamos en /Fotos)
-                    let relative = path.substring(current.length);
-                    if (relative.startsWith('/')) relative = relative.substring(1);
-                    
+                    const relative = path.substring(current.length);
                     const nextLevel = relative.split('/')[0];
                     if (nextLevel) folders.add(nextLevel);
                 }
@@ -92,23 +81,19 @@ const appInstance = createApp({
         async loadFiles() {
             const timestamp = Date.now();
             try {
-                // 1. Archivos en la carpeta actual
+                // 1. Archivos en la carpeta actual (para la tabla)
                 const res = await fetch(`/api/files?username=${this.username}&folder=${encodeURIComponent(this.currentFolder)}&t=${timestamp}`);
-                if (res.ok) {
-                    this.filesInCurrentFolder = await res.json();
-                }
+                if (res.ok) this.filesInCurrentFolder = await res.json();
 
-                // 2. Todos los archivos para reconstruir el árbol de carpetas
-                // ¡IMPORTANTE! Asegúrate de que este endpoint en el Controller NO filtre por carpeta
-                const resAll = await fetch(`/api/files?username=${this.username}&t=${timestamp}`); 
+                // 2. TODOS los archivos (añadimos &all=true)
+                const resAll = await fetch(`/api/files?username=${this.username}&all=true&t=${timestamp}`); 
                 if (resAll.ok) {
                     const data = await resAll.json();
-                    console.log("Datos globales cargados:", data); // Mira la consola (F12) para ver qué llega
-                    this.allUserFiles = data;
+                    console.log("Datos globales cargados:", data);
+                    this.allUserFiles = data; // Ahora sí tendrá todos los archivos
                 }
             } catch (e) {
-                console.error("Fallo en la integración REST:", e);
-                this.status = "Error de red";
+                console.error("Fallo:", e);
             }
         },
         enterFolder(name) {
@@ -170,6 +155,10 @@ const appInstance = createApp({
             this.status = `Subiendo ${files.length} archivos...`;
             let successCount = 0;
 
+            // Preparamos la base de la ruta actual
+            // Si estamos en "/", la base es vacía. Si estamos en "/barbanegra", la base es "/barbanegra"
+            let baseFolder = this.currentFolder === '/' ? '' : this.currentFolder;
+
             for (let file of files) {
                 try {
                     const formData = new FormData();
@@ -177,12 +166,20 @@ const appInstance = createApp({
                     formData.append("username", this.username);
                     formData.append("password", this.password);
                     
-                    // Reconstrucción de la ruta jerárquica para el Backend
+                    // ANTES: solo cogía la ruta del PC
+                    // AHORA: currentFolder + ruta del PC
                     const fullPath = file.webkitRelativePath;
-                    const folderPath = '/' + fullPath.substring(0, fullPath.lastIndexOf('/'));
+                    const relativePathOnPC = fullPath.substring(0, fullPath.lastIndexOf('/'));
+                    
+                    // Combinamos ambas. Ejemplo: 
+                    // Web: /barbanegra + PC: /fotos -> /barbanegra/fotos
+                    const finalFolderPath = baseFolder + '/' + relativePathOnPC;
                     const fileName = file.name;
 
-                    formData.append("folderPath", folderPath);
+                    // Limpiamos posibles dobles barras "//" por si acaso
+                    const cleanPath = finalFolderPath.replace(/\/+/g, '/');
+
+                    formData.append("folderPath", cleanPath);
                     formData.append("fileName", fileName);
 
                     const res = await fetch('/api/files/upload', { method: 'POST', body: formData });
@@ -193,7 +190,6 @@ const appInstance = createApp({
             }
             
             this.status = `Subida finalizada: ${successCount} de ${files.length} archivos.`;
-            // RECARGA CRÍTICA: Esto actualiza la tabla
             await this.loadFiles();
             await this.loadStats();
         },

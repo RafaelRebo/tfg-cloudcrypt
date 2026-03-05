@@ -1,7 +1,7 @@
 package com.example.service;
 
 import com.example.model.FileEntity;
-import com.example.model.User;
+import com.example.model.UserEntity;
 import com.example.repository.FileRepository;
 import com.example.repository.FileStorageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,7 +26,7 @@ public class FileService {
     /**
      * Sube y cifra un fichero usando la contraseña del dueño.
      */
-    public FileEntity uploadFile(MultipartFile file, User owner, String rawPassword, String folderPath, String fileName) throws Exception {
+    public FileEntity uploadFile(MultipartFile file, UserEntity owner, String rawPassword, String folderPath, String fileName) throws Exception {
         // 1. Verificación de Cuota (Lógica de Negocio) [cite: 380, 746]
         List<FileEntity> existingFiles = fileRepository.findByOwner(owner);
         long currentUsage = existingFiles.stream().mapToLong(FileEntity::getFileSize).sum();
@@ -84,7 +84,7 @@ public class FileService {
         fileRepository.delete(entity);
     }
 
-    public List<FileEntity> getFilesByUser(User owner) {
+    public List<FileEntity> getFilesByUser(UserEntity owner) {
         return fileRepository.findByOwner(owner);
     }
 

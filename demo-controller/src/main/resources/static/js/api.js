@@ -3,13 +3,13 @@ const API = {
         const formData = new FormData();
         formData.append("username", username);
         formData.append("password", password);
-        return fetch('/api/files/login', { method: 'POST', body: formData });
+        return fetch('/api/users/login', { method: 'POST', body: formData });
     },
     async register(username, password) {
         const formData = new FormData();
         formData.append("username", username);
         formData.append("password", password);
-        return fetch('/api/files/register', { method: 'POST', body: formData });
+        return fetch('/api/users/register', { method: 'POST', body: formData });
     },
     async fetchFiles(username) {
         const url = `/api/files?username=${encodeURIComponent(username)}&_t=${Date.now()}`;

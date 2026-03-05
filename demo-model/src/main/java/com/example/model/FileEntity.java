@@ -26,5 +26,5 @@ public class FileEntity {
     @ManyToOne
     @JoinColumn(name = "user_id")
     @JsonBackReference
-    private User owner;
+    private UserEntity owner;
 }
