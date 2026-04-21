@@ -83,9 +83,9 @@
                         <td>{{ (f.fileSize / 1024).toFixed(2) }} KB</td>
                         <td>
                             <div style="display: flex; gap: 5px;">
-                                <a :href="getDownloadUrl(f.id)" target="_blank">
-                                    <button class="btn-success" style="padding: 5px 10px;">Descargar</button>
-                                </a>
+                                <button @click="handleDownload(f.id, f.fileName)" class="btn-success">
+                                    Descargar
+                                </button>
                                 <button @click="handleDelete(f.id)" class="btn-danger" style="padding: 5px 10px;">Eliminar</button>
                             </div>
                         </td>

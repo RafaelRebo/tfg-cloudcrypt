@@ -24,5 +24,13 @@ const API = {
         formData.append("folderPath", folderPath || "/"); // Coincide con @RequestParam del Controller
         formData.append("fileName", file.name);
         return fetch('/api/files/upload', { method: 'POST', body: formData });
+    },
+    async download(fileId, password) {
+        return fetch(`/api/files/download/${fileId}`, {
+            method: 'GET',
+            headers: {
+                'X-File-Password': password
+            }
+        });
     }
 };

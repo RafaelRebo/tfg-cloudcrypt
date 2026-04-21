@@ -131,6 +131,33 @@ const appInstance = createApp({
                 this.status = errorMsg || "Error en la subida";
             }
         },
+        async handleDownload(fileId, fileName) {
+            this.status = "Descifrando y preparando descarga...";
+            try {
+                const res = await API.download(fileId, this.password);
+
+                if (!res.ok) {
+                    throw new Error("Error al descargar: Contraseña incorrecta o archivo no encontrado");
+                }
+
+                // Proceso para descargar el archivo desde memoria (Blob)
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName; // Forzamos el nombre original
+                document.body.appendChild(a);
+                a.click();
+
+                // Limpieza
+                window.URL.revokeObjectURL(url);
+                a.remove();
+                this.status = "Descarga completada.";
+            } catch (err) {
+                alert(err.message);
+                this.status = "Error en la descarga.";
+            }
+        },
         async handleDelete(id) {
             if (confirm("¿Estás seguro de que quieres borrar este archivo para siempre?")) {
                 try {

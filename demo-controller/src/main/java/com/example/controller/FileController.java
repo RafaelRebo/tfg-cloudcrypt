@@ -2,9 +2,10 @@ package com.example.controller;
 
 import com.example.model.FileEntity;
 import com.example.model.UserEntity;
-import com.example.repository.UserRepository;
 import com.example.service.FileService;
+import com.example.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -13,13 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
-import java.net.URI;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/files")
@@ -29,8 +27,16 @@ public class FileController {
     private FileService fileService;
 
     @Autowired
-    private UserRepository userRepository;
+    private UserService userService;
 
+    // Extraemos la cuota del archivo application.properties (ver nota abajo)
+    @Value("${app.max-quota:104857600}")
+    private long maxQuota;
+
+    /**
+     * Sube un archivo cifrado.
+     * Usa el servicio de usuarios para validar la identidad antes de procesar.
+     */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
             @RequestParam("file") MultipartFile file,
@@ -39,56 +45,45 @@ public class FileController {
             @RequestParam(value = "folderPath", defaultValue = "/") String folderPath,
             @RequestParam(value = "fileName", required = false) String fileName) {
         try {
-            UserEntity user = userRepository.findByUsername(username);
-            if (user == null || !user.getPassword().equals(password)) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            // Buscamos la entidad para lógica interna del servidor
+            UserEntity user = userService.findEntityByUsername(username);
+
+            // Validamos credenciales antes de permitir la subida
+            if (user == null || !userService.checkPassword(password, user.getPassword())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
             }
 
             FileEntity savedFile = fileService.uploadFile(file, user, password, folderPath, fileName);
-
-            URI location = ServletUriComponentsBuilder
-                    .fromCurrentContextPath()
-                    .path("/api/files/download/{id}")
-                    .buildAndExpand(savedFile.getId())
-                    .toUri();
-
-            return ResponseEntity.created(location).body(savedFile);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+            return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 
+    /**
+     * Lista archivos filtrados por carpeta.
+     */
     @GetMapping
     public ResponseEntity<List<FileEntity>> listFiles(
             @RequestParam String username,
             @RequestParam(defaultValue = "/") String folder,
             @RequestParam(value = "all", defaultValue = "false") boolean all) {
 
-        UserEntity user = userRepository.findByUsername(username);
+        UserEntity user = userService.findEntityByUsername(username);
         if (user == null) return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
 
-        List<FileEntity> userFiles = fileService.getFilesByUser(user);
-
-        if (all) {
-            return ResponseEntity.ok(userFiles);
-        }
-
-        List<FileEntity> filtered = userFiles.stream()
-                .filter(f -> {
-                    String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
-                    return path.equals(folder);
-                })
-                .collect(Collectors.toList());
-
-        return ResponseEntity.ok(filtered);
+        List<FileEntity> filteredFiles = fileService.getFilesByFolder(user, folder, all);
+        return ResponseEntity.ok(filteredFiles);
     }
 
+    /**
+     * Descarga de archivos con contraseña en cabecera (X-File-Password).
+     * Esto evita que la clave AES quede en los logs o el historial del navegador.
+     */
     @GetMapping("/download/{id}")
     public ResponseEntity<Resource> downloadFile(
             @PathVariable Long id,
-            @RequestParam("password") String password) {
+            @RequestHeader("X-File-Password") String password) {
         try {
             FileEntity entity = fileService.getFileById(id);
             byte[] content = fileService.getFileContent(id, password);
@@ -99,13 +94,17 @@ public class FileController {
                     .contentType(MediaType.parseMediaType(entity.getFileType()))
                     .body(resource);
         } catch (Exception e) {
+            // Si la contraseña es incorrecta, el descifrado fallará y lanzará excepción
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
     }
 
+    /**
+     * Devuelve estadísticas de uso de espacio.
+     */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getUserStats(@RequestParam String username) {
-        UserEntity user = userRepository.findByUsername(username);
+        UserEntity user = userService.findEntityByUsername(username);
         if (user == null) return ResponseEntity.notFound().build();
 
         List<FileEntity> files = fileService.getFilesByUser(user);
@@ -114,11 +113,14 @@ public class FileController {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalSize", totalSize);
         stats.put("fileCount", files.size());
-        stats.put("maxQuota", 100 * 1024 * 1024);
+        stats.put("maxQuota", maxQuota);
 
         return ResponseEntity.ok(stats);
     }
 
+    /**
+     * Elimina un archivo tanto de la base de datos como del almacenamiento físico.
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFile(@PathVariable Long id) {
         try {

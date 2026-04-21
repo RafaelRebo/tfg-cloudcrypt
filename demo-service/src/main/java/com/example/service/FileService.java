@@ -10,6 +10,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class FileService {
@@ -71,6 +72,37 @@ public class FileService {
 
         // 2. Descifrar usando la contraseña proporcionada
         return cryptoService.decrypt(encryptedData, rawPassword);
+    }
+
+    public List<FileEntity> getFilesFiltered(UserEntity user, String folder, boolean all) {
+        List<FileEntity> userFiles = fileRepository.findByOwner(user);
+        if (all) return userFiles;
+
+        return userFiles.stream()
+                .filter(f -> {
+                    String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
+                    return path.equals(folder);
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<FileEntity> getFilesByFolder(UserEntity owner, String folder, boolean all) {
+        // 1. Obtenemos todos los archivos del usuario desde el repositorio
+        List<FileEntity> userFiles = fileRepository.findByOwner(owner);
+
+        // 2. Si el parámetro 'all' es true, devolvemos todo sin filtrar
+        if (all) {
+            return userFiles;
+        }
+
+        // 3. Si no, filtramos por la carpeta actual
+        return userFiles.stream()
+                .filter(f -> {
+                    // Si folderPath es null, asumimos que es la raíz "/"
+                    String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
+                    return path.equals(folder);
+                })
+                .toList();
     }
 
     public void deleteFile(Long id) throws Exception {
