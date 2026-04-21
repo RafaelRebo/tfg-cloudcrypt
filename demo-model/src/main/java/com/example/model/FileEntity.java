@@ -21,6 +21,9 @@ public class FileEntity {
     private String folderPath;
     private String storagePath;
 
+    @Column(length = 64)
+    private String checksum;
+
     // @JsonBackReference indica que este enlace no se debe serializar
     // hacia atrás para evitar el bucle infinito.
     @ManyToOne

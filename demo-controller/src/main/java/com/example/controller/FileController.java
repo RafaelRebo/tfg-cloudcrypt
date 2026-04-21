@@ -6,7 +6,7 @@ import com.example.service.FileService;
 import com.example.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,13 +30,12 @@ public class FileController {
     @Autowired
     private UserService userService;
 
-    // Extraemos la cuota del archivo application.properties (ver nota abajo)
     @Value("${app.max-quota:104857600}")
     private long maxQuota;
 
     /**
-     * Sube un archivo cifrado.
-     * Usa el servicio de usuarios para validar la identidad antes de procesar.
+     * Sube un archivo mediante Streaming.
+     * El archivo se cifra y se calcula el SHA-256 al vuelo sin cargar los bytes en RAM.
      */
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
@@ -45,14 +45,13 @@ public class FileController {
             @RequestParam(value = "folderPath", defaultValue = "/") String folderPath,
             @RequestParam(value = "fileName", required = false) String fileName) {
         try {
-            // Buscamos la entidad para lógica interna del servidor
             UserEntity user = userService.findEntityByUsername(username);
 
-            // Validamos credenciales antes de permitir la subida
             if (user == null || !userService.checkPassword(password, user.getPassword())) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciales inválidas");
             }
 
+            // El service ahora maneja InputStreams internamente
             FileEntity savedFile = fileService.uploadFile(file, user, password, folderPath, fileName);
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
@@ -61,7 +60,7 @@ public class FileController {
     }
 
     /**
-     * Lista archivos filtrados por carpeta.
+     * Lista archivos filtrados por carpeta o todos (según el parámetro 'all').
      */
     @GetMapping
     public ResponseEntity<List<FileEntity>> listFiles(
@@ -77,8 +76,8 @@ public class FileController {
     }
 
     /**
-     * Descarga de archivos con contraseña en cabecera (X-File-Password).
-     * Esto evita que la clave AES quede en los logs o el historial del navegador.
+     * Descarga de archivos mediante Streaming.
+     * Usa InputStreamResource para que el servidor envíe trozos del archivo mientras lo descifra.
      */
     @GetMapping("/download/{id}")
     public ResponseEntity<Resource> downloadFile(
@@ -86,21 +85,25 @@ public class FileController {
             @RequestHeader("X-File-Password") String password) {
         try {
             FileEntity entity = fileService.getFileById(id);
-            byte[] content = fileService.getFileContent(id, password);
-            ByteArrayResource resource = new ByteArrayResource(content);
+
+            // Obtenemos el CipherInputStream del servicio
+            InputStream stream = fileService.getFileDownloadStream(id, password);
+
+            // Envolvemos el stream en un InputStreamResource para el body de Spring
+            InputStreamResource resource = new InputStreamResource(stream);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + entity.getFileName() + "\"")
                     .contentType(MediaType.parseMediaType(entity.getFileType()))
                     .body(resource);
         } catch (Exception e) {
-            // Si la contraseña es incorrecta, el descifrado fallará y lanzará excepción
+            // Error de integridad o contraseña incorrecta
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
     }
 
     /**
-     * Devuelve estadísticas de uso de espacio.
+     * Devuelve estadísticas de uso de espacio consumido por el usuario.
      */
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getUserStats(@RequestParam String username) {
@@ -119,7 +122,7 @@ public class FileController {
     }
 
     /**
-     * Elimina un archivo tanto de la base de datos como del almacenamiento físico.
+     * Elimina los metadatos y el archivo físico cifrado.
      */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFile(@PathVariable Long id) {

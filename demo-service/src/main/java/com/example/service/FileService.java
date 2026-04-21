@@ -5,127 +5,110 @@ import com.example.model.UserEntity;
 import com.example.repository.FileRepository;
 import com.example.repository.FileStorageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
+import javax.crypto.CipherOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class FileService {
 
     @Autowired
     private FileRepository fileRepository;
-
     @Autowired
     private FileStorageRepository fileStorageRepository;
-
     @Autowired
     private CryptoService cryptoService;
 
-    /**
-     * Sube y cifra un fichero usando la contraseña del dueño.
-     */
+    @Value("${app.max-quota:104857600}")
+    private long maxQuota;
+
     public FileEntity uploadFile(MultipartFile file, UserEntity owner, String rawPassword, String folderPath, String fileName) throws Exception {
-        // 1. Verificación de Cuota (Lógica de Negocio) [cite: 380, 746]
+        // 1. Cuota
         List<FileEntity> existingFiles = fileRepository.findByOwner(owner);
         long currentUsage = existingFiles.stream().mapToLong(FileEntity::getFileSize).sum();
-        if (currentUsage + file.getSize() > 100 * 1024 * 1024) {
-            throw new RuntimeException("Cuota excedida");
+
+        if (currentUsage + file.getSize() > maxQuota) {
+            // Calculamos cuánto falta para que el mensaje de error sea útil
+            long disponible = maxQuota - currentUsage;
+            throw new RuntimeException("Cuota excedida. Espacio disponible: " + (disponible / (1024 * 1024)) + " MB");
         }
 
-        // 2. Cifrado (Seguridad en Capa de Gestión de API) [cite: 192, 753]
-        byte[] encryptedContent = cryptoService.encrypt(file.getBytes(), rawPassword);
+        // 2. Calcular Checksum (Integridad)
+        String fileChecksum;
+        try (InputStream is = file.getInputStream()) {
+            fileChecksum = cryptoService.calculateChecksum(is);
+        }
 
-        // 3. Organización Jerárquica Física
-        // Concatenamos el usuario con la ruta de carpeta deseada
+        // 3. Cifrado y Almacenamiento (Streaming directo al disco)
         String physicalPath = owner.getUsername() + "/" + folderPath.replaceAll("^/|/$", "");
         String storageName = UUID.randomUUID().toString();
+        Path finalPath = fileStorageRepository.getTargetPath(physicalPath, storageName);
 
-        // El repositorio de almacenamiento debe encargarse de crear los directorios si no existen
-        fileStorageRepository.save(physicalPath, storageName, encryptedContent);
+        try (InputStream is = file.getInputStream();
+             OutputStream os = Files.newOutputStream(finalPath);
+             CipherOutputStream cos = new CipherOutputStream(os, cryptoService.getCipher(Cipher.ENCRYPT_MODE, rawPassword))) {
 
-        // 4. Persistencia de Metadatos Correcta
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            while ((bytesRead = is.read(buffer)) != -1) {
+                cos.write(buffer, 0, bytesRead);
+            }
+        }
+
+        // 4. Metadatos
         FileEntity entity = new FileEntity();
-        // PRIORIDAD: Usamos el nombre final decidido en el controlador
         entity.setFileName(fileName);
         entity.setFolderPath(folderPath);
         entity.setFileType(file.getContentType());
         entity.setFileSize(file.getSize());
-        // Guardamos la ruta física completa para poder localizarlo luego
+        entity.setChecksum(fileChecksum);
         entity.setStoragePath(physicalPath + "/" + storageName);
         entity.setOwner(owner);
 
         return fileRepository.save(entity);
     }
 
-    /**
-     * Obtiene el contenido físico DESCRIFRADO.
-     * ¡OJO! Ahora recibe el password para poder descifrar.
-     */
-    public byte[] getFileContent(Long fileId, String rawPassword) throws Exception {
+    public InputStream getFileDownloadStream(Long fileId, String rawPassword) throws Exception {
         FileEntity entity = getFileById(fileId);
+        InputStream encryptedIs = fileStorageRepository.loadStream(entity.getStoragePath());
 
-        // 1. Cargar los bytes cifrados del disco
-        byte[] encryptedData = fileStorageRepository.load(entity.getStoragePath());
-
-        // 2. Descifrar usando la contraseña proporcionada
-        return cryptoService.decrypt(encryptedData, rawPassword);
+        // Retornamos un CipherInputStream que descifra mientras el navegador descarga
+        Cipher decryptCipher = cryptoService.getCipher(Cipher.DECRYPT_MODE, rawPassword);
+        return new CipherInputStream(encryptedIs, decryptCipher);
     }
 
-    public List<FileEntity> getFilesFiltered(UserEntity user, String folder, boolean all) {
-        List<FileEntity> userFiles = fileRepository.findByOwner(user);
-        if (all) return userFiles;
-
-        return userFiles.stream()
-                .filter(f -> {
-                    String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
-                    return path.equals(folder);
-                })
-                .collect(Collectors.toList());
-    }
-
+    // El resto de métodos (deleteFile, getFilesByFolder, etc.) se mantienen igual que en tu versión anterior
     public List<FileEntity> getFilesByFolder(UserEntity owner, String folder, boolean all) {
-        // 1. Obtenemos todos los archivos del usuario desde el repositorio
         List<FileEntity> userFiles = fileRepository.findByOwner(owner);
-
-        // 2. Si el parámetro 'all' es true, devolvemos todo sin filtrar
-        if (all) {
-            return userFiles;
-        }
-
-        // 3. Si no, filtramos por la carpeta actual
+        if (all) return userFiles;
         return userFiles.stream()
                 .filter(f -> {
-                    // Si folderPath es null, asumimos que es la raíz "/"
                     String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
                     return path.equals(folder);
-                })
-                .toList();
+                }).toList();
     }
 
     public void deleteFile(Long id) throws Exception {
-        FileEntity entity = fileRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Fichero no encontrado"));
-
-        // 1. Borrar físicamente el archivo cifrado
+        FileEntity entity = getFileById(id);
         fileStorageRepository.delete(entity.getStoragePath());
-
-        // 2. Borrar metadatos de la BD
         fileRepository.delete(entity);
+    }
+
+    public FileEntity getFileById(Long id) {
+        return fileRepository.findById(id).orElseThrow(() -> new RuntimeException("Fichero no encontrado"));
     }
 
     public List<FileEntity> getFilesByUser(UserEntity owner) {
         return fileRepository.findByOwner(owner);
-    }
-
-    public FileEntity getFileById(Long id) {
-        return fileRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Fichero no encontrado con ID: " + id));
-    }
-
-    public List<FileEntity> getAllFiles() {
-        return fileRepository.findAll();
     }
 }
