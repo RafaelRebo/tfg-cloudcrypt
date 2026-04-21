@@ -11,26 +11,27 @@ const API = {
         formData.append("password", password);
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
-    async fetchFiles(username) {
-        const url = `/api/files?username=${encodeURIComponent(username)}&_t=${Date.now()}`;
-        const response = await fetch(url);
-        return response.json();
+    async getFiles(username, folder = null, all = false) {
+        const t = Date.now();
+        let url = `/api/files?username=${encodeURIComponent(username)}&t=${t}`;
+        if (all) url += `&all=true`;
+        if (folder) url += `&folder=${encodeURIComponent(folder)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error API getFiles");
+        return res.json();
     },
-    async upload(file, username, password, folderPath) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("username", username);
-        formData.append("password", password);
-        formData.append("folderPath", folderPath || "/"); // Coincide con @RequestParam del Controller
-        formData.append("fileName", file.name);
-        return fetch('/api/files/upload', { method: 'POST', body: formData });
+    async getStats(username) {
+        const res = await fetch(`/api/files/stats?username=${encodeURIComponent(username)}&t=${Date.now()}`);
+        if (!res.ok) throw new Error("Error API getStats");
+        return res.json();
+    },
+    async deleteFile(id) {
+        return fetch(`/api/files/${id}`, { method: 'DELETE' });
     },
     async download(fileId, password) {
         return fetch(`/api/files/download/${fileId}`, {
             method: 'GET',
-            headers: {
-                'X-File-Password': password
-            }
+            headers: { 'X-File-Password': password }
         });
     }
 };
