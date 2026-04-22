@@ -49,15 +49,19 @@ const appInstance = createApp({
         async refreshAppData() {
             if (!this.username) return;
             try {
-                const [folderFiles, allFiles, stats] = await Promise.all([
+                const [folderFilesResponse, allFilesResponse, stats] = await Promise.all([
                     API.getFiles(this.username, this.currentFolder),
                     API.getFiles(this.username, null, true),
                     API.getStats(this.username)
                 ]);
-                this.filesInCurrentFolder = folderFiles;
-                this.allUserFiles = allFiles;
+
+                this.filesInCurrentFolder = folderFilesResponse.content || [];
+                this.allUserFiles = allFilesResponse.content || [];
                 this.stats = stats;
-            } catch (e) { this.status = "Error de sincronización"; }
+            } catch (e) {
+                console.error(e);
+                this.status = "Error de sincronización";
+            }
         },
         async handleLogin() {
             const res = await API.login(this.username, this.password);

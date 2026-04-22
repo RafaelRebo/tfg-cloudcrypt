@@ -42,4 +42,12 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
                 .setParameter("username", username)
                 .getSingleResult();
     }
+
+    @Override
+    public long countFilesByUser(String username) {
+        String query = "SELECT COUNT(f) FROM FileEntity f WHERE f.owner.username = :username";
+        return entityManager.createQuery(query, Long.class)
+                .setParameter("username", username)
+                .getSingleResult();
+    }
 }

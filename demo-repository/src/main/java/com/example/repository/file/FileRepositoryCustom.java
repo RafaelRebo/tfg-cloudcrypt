@@ -7,4 +7,6 @@ public interface FileRepositoryCustom {
                           String checksum, String storagePath, String username);
 
     long getTotalUsageByUser(String username);
+
+    long countFilesByUser(String username);
 }

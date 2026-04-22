@@ -6,6 +6,9 @@ import com.example.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -14,8 +17,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -24,9 +25,6 @@ public class FileController {
 
     @Autowired
     private FileService fileService;
-
-    @Autowired
-    private StorageConfig storageConfig;
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
@@ -44,13 +42,14 @@ public class FileController {
     }
 
     @GetMapping
-    public ResponseEntity<List<FileDto>> listFiles(
+    public ResponseEntity<Page<FileDto>> listFiles(
             @RequestParam String username,
             @RequestParam(defaultValue = "/") String folder,
-            @RequestParam(value = "all", defaultValue = "false") boolean all) {
+            @RequestParam(value = "all", defaultValue = "false") boolean all,
+            @PageableDefault(size = 10, sort = "fileName") Pageable pageable) {
 
-        List<FileDto> filteredFiles = fileService.getFilesByFolder(username, folder, all);
-        return ResponseEntity.ok(filteredFiles);
+        Page<FileDto> page = fileService.getFilesByFolder(username, folder, all, pageable);
+        return ResponseEntity.ok(page);
     }
 
     @GetMapping("/download/{id}")
@@ -74,15 +73,7 @@ public class FileController {
 
     @GetMapping("/stats")
     public ResponseEntity<Map<String, Object>> getUserStats(@RequestParam String username) {
-        List<FileDto> files = fileService.getFilesByUser(username);
-
-        long totalSize = files.stream().mapToLong(FileDto::getFileSize).sum();
-
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalSize", totalSize);
-        stats.put("fileCount", files.size());
-        stats.put("maxQuota", storageConfig.getMaxQuota());
-
+        Map<String, Object> stats = fileService.getUserStats(username);
         return ResponseEntity.ok(stats);
     }
 

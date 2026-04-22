@@ -1,5 +1,6 @@
 package com.example.service;
 
+import com.example.config.StorageConfig;
 import com.example.dto.FileDto;
 import com.example.exceptions.InstanceNotFoundException;
 import com.example.exceptions.InternalStorageException;
@@ -11,14 +12,16 @@ import com.example.util.CryptoUtils;
 import com.example.util.HashUtils;
 import com.example.util.QuotaUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.crypto.Cipher;
 import java.io.InputStream;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class FileService {
@@ -30,6 +33,7 @@ public class FileService {
     @Autowired private QuotaUtils quotaUtils;
     @Autowired private UserService userService;
     @Autowired private FileMapper fileMapper;
+    @Autowired private StorageConfig storageConfig;
 
     public FileDto uploadFile(MultipartFile file, String username, String rawPassword, String folderPath, String fileName) throws Exception {
         userService.authenticate(username, rawPassword);
@@ -61,11 +65,17 @@ public class FileService {
         return fileMapper.toDto(entity);
     }
 
-    public List<FileDto> getFilesByFolder(String username, String folder, boolean all) {
-        return fileRepository.findByOwner_Username(username).stream()
-                .filter(f -> all || (f.getFolderPath() != null ? f.getFolderPath() : "/").equals(folder))
-                .map(fileMapper::toDto)
-                .collect(Collectors.toList());
+    public Page<FileDto> getFilesByFolder(String username, String folder, boolean all, Pageable pageable) {
+        Page<FileEntity> entities;
+
+        if (all) {
+            entities = fileRepository.findByOwner_Username(username, pageable);
+        } else {
+            entities = fileRepository.findByOwner_UsernameAndFolderPath(username, folder, pageable);
+        }
+
+        // Transformamos Page<FileEntity> a Page<FileDto> usando el mapper
+        return entities.map(fileMapper::toDto);
     }
 
     public InputStream getFileDownloadStream(Long fileId, String rawPassword)
@@ -96,9 +106,19 @@ public class FileService {
         fileRepository.delete(entity);
     }
 
-    public List<FileDto> getFilesByUser(String username) {
-        return fileRepository.findByOwner_Username(username).stream()
-                .map(fileMapper::toDto)
-                .collect(Collectors.toList());
+    public Map<String, Object> getUserStats(String username) {
+        long totalSize = fileRepository.getTotalUsageByUser(username);
+        long fileCount = fileRepository.countFilesByUser(username);
+        long maxQuota = storageConfig.getMaxQuota();
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalSize", totalSize);
+        stats.put("fileCount", fileCount);
+        stats.put("maxQuota", maxQuota);
+
+        double usagePercentage = maxQuota > 0 ? (double) totalSize / maxQuota * 100 : 0;
+        stats.put("usagePercentage", Math.round(usagePercentage * 100.0) / 100.0);
+
+        return stats;
     }
 }

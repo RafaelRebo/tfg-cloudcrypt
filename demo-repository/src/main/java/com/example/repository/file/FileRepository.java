@@ -1,11 +1,13 @@
 package com.example.repository.file;
 
 import com.example.model.FileEntity;
-import com.example.model.UserEntity;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
-import java.util.List;
 
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
-    List<FileEntity> findByOwner_Username(String username);
+    Page<FileEntity> findByOwner_Username(String username, Pageable pageable);
+    Page<FileEntity> findByOwner_UsernameAndFolderPath(String username, String folderPath, Pageable pageable);
 }
