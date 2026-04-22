@@ -1,114 +1,103 @@
 package com.example.service;
 
+import com.example.dto.FileDto;
+import com.example.mapper.FileMapper;
 import com.example.model.FileEntity;
-import com.example.model.UserEntity;
-import com.example.repository.FileRepository;
-import com.example.repository.FileStorageRepository;
+import com.example.repository.file.FileRepository;
+import com.example.repository.file.FileStorageRepository;
+import com.example.util.CryptoUtils;
+import com.example.util.HashUtils;
+import com.example.util.QuotaUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
-import javax.crypto.CipherOutputStream;
 import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class FileService {
 
-    @Autowired
-    private FileRepository fileRepository;
-    @Autowired
-    private FileStorageRepository fileStorageRepository;
-    @Autowired
-    private CryptoService cryptoService;
+    @Autowired private FileRepository fileRepository;
+    @Autowired private FileStorageRepository fileStorageRepository;
+    @Autowired private CryptoUtils cryptoUtils;
+    @Autowired private HashUtils hashUtils;
+    @Autowired private QuotaUtils quotaUtils;
+    @Autowired private UserService userService;
+    @Autowired private FileMapper fileMapper;
 
-    @Value("${app.max-quota:104857600}")
-    private long maxQuota;
-
-    public FileEntity uploadFile(MultipartFile file, UserEntity owner, String rawPassword, String folderPath, String fileName) throws Exception {
-        // 1. Cuota
-        List<FileEntity> existingFiles = fileRepository.findByOwner(owner);
-        long currentUsage = existingFiles.stream().mapToLong(FileEntity::getFileSize).sum();
-
-        if (currentUsage + file.getSize() > maxQuota) {
-            // Calculamos cuánto falta para que el mensaje de error sea útil
-            long disponible = maxQuota - currentUsage;
-            throw new RuntimeException("Cuota excedida. Espacio disponible: " + (disponible / (1024 * 1024)) + " MB");
+    public FileDto uploadFile(MultipartFile file, String username, String rawPassword, String folderPath, String fileName) throws Exception {
+        if (userService.authenticate(username, rawPassword) == null) {
+            throw new RuntimeException("Credenciales inválidas para la operación de archivos");
         }
 
-        // 2. Calcular Checksum (Integridad)
-        String fileChecksum;
-        try (InputStream is = file.getInputStream()) {
-            fileChecksum = cryptoService.calculateChecksum(is);
-        }
+        quotaUtils.checkQuota(username, file.getSize());
 
-        // 3. Cifrado y Almacenamiento (Streaming directo al disco)
-        String physicalPath = owner.getUsername() + "/" + folderPath.replaceAll("^/|/$", "");
+        String fileChecksum = hashUtils.calculateChecksum(file.getInputStream());
+
+        String physicalFolder = username + "/" + folderPath.replaceAll("^/|/$", "");
         String storageName = UUID.randomUUID().toString();
-        Path finalPath = fileStorageRepository.getTargetPath(physicalPath, storageName);
+        String finalStoragePath = physicalFolder + "/" + storageName;
 
-        try (InputStream is = file.getInputStream();
-             OutputStream os = Files.newOutputStream(finalPath);
-             CipherOutputStream cos = new CipherOutputStream(os, cryptoService.getCipher(Cipher.ENCRYPT_MODE, rawPassword))) {
+        // 5. Almacenamiento Físico (Delegado al StorageRepository)
+        fileStorageRepository.save(
+                file.getInputStream(),
+                physicalFolder,
+                storageName,
+                cryptoUtils.getCipher(Cipher.ENCRYPT_MODE, rawPassword)
+        );
 
-            byte[] buffer = new byte[8192];
-            int bytesRead;
-            while ((bytesRead = is.read(buffer)) != -1) {
-                cos.write(buffer, 0, bytesRead);
-            }
-        }
+        // 6. Persistencia de metadatos (Delegada al Repository)
+        FileEntity entity = fileRepository.createFile(
+                fileName,
+                folderPath,
+                file.getContentType(),
+                file.getSize(),
+                fileChecksum,
+                finalStoragePath,
+                username
+        );
 
-        // 4. Metadatos
-        FileEntity entity = new FileEntity();
-        entity.setFileName(fileName);
-        entity.setFolderPath(folderPath);
-        entity.setFileType(file.getContentType());
-        entity.setFileSize(file.getSize());
-        entity.setChecksum(fileChecksum);
-        entity.setStoragePath(physicalPath + "/" + storageName);
-        entity.setOwner(owner);
+        return fileMapper.toDto(entity);
+    }
 
-        return fileRepository.save(entity);
+    public List<FileDto> getFilesByFolder(String username, String folder, boolean all) {
+        return fileRepository.findByOwner_Username(username).stream()
+                .filter(f -> all || (f.getFolderPath() != null ? f.getFolderPath() : "/").equals(folder))
+                .map(fileMapper::toDto)
+                .collect(Collectors.toList());
     }
 
     public InputStream getFileDownloadStream(Long fileId, String rawPassword) throws Exception {
-        FileEntity entity = getFileById(fileId);
-        InputStream encryptedIs = fileStorageRepository.loadStream(entity.getStoragePath());
+        FileEntity entity = fileRepository.findById(fileId)
+                .orElseThrow(() -> new RuntimeException("Fichero no encontrado"));
 
-        // Retornamos un CipherInputStream que descifra mientras el navegador descarga
-        Cipher decryptCipher = cryptoService.getCipher(Cipher.DECRYPT_MODE, rawPassword);
+        InputStream encryptedIs = fileStorageRepository.loadStream(entity.getStoragePath());
+        Cipher decryptCipher = cryptoUtils.getCipher(Cipher.DECRYPT_MODE, rawPassword);
         return new CipherInputStream(encryptedIs, decryptCipher);
     }
 
-    // El resto de métodos (deleteFile, getFilesByFolder, etc.) se mantienen igual que en tu versión anterior
-    public List<FileEntity> getFilesByFolder(UserEntity owner, String folder, boolean all) {
-        List<FileEntity> userFiles = fileRepository.findByOwner(owner);
-        if (all) return userFiles;
-        return userFiles.stream()
-                .filter(f -> {
-                    String path = f.getFolderPath() != null ? f.getFolderPath() : "/";
-                    return path.equals(folder);
-                }).toList();
+    public FileDto getFileById(Long id) {
+        return fileRepository.findById(id)
+                .map(fileMapper::toDto)
+                .orElseThrow(() -> new RuntimeException("Archivo no encontrado con ID: " + id));
     }
 
     public void deleteFile(Long id) throws Exception {
-        FileEntity entity = getFileById(id);
+        FileEntity entity = fileRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Fichero no encontrado"));
+
         fileStorageRepository.delete(entity.getStoragePath());
         fileRepository.delete(entity);
     }
 
-    public FileEntity getFileById(Long id) {
-        return fileRepository.findById(id).orElseThrow(() -> new RuntimeException("Fichero no encontrado"));
-    }
-
-    public List<FileEntity> getFilesByUser(UserEntity owner) {
-        return fileRepository.findByOwner(owner);
+    public List<FileDto> getFilesByUser(String username) {
+        return fileRepository.findByOwner_Username(username).stream()
+                .map(fileMapper::toDto)
+                .collect(Collectors.toList());
     }
 }

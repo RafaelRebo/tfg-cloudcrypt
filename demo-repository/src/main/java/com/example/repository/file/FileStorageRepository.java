@@ -1,9 +1,12 @@
-package com.example.repository;
+package com.example.repository.file;
 
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
+
+import javax.crypto.CipherOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.*;
 
 @Component
@@ -25,6 +28,20 @@ public class FileStorageRepository {
             Files.createDirectories(targetPath);
         }
         return targetPath.resolve(filename);
+    }
+
+    public void save(InputStream input, String folder, String filename, javax.crypto.Cipher cipher) throws IOException {
+        Path targetFolder = this.root.resolve(folder);
+        if (!Files.exists(targetFolder)) {
+            Files.createDirectories(targetFolder);
+        }
+
+        Path targetFile = targetFolder.resolve(filename);
+
+        try (OutputStream os = Files.newOutputStream(targetFile);
+             CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
+            input.transferTo(cos);
+        }
     }
 
     public InputStream loadStream(String relativePath) throws IOException {

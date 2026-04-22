@@ -23,7 +23,8 @@
 		<module>demo-repository</module>
 		<module>demo-service</module>
 		<module>demo-controller</module>
-    </modules>
+		<module>demo-config</module>
+	</modules>
 
 	<dependencies>
 		<dependency>
