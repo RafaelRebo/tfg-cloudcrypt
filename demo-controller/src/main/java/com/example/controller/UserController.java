@@ -1,6 +1,7 @@
 package com.example.controller;
 
 import com.example.dto.UserDto;
+import com.example.exceptions.InvalidCredentialsException;
 import com.example.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -29,7 +30,7 @@ public class UserController {
     @PostMapping("/login")
     public ResponseEntity<UserDto> login(
             @RequestParam String username,
-            @RequestParam String password) {
+            @RequestParam String password) throws InvalidCredentialsException {
 
         UserDto user = userService.authenticate(username, password);
 

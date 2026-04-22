@@ -3,6 +3,8 @@ package com.example.repository.file;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
+import javax.crypto.Cipher;
+import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -22,14 +24,6 @@ public class FileStorageRepository {
         }
     }
 
-    public Path getTargetPath(String physicalFolder, String filename) throws IOException {
-        Path targetPath = this.root.resolve(physicalFolder);
-        if (!Files.exists(targetPath)) {
-            Files.createDirectories(targetPath);
-        }
-        return targetPath.resolve(filename);
-    }
-
     public void save(InputStream input, String folder, String filename, javax.crypto.Cipher cipher) throws IOException {
         Path targetFolder = this.root.resolve(folder);
         if (!Files.exists(targetFolder)) {
@@ -44,8 +38,9 @@ public class FileStorageRepository {
         }
     }
 
-    public InputStream loadStream(String relativePath) throws IOException {
-        return Files.newInputStream(this.root.resolve(relativePath));
+    public InputStream loadDecryptedStream(String relativePath, Cipher cipher) throws IOException {
+        InputStream is = Files.newInputStream(this.root.resolve(relativePath));
+        return new CipherInputStream(is, cipher);
     }
 
     public void delete(String storagePath) throws IOException {
