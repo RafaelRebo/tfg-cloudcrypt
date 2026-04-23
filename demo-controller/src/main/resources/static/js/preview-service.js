@@ -1,16 +1,19 @@
 const PreviewService = {
     async getPreviewData(file, password) {
-        // Reutilizamos la lógica de descarga de la API
         const res = await API.download(file.id, password);
         if (!res.ok) throw new Error("No se pudo obtener el archivo para previsualizar");
 
         const blob = await res.blob();
         const mime = file.fileType;
 
-        // Caso 1: Imágenes, Vídeos y PDFs (usamos ObjectURL)
-        if (mime.startsWith('image/') || mime.startsWith('video/') || mime === 'application/pdf') {
+        // Caso 1: Multimedia y PDFs (usamos ObjectURL)
+        // Añadimos mime.startsWith('audio/')
+        if (mime.startsWith('image/') || mime.startsWith('video/') ||
+            mime.startsWith('audio/') || mime === 'application/pdf') {
+
             let type = 'image';
             if (mime.startsWith('video/')) type = 'video';
+            if (mime.startsWith('audio/')) type = 'audio'; // Identificador para el frontend
             if (mime === 'application/pdf') type = 'pdf';
 
             return {

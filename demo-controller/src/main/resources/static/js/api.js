@@ -11,11 +11,11 @@ const API = {
         formData.append("password", password);
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
-    async getFiles(username, folder = null, all = false) {
-        const t = Date.now();
-        let url = `/api/files?username=${encodeURIComponent(username)}&t=${t}`;
+    async getFiles(username, folder = null, all = false, page = 0, size = 20) {
+        let url = `/api/files?username=${encodeURIComponent(username)}&page=${page}&size=${size}`;
         if (all) url += `&all=true`;
         if (folder) url += `&folder=${encodeURIComponent(folder)}`;
+
         const res = await fetch(url);
         if (!res.ok) throw new Error("Error API getFiles");
         return res.json();

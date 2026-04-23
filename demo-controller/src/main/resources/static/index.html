@@ -38,7 +38,7 @@
             <div style="display: flex; flex-direction: column; gap: 15px;">
                 <div>
                     <strong>Subir archivo suelto:</strong>
-                    <input type="file" ref="fileInput" style="margin-top: 5px;">
+                    <input type="file" ref="fileInput" style="margin-top: 5px;" @change="onUpload" multiple>
                     <button @click="onUpload" class="btn-primary">Subir a Carpeta Actual</button>
                 </div>
                 <hr>
@@ -118,6 +118,12 @@
             </div>
             <div class="preview-body">
                 <img v-if="preview.type === 'image'" :src="preview.url" alt="Preview">
+
+                <div v-if="preview.type === 'audio'">
+                    <audio controls autoplay :src="preview.url" class="w-full">
+                        Tu navegador no soporta la reproducción de audio.
+                    </audio>
+                </div>
 
                 <video v-if="preview.type === 'video'" :src="preview.url" controls autoplay></video>
 

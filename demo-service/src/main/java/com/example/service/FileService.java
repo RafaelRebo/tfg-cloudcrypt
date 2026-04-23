@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import javax.crypto.Cipher;
@@ -35,6 +36,7 @@ public class FileService {
     @Autowired private FileMapper fileMapper;
     @Autowired private StorageConfig storageConfig;
 
+    @Transactional
     public FileDto uploadFile(MultipartFile file, String username, String rawPassword, String folderPath, String fileName) throws Exception {
         userService.authenticate(username, rawPassword);
         quotaUtils.checkQuota(username, file.getSize());

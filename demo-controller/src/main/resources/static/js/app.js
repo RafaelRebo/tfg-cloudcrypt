@@ -9,7 +9,10 @@ const appInstance = createApp({
             allUserFiles: [], filesInCurrentFolder: [],
             status: '', uploadProgress: 0,
             stats: { totalSize: 0, fileCount: 0, maxQuota: 104857600 },
-            preview: { active: false, url: null, name: '', type: '', content: '' }
+            preview: { active: false, url: null, name: '', type: '', content: '' },
+            currentPage: 0,
+            isLoadingMore: false,
+            hasMore: true
         }
     },
     mounted() {
@@ -21,6 +24,12 @@ const appInstance = createApp({
             this.isLoggedIn = true;
             this.refreshAppData();
         }
+
+        window.addEventListener('scroll', () => {
+                if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+                    this.loadNextPage();
+                }
+        });
     },
     computed: {
         quotaPercentage() { return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100); },
@@ -47,20 +56,40 @@ const appInstance = createApp({
     },
     methods: {
         async refreshAppData() {
-            if (!this.username) return;
+            this.currentPage = 0;
+            this.hasMore = true;
             try {
-                const [folderFilesResponse, allFilesResponse, stats] = await Promise.all([
-                    API.getFiles(this.username, this.currentFolder),
-                    API.getFiles(this.username, null, true),
+                const [folderRes, allRes, stats] = await Promise.all([
+                    API.getFiles(this.username, this.currentFolder, false, 0),
+                    API.getFiles(this.username, null, true, 0, 1000), // Todos para el árbol lateral
                     API.getStats(this.username)
                 ]);
 
-                this.filesInCurrentFolder = folderFilesResponse.content || [];
-                this.allUserFiles = allFilesResponse.content || [];
+                this.filesInCurrentFolder = folderRes.content;
+                this.allUserFiles = allRes.content;
                 this.stats = stats;
+
+                // Si el total de páginas es 1 o menos, ya no hay más que cargar
+                if (folderRes.last) this.hasMore = false;
+            } catch (e) { console.error(e); }
+        },
+        async loadNextPage() {
+            if (this.isLoadingMore || !this.hasMore) return;
+
+            this.isLoadingMore = true;
+            this.currentPage++;
+
+            try {
+                const res = await API.getFiles(this.username, this.currentFolder, false, this.currentPage);
+
+                // AÑADIMOS los nuevos archivos a los que ya teníamos
+                this.filesInCurrentFolder.push(...res.content);
+
+                if (res.last) this.hasMore = false;
             } catch (e) {
-                console.error(e);
-                this.status = "Error de sincronización";
+                console.error("Error cargando más archivos", e);
+            } finally {
+                this.isLoadingMore = false;
             }
         },
         async handleLogin() {
@@ -75,31 +104,42 @@ const appInstance = createApp({
             if ((await API.register(this.username, this.password)).ok) alert("Registrado");
         },
         async onUpload() {
-            const file = this.$refs.fileInput.files[0];
-            if (!file) return;
+            const files = Array.from(this.$refs.fileInput.files);
+            if (files.length === 0) return;
+
             try {
-                await UploadService.uploadSingle(file, this.currentFolder, 0, file.size, this);
-                this.status = "¡Subida con éxito!";
+                const success = await UploadService.processUpload(files, this, false);
+                if (success) {
+                    this.status = "¡Archivos subidos con éxito!";
+                    this.$refs.fileInput.value = '';
+                }
+            } catch (e) {
+                this.status = "Error en la subida: " + e.message;
+                this.uploadProgress = 0;
+                alert(`Se ha detenido la subida por un error en: ${e.fileName}\n${e.message}`);
+            } finally {
                 await this.refreshAppData();
-            } catch (e) { this.status = "Error: " + e; this.uploadProgress = 0; }
-            setTimeout(() => this.uploadProgress = 0, 2000);
+                setTimeout(() => this.uploadProgress = 0, 2000);
+            }
         },
         async uploadFolder() {
-            const files = this.$refs.folderInput.files;
+            const files = Array.from(this.$refs.folderInput.files);
             if (files.length === 0) return;
-            let total = Array.from(files).reduce((a, f) => a + f.size, 0), current = 0;
-            let base = this.currentFolder === '/' ? '' : this.currentFolder;
-            for (let f of files) {
-                const rel = f.webkitRelativePath.substring(0, f.webkitRelativePath.lastIndexOf('/'));
-                const target = (base + '/' + rel).replace(/\/+/g, '/');
-                try {
-                    await UploadService.uploadSingle(f, target, current, total, this);
-                    current += f.size;
-                } catch (e) { current += f.size; }
+
+            try {
+                const success = await UploadService.processUpload(files, this, true);
+                if (success) {
+                    this.status = "Carpeta subida con éxito.";
+                    this.$refs.folderInput.value = '';
+                }
+            } catch (e) {
+                this.status = "SUBIDA ABORTADA: " + e.message;
+                this.uploadProgress = 0;
+                alert(`Error crítico: ${e.message}. Se ha detenido la operación para evitar una subida incompleta.`);
+            } finally {
+                await this.refreshAppData();
+                setTimeout(() => this.uploadProgress = 0, 2000);
             }
-            this.status = "Carpeta subida.";
-            await this.refreshAppData();
-            setTimeout(() => this.uploadProgress = 0, 2000);
         },
         async handlePreview(file) {
             this.status = "Descifrando para vista previa...";
