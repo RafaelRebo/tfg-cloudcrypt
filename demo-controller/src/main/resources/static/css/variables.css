@@ -1,0 +1,19 @@
+:root {
+    --bg-dark: #0f172a;
+    --sidebar-bg: #1e293b;
+    --text-main: #f1f5f9;
+    --text-muted: #94a3b8;
+    --accent-blue: #3b82f6;
+    --accent-hover: #2563eb;
+    --danger: #ef4444;
+    --row-hover: #334155;
+    --border-color: #334155;
+    --toast-bg: #ef4444;
+}
+body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background-color: var(--bg-dark);
+    color: var(--text-main);
+    margin: 0;
+    overflow: hidden;
+}

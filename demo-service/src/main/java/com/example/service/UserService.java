@@ -32,6 +32,6 @@ public class UserService {
         if (user != null && passwordEncoder.matches(rawPassword, user.getPassword())) {
             return userMapper.toDto(user);
         }
-        else throw new InvalidCredentialsException("Las credenciales introducidas son incorrectas");
+        else throw new InvalidCredentialsException("Las credenciales son incorrectas o el usuario no existe");
     }
 }

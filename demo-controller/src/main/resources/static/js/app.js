@@ -12,7 +12,9 @@ const appInstance = createApp({
             preview: { active: false, url: null, name: '', type: '', content: '' },
             currentPage: 0,
             isLoadingMore: false,
-            hasMore: true
+            hasMore: true,
+            notifications: [],
+            loginError: false
         }
     },
     mounted() {
@@ -32,7 +34,7 @@ const appInstance = createApp({
         });
     },
     computed: {
-        quotaPercentage() { return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100); },
+        quotaPercentage() { return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100).toFixed(1); },
         subFolders() {
             const folders = new Set();
             const current = this.currentFolder.endsWith('/') ? this.currentFolder : this.currentFolder + '/';
@@ -93,12 +95,24 @@ const appInstance = createApp({
             }
         },
         async handleLogin() {
-            const res = await API.login(this.username, this.password);
-            if (res.ok) {
-                this.isLoggedIn = true;
-                localStorage.setItem('userSession', JSON.stringify({username: this.username, password: this.password}));
-                this.refreshAppData();
-            } else alert("Acceso denegado");
+            try {
+                const res = await API.login(this.username, this.password);
+
+                if (res.ok) {
+                    this.loginError = false;
+                    this.isLoggedIn = true;
+                    localStorage.setItem('userSession', JSON.stringify({
+                        username: this.username,
+                        password: this.password
+                    }));
+                    this.refreshAppData();
+                } else {
+                this.loginError = true;
+                    this.showError("Usuario o contraseña incorrectos");
+                }
+            } catch (e) {
+                this.showError("Error de autenticación en el servidor");
+            }
         },
         async handleRegister() {
             if ((await API.register(this.username, this.password)).ok) alert("Registrado");
@@ -162,13 +176,58 @@ const appInstance = createApp({
             this.preview.url = null;
             this.preview.content = '';
         },
+        showError(msg) {
+            const id = Date.now();
+            if (this.notifications.length >= 2) {
+                // Obtenemos el ID de la primera que no esté ya saliendo
+                const oldest = this.notifications.find(n => !n.leaving);
+                if (oldest) {
+                    this.animateOut(oldest.id);
+                }
+            }
+            // Añadimos 'leaving: false' al objeto
+            this.notifications.push({ id: id, message: msg, type: 'error', leaving: false });
+
+            // A los 4.5 segundos activamos la animación de salida
+            setTimeout(() => {
+                this.animateOut(id);
+            }, 4500);
+        },
+        animateOut(id) {
+            const toast = this.notifications.find(n => n.id === id);
+            if (toast) {
+                toast.leaving = true; // Esto dispara el CSS hacia la derecha
+                // Esperamos a que termine la animación (0.5s) para quitarlo del array
+                setTimeout(() => {
+                    this.removeNotification(id);
+                }, 500);
+            }
+        },
+        removeNotification(id) {
+            // Si el usuario cierra manualmente, también queremos animación (opcional)
+            const toast = this.notifications.find(n => n.id === id);
+            if (toast && !toast.leaving) {
+                this.animateOut(id);
+            } else {
+                this.notifications = this.notifications.filter(n => n.id !== id);
+            }
+        },
+        getFileIcon(mime) {
+              if (!mime) return '📄';
+              if (mime.startsWith('image/')) return '🖼️';
+              if (mime.startsWith('video/')) return '🎬';
+              if (mime.startsWith('audio/')) return '🎵';
+              if (mime === 'application/pdf') return '📕';
+              if (mime.includes('text') || mime.includes('json')) return '📝';
+              return '📄';
+        },
         async handleDownload(id, name) { await FileService.downloadFile(id, name, this.password, this); },
         async handleDelete(id) { await FileService.deleteFile(id, this); },
         enterFolder(n) { this.currentFolder = (this.currentFolder==='/'?'':this.currentFolder)+'/'+n; this.refreshAppData(); },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
         goToFolder(p) { this.currentFolder = p; this.refreshAppData(); },
         logout() { this.isLoggedIn = false; localStorage.removeItem('userSession'); Object.assign(this.$data, this.$options.data()); },
-        formatSize(b) { return (b / (1024 * 1024)).toFixed(2) + ' MB'; }
+        formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; }
     }
 }).mount('#app');
 

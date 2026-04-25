@@ -28,15 +28,14 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<UserDto> login(
+    public ResponseEntity<?> login(
             @RequestParam String username,
-            @RequestParam String password) throws InvalidCredentialsException {
-
-        UserDto user = userService.authenticate(username, password);
-
-        if (user != null) {
+            @RequestParam String password) {
+        try {
+            UserDto user = userService.authenticate(username, password);
             return ResponseEntity.ok(user);
+        } catch (InvalidCredentialsException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 }

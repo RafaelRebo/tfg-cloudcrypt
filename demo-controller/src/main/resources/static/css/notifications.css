@@ -1,0 +1,78 @@
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.toast {
+    background: var(--danger);
+    color: white;
+    padding: 16px;
+    border-radius: 12px;
+    min-width: 320px;
+    max-width: 450px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+    animation: slideIn 0.3s ease-out forwards;
+    pointer-events: auto;
+}
+
+.toast.leaving {
+    animation: slideOut 0.5s ease-in-out forwards !important;
+}
+
+@keyframes slideIn {
+    from { transform: translateX(120%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes slideOut {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+    to {
+        transform: translateX(150%);
+        opacity: 0;
+    }
+}
+
+.toast-icon {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    filter: brightness(0) invert(1);
+}
+
+.toast-content {
+    flex: 1;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.toast-close {
+    background: transparent;
+    border: none;
+    color: white;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+    margin-left: 10px;
+}
+
+.toast-close:hover {
+    opacity: 1;
+}

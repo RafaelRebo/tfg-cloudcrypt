@@ -18,7 +18,12 @@ public class FileStorageRepository {
     @PostConstruct
     public void init() {
         try {
-            if (!Files.exists(root)) Files.createDirectories(root);
+            if (!Files.exists(root)) {
+                Files.createDirectories(root);
+            }
+            root.toFile().setReadable(true, true);
+            root.toFile().setWritable(true, true);
+            root.toFile().setExecutable(true, true);
         } catch (IOException e) {
             throw new RuntimeException("Error inicializando almacenamiento");
         }
@@ -26,6 +31,9 @@ public class FileStorageRepository {
 
     public void save(InputStream input, String folder, String filename, javax.crypto.Cipher cipher) throws IOException {
         Path targetFolder = this.root.resolve(folder);
+
+        targetFolder.toFile().setWritable(true, true);
+
         if (!Files.exists(targetFolder)) {
             Files.createDirectories(targetFolder);
         }
@@ -36,6 +44,24 @@ public class FileStorageRepository {
              CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
             input.transferTo(cos);
         }
+
+
+        targetFile.toFile().setWritable(false, false);
+        targetFolder.toFile().setWritable(false, false);
+    }
+
+    public void delete(String storagePath) throws IOException {
+        Path path = this.root.resolve(storagePath);
+        Path parentFolder = path.getParent();
+
+        if (Files.exists(path)) {
+            parentFolder.toFile().setWritable(true, true);
+            path.toFile().setWritable(true, true);
+
+            Files.delete(path);
+
+            parentFolder.toFile().setWritable(false, false);
+        }
     }
 
     public InputStream loadDecryptedStream(String relativePath, Cipher cipher) throws IOException {
@@ -43,8 +69,7 @@ public class FileStorageRepository {
         return new CipherInputStream(is, cipher);
     }
 
-    public void delete(String storagePath) throws IOException {
-        Path path = this.root.resolve(storagePath);
-        Files.deleteIfExists(path);
+    public boolean exists(String storagePath) {
+        return Files.exists(this.root.resolve(storagePath));
     }
 }

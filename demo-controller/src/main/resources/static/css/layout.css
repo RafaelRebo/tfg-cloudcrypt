@@ -1,0 +1,59 @@
+.main-layout {
+    display: grid;
+    grid-template-columns: 260px 1fr;
+    height: 100vh;
+}
+
+.sidebar {
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    padding: 1.5rem;
+    height: 100vh;
+    box-sizing: border-box; /* Crucial para que el padding no sume al alto */
+    overflow-y: auto; /* Por si acaso hay muchos ítems, que salga scroll interno */
+}
+
+.brand {
+    font-size: 1.5rem;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    /* No tocamos el margen del logo para que se quede arriba */
+}
+
+.upload-zone {
+    margin-top: 2rem;
+    margin-bottom: 1.5rem;
+}
+
+.side-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem; /* Un pelín más compacto para dejar sitio abajo */
+}
+
+.side-nav a {
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.7rem 1rem;
+    border-radius: 0.5rem;
+    transition: 0.2s;
+}
+
+.side-nav a.active {
+    background: var(--row-hover);
+    color: white;
+}
+
+.top-header {
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 2rem;
+    border-bottom: 1px solid var(--border-color);
+    background: #0b0f1a;
+}

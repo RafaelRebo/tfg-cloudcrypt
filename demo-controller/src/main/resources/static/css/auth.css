@@ -1,0 +1,86 @@
+.auth-wrapper {
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+}
+
+.auth-card {
+    background: rgba(30, 41, 59, 0.7);
+    backdrop-filter: blur(10px);
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.auth-card h1 {
+    margin-bottom: 0.5rem;
+    font-size: 2rem;
+}
+
+.auth-card p {
+    color: var(--text-muted);
+    margin-bottom: 1.5rem;
+    font-size: 0.9rem;
+}
+
+.auth-card input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    color: white;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.auth-card input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+.input-error {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2) !important;
+}
+
+.auth-footer {
+    margin: 1.5rem 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+.link-action {
+    color: var(--accent-blue);
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.link-action:hover { text-decoration: underline; }
+
+/* REPARACIÓN DEL BOTÓN */
+.btn-primary.full-width {
+    width: 100%;
+    padding: 0.8rem;
+    background-color: var(--accent-blue);
+    color: white;
+    border: none;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    font-size: 1rem;
+}
+
+.btn-primary.full-width:hover {
+    background-color: var(--accent-hover);
+}

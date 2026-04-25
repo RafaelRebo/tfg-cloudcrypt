@@ -84,13 +84,19 @@ public class FileService {
             throws InstanceNotFoundException, InternalStorageException {
 
         FileEntity entity = fileRepository.findById(fileId)
-                .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
+                .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado en la base de datos"));
+
+        // Verificación de integridad física
+        if (!fileStorageRepository.exists(entity.getStoragePath())) {
+            // fileRepository.delete(entity);
+            throw new InternalStorageException("El archivo físico ha sido eliminado o movido del repositorio.");
+        }
 
         try {
             Cipher decryptCipher = cryptoUtils.getCipher(Cipher.DECRYPT_MODE, rawPassword);
             return fileStorageRepository.loadDecryptedStream(entity.getStoragePath(), decryptCipher);
         } catch (Exception e) {
-            throw new InternalStorageException("Error al procesar el archivo");
+            throw new InternalStorageException("Error al descifrar el archivo");
         }
     }
 
