@@ -1,7 +1,15 @@
 .main-layout {
     display: grid;
     grid-template-columns: 260px 1fr;
-    height: 100vh;
+    height: 100vh; /* Altura de la ventana */
+    overflow: hidden; /* Evita que la estructura entera se mueva */
+}
+
+.content {
+    display: flex;
+    flex-direction: column;
+    height: 100vh; /* Obliga al contenido a no estirarse más que la pantalla */
+    overflow: hidden;
 }
 
 .sidebar {
@@ -56,4 +64,52 @@
     padding: 0 2rem;
     border-bottom: 1px solid var(--border-color);
     background: #0b0f1a;
+}
+
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    font-size: 1.1rem;
+    color: var(--text-main);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 8px 16px;
+    border-radius: 8px;
+}
+
+.crumb-wrapper {
+    display: flex;
+    align-items: center;
+}
+
+.crumb-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+}
+
+.crumb-item:hover {
+    background: var(--row-hover);
+    color: var(--accent-blue);
+}
+
+.crumb-text {
+    font-weight: 500;
+}
+
+.crumb-icon {
+    font-size: 1rem;
+    opacity: 0.8;
+}
+
+.crumb-separator {
+    margin: 0 4px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    opacity: 0.5;
 }

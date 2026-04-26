@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="css/auth.css">
     <link rel="stylesheet" href="css/file-manager.css">
     <link rel="stylesheet" href="css/notifications.css">
+    <link rel="stylesheet" href="css/preview.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
 </head>
 <body>
@@ -57,11 +58,11 @@
             </div>
 
             <nav class="side-nav">
-                <a href="#" @click.prevent="goToFolder('/')" :class="{active: currentFolder === '/'}">🏠 Mis Archivos</a>
-                <a href="#">🖼️ Fotos</a>
-                <a href="#">🎵 Música</a>
-                <a href="#">🎬 Vídeos</a>
-                <a href="#">📄 Documentos</a>
+                <a href="#" @click.prevent="setCategory('all')" :class="{active: currentCategory === 'all'}">🏠 Mis Archivos</a>
+                <a href="#" @click.prevent="setCategory('image')" :class="{active: currentCategory === 'image'}">🖼️ Fotos</a>
+                <a href="#" @click.prevent="setCategory('audio')" :class="{active: currentCategory === 'audio'}">🎵 Música</a>
+                <a href="#" @click.prevent="setCategory('video')" :class="{active: currentCategory === 'video'}">🎬 Vídeos</a>
+                <a href="#" @click.prevent="setCategory('document')" :class="{active: currentCategory === 'document'}">📄 Documentos</a>
                 <a href="#" class="text-danger">🗑️ Papelera</a>
             </nav>
 
@@ -80,11 +81,22 @@
         <main class="content">
             <header class="top-header">
                 <div class="breadcrumbs">
-                    <span @click="goToFolder('/')" class="crumb">Raíz</span>
-                    <span v-for="seg in pathSegments" :key="seg.path">
-                        <span class="separator">/</span>
-                        <span @click="goToFolder(seg.path)" class="crumb">{{ seg.name }}</span>
-                    </span>
+                    <div class="crumb-item" @click="goToFolder('/')">
+                        <span class="crumb-icon">🏠</span>
+                        <span class="crumb-text">
+                            {{ currentCategory === 'all' ? 'Mis archivos' : 'Explorar ' + currentCategory }}
+                        </span>
+                    </div>
+                    <template v-if="currentCategory === 'all'">
+                        <div v-for="(seg, index) in pathSegments" :key="seg.path" class="crumb-wrapper">
+                            <span class="crumb-separator">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                            </span>
+                            <div class="crumb-item" @click="goToFolder(seg.path)">
+                                <span class="crumb-text">{{ seg.name }}</span>
+                            </div>
+                        </div>
+                    </template>
                 </div>
 
                 <div class="user-profile-zone">
@@ -119,28 +131,23 @@
                 </div>
 
                 <div class="file-list-body">
-                    <div v-if="currentFolder !== '/'" class="file-row clickable" @click="goBack">
-                        <div class="col-name">🔙 .. (Atrás)</div>
-                        <div class="col-size">--</div>
-                        <div class="col-actions"></div>
-                    </div>
-
-                    <div v-for="folder in subFolders" :key="folder" class="file-row clickable" @click="enterFolder(folder)">
-                        <div class="col-name">
+                    <template v-if="currentCategory === 'all'">
+                        <div v-for="folder in subFolders" :key="folder" class="file-row" @click="enterFolder(folder)"> <div class="col-name">
                             <span class="icon folder">📁</span>
                             {{ folder }}
                         </div>
-                        <div class="col-size">--</div>
-                        <div class="col-actions"></div>
-                    </div>
+                            <div class="col-size">--</div>
+                            <div class="col-actions" @click.stop></div>
+                        </div>
+                    </template>
 
-                    <div v-for="f in filesInCurrentFolder" :key="f.id" class="file-row">
-                        <div class="col-name" @click="handlePreview(f)">
+                    <div v-for="f in displayFiles" :key="f.id" class="file-row" @click="handlePreview(f)">
+                        <div class="col-name">
                             <span class="icon">{{ getFileIcon(f.fileType) }}</span>
                             {{ f.fileName }}
                         </div>
                         <div class="col-size">{{ (f.fileSize / 1024).toFixed(1) }} KB</div>
-                        <div class="col-actions">
+                        <div class="col-actions" @click.stop>
                             <button @click="handleDownload(f.id, f.fileName)" class="btn-icon" title="Descargar">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             </button>
@@ -166,7 +173,39 @@
             <button class="toast-close" @click="removeNotification(n.id)">✕</button>
         </div>
     </div>
+    <div v-if="preview.active" class="preview-overlay" @click.self="closePreview">
+        <div class="preview-window">
+            <div class="preview-header">
+                <div class="preview-title">
+                    <span class="preview-icon">{{ getFileIcon(preview.mime) }}</span>
+                    <strong>{{ preview.name }}</strong>
+                </div>
+                <button @click="closePreview" class="btn-close-preview">✕</button>
+            </div>
+            <div class="preview-body">
+                <img v-if="preview.type === 'image'" :src="preview.url" alt="Preview">
 
+                <video v-if="preview.type === 'video'" :src="preview.url" controls autoplay></video>
+
+                <div v-if="preview.type === 'audio'" class="audio-player">
+                    <audio controls autoplay :src="preview.url"></audio>
+                </div>
+
+                <object v-if="preview.type === 'pdf'" :data="preview.url" type="application/pdf">
+                    <embed :src="preview.url" type="application/pdf" />
+                </object>
+
+                <pre v-if="preview.type === 'text'">{{ preview.content }}</pre>
+
+                <div v-if="preview.type === 'unsupported'" class="unsupported-msg">
+                    <p>No hay vista previa disponible para este formato.</p>
+                    <button @click="handleDownload(preview.id, preview.name)" class="btn-primary">
+                        Descargar para ver
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="js/api.js"></script>

@@ -1,0 +1,114 @@
+.preview-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(15, 23, 42, 0.5); /* Azul muy oscuro traslúcido */
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+}
+
+.preview-window {
+    background: var(--sidebar-bg);
+    width: 90%;
+    max-width: 1100px;
+    height: 85vh;
+    border-radius: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+}
+
+.preview-header {
+    padding: 1.2rem 1.5rem;
+    background: rgba(15, 23, 42, 0.4);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.preview-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-close-preview {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-close-preview:hover {
+    background: var(--danger);
+}
+
+.preview-body {
+    flex: 1;
+    overflow: auto;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #0b0f1a;
+}
+
+.preview-body img, .preview-body video {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+}
+
+.preview-body iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+    background: white;
+}
+
+.preview-body pre {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 2rem;
+    color: #e2e8f0;
+    font-family: 'Fira Code', monospace;
+    font-size: 0.9rem;
+    text-align: left;
+    white-space: pre-wrap;
+}
+
+.audio-container {
+    background: var(--sidebar-bg);
+    padding: 3rem;
+    border-radius: 1rem;
+    border: 1px solid var(--border-color);
+}
+
+/* Asegura que el contenedor de PDF ocupe todo el espacio */
+.preview-body object,
+.preview-body embed {
+    width: 100%;
+    height: 100%;
+    min-height: 70vh;
+}
+
+/* Mejora para el reproductor de audio */
+.audio-player {
+    background: var(--sidebar-bg);
+    padding: 3rem;
+    border-radius: 1.5rem;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+}

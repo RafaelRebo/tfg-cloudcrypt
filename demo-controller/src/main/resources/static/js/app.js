@@ -14,7 +14,8 @@ const appInstance = createApp({
             isLoadingMore: false,
             hasMore: true,
             notifications: [],
-            loginError: false
+            loginError: false,
+            currentCategory: 'all',
         }
     },
     mounted() {
@@ -54,7 +55,29 @@ const appInstance = createApp({
                 path += '/' + p;
                 return { name: p, path: path };
             });
-        }
+        },
+        displayFiles() {
+            if (this.currentCategory === 'all') {
+                return this.filesInCurrentFolder;
+            }
+
+            // Filtramos sobre allUserFiles para buscar en TODA la cuenta
+            return this.allUserFiles.filter(f => {
+                const mime = (f.fileType || '').toLowerCase();
+                const name = (f.fileName || '').toLowerCase();
+
+                if (this.currentCategory === 'image') return mime.startsWith('image/');
+                if (this.currentCategory === 'audio') return mime.startsWith('audio/');
+                if (this.currentCategory === 'video') return mime.startsWith('video/');
+                if (this.currentCategory === 'document') {
+                    return mime === 'application/pdf' ||
+                           mime.includes('text') ||
+                           mime.includes('officedocument') ||
+                           name.endsWith('.md') || name.endsWith('.txt');
+                }
+                return false;
+            });
+        },
     },
     methods: {
         async refreshAppData() {
@@ -156,18 +179,20 @@ const appInstance = createApp({
             }
         },
         async handlePreview(file) {
+            this.closePreview();
             this.status = "Descifrando para vista previa...";
             try {
                 const data = await PreviewService.getPreviewData(file, this.password);
                 this.preview = {
                     active: true,
+                    id: file.id,
                     name: file.fileName,
+                    mime: file.fileType,
                     ...data
                 };
                 this.status = "Vista previa cargada.";
             } catch (e) {
-                alert("Error en preview: " + e.message);
-                this.status = "Error al previsualizar.";
+                this.showError("No se pudo descifrar el archivo para la previsualización.");
             }
         },
         closePreview() {
@@ -220,6 +245,12 @@ const appInstance = createApp({
               if (mime === 'application/pdf') return '📕';
               if (mime.includes('text') || mime.includes('json')) return '📝';
               return '📄';
+        },
+        setCategory(cat) {
+            this.currentCategory = cat;
+            if (cat !== 'all') {
+                this.currentFolder = '/'; // Reset de carpeta visual
+            }
         },
         async handleDownload(id, name) { await FileService.downloadFile(id, name, this.password, this); },
         async handleDelete(id) { await FileService.deleteFile(id, this); },
