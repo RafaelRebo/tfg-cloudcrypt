@@ -11,6 +11,14 @@ const API = {
         formData.append("password", password);
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
+    async createFolder(username, password, folderPath, folderName) {
+        const formData = new FormData();
+        formData.append("username", username);
+        formData.append("password", password);
+        formData.append("folderPath", folderPath);
+        formData.append("folderName", folderName);
+        return fetch('/api/files/folder', { method: 'POST', body: formData });
+    },
     async getFiles(username, folder = null, all = false, page = 0, size = 20) {
         let url = `/api/files?username=${encodeURIComponent(username)}&page=${page}&size=${size}`;
         if (all) url += `&all=true`;

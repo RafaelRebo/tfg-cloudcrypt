@@ -12,7 +12,7 @@ const appInstance = createApp({
             preview: { active: false, url: null, name: '', type: '', content: '' },
             currentPage: 0, isLoadingMore: false, hasMore: true,
             notifications: [], loginError: false, currentCategory: 'all',
-            confirmModal: { active: false, message: '', onConfirm: null, onCancel: null },
+            confirmModal: { active: false, title: '', isInput: false, inputValue: '', message: '', onConfirm: null, onCancel: null },
         }
     },
     mounted() {
@@ -27,18 +27,6 @@ const appInstance = createApp({
     },
     computed: {
         quotaPercentage() { return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100).toFixed(1); },
-        subFolders() {
-            const folders = new Set();
-            const current = this.currentFolder.endsWith('/') ? this.currentFolder : this.currentFolder + '/';
-            this.allUserFiles.forEach(f => {
-                let path = (f.folderPath || '/') + (f.folderPath?.endsWith('/') ? '' : '/');
-                if (path.startsWith(current) && path !== current) {
-                    const nextLevel = path.substring(current.length).split('/')[0];
-                    if (nextLevel) folders.add(nextLevel);
-                }
-            });
-            return Array.from(folders).sort();
-        },
         pathSegments() {
             if (this.currentFolder === '/') return [];
             let path = '';
@@ -49,23 +37,29 @@ const appInstance = createApp({
         },
         displayFiles() {
             const isDeleted = f => !!f.deletedAt;
-            if (this.currentCategory === 'trash') return this.allUserFiles.filter(isDeleted);
+            const viewingTrash = this.currentCategory === 'trash';
 
-            const activeFiles = this.allUserFiles.filter(f => !isDeleted(f));
-            if (this.currentCategory === 'all') return this.filesInCurrentFolder.filter(f => !isDeleted(f));
+            // 1. Filtrar por estado de borrado (Sincronizado con el backend)
+            let filtered = this.allUserFiles.filter(f => isDeleted(f) === viewingTrash);
 
-            return activeFiles.filter(f => {
-                const mime = (f.fileType || '').toLowerCase();
-                const name = (f.fileName || '').toLowerCase();
-                if (this.currentCategory === 'image') return mime.startsWith('image/');
-                if (this.currentCategory === 'audio') return mime.startsWith('audio/');
-                if (this.currentCategory === 'video') return mime.startsWith('video/');
-                if (this.currentCategory === 'document') {
-                    return mime === 'application/pdf' || mime.includes('text') ||
-                        mime.includes('officedocument') || name.endsWith('.md') || name.endsWith('.txt');
-                }
-                return false;
-            });
+            // 2. Filtro de ruta (Solo lo que está en la carpeta actual)
+            if (this.currentCategory === 'all' || viewingTrash) {
+                filtered = filtered.filter(f => f.folderPath === this.currentFolder);
+            }
+            // 3. Filtro de categorías (Solo archivos activos)
+            else {
+                filtered = filtered.filter(f => f.fileType !== 'application/x-directory');
+                const cat = this.currentCategory;
+                filtered = filtered.filter(f => {
+                    const mime = (f.fileType || '').toLowerCase();
+                    if (cat === 'image') return mime.startsWith('image/');
+                    if (cat === 'audio') return mime.startsWith('audio/');
+                    if (cat === 'video') return mime.startsWith('video/');
+                    if (cat === 'document') return mime.includes('pdf') || mime.includes('text') || mime.includes('officedocument');
+                    return false;
+                });
+            }
+            return filtered;
         },
     },
     methods: {
@@ -165,6 +159,40 @@ const appInstance = createApp({
         async uploadFolder() {
             await this._handleUploadProcess(Array.from(this.$refs.folderInput.files), true);
         },
+        async openNewFolderModal() {
+            const targetPath = this.currentCategory === 'all' ? this.currentFolder : '/';
+            this.confirmModal = {
+                active: true,
+                title: '📁 Nueva carpeta',
+                message: `Crear en: ${this.currentCategory === 'all' ? targetPath : 'Raíz (/)'}`,
+                isInput: true, // Activamos el modo input
+                inputValue: 'Carpeta sin título', // Nombre por defecto
+                onConfirm: () => {
+                    if (this.confirmModal.inputValue.trim()) {
+                        this.handleCreateFolder(this.confirmModal.inputValue.trim(), targetPath);
+                        this.confirmModal.active = false;
+                    } else {
+                        this.showError("El nombre no puede estar vacío.");
+                    }
+                },
+                onCancel: () => { this.confirmModal.active = false; }
+            };
+        },
+        async handleCreateFolder(name, path) {
+            try {
+                const res = await API.createFolder(this.username, this.password, path, name);
+                if (res.ok) {
+                    this.showInfo(`Carpeta "${name}" creada correctamente.`);
+                    await this.refreshAppData(); // Refrescamos para que aparezca
+                } else {
+                    const error = await res.text();
+                    this.showError(`No se pudo crear la carpeta: ${error}`);
+                }
+            } catch (e) {
+                console.error(e);
+                this.showError("Error de conexión al crear la carpeta.");
+            }
+        },
         async handlePreview(f) {
             this.closePreview();
             this.status = "Descifrando...";
@@ -183,7 +211,7 @@ const appInstance = createApp({
         async handleDelete(f) { await FileService.deleteFile(f, this); },
 
         // --- Navigation ---
-        setCategory(cat) { this.currentCategory = cat; if (cat !== 'all') this.currentFolder = '/'; },
+        setCategory(cat) { this.currentCategory = cat; if (cat === 'all' || cat === 'trash') {this.currentFolder = '/';} this.refreshAppData(); },
         enterFolder(n) { this.currentFolder = (this.currentFolder === '/' ? '' : this.currentFolder) + '/' + n; this.refreshAppData(); },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
         goToFolder(p) { this.currentFolder = p; this.refreshAppData(); },

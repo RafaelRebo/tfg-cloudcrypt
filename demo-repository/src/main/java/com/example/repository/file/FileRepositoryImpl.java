@@ -38,6 +38,25 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
     }
 
     @Override
+    @Transactional
+    public FileEntity createFolder(String name, String folderPath, String username) {
+        UserEntity owner = entityManager.createQuery(
+                        "SELECT u FROM UserEntity u WHERE u.username = :username", UserEntity.class)
+                .setParameter("username", username)
+                .getSingleResult();
+
+        FileEntity entity = new FileEntity();
+        entity.setFileName(name);
+        entity.setFolderPath(folderPath);
+        entity.setFileType("application/x-directory");
+        entity.setFileSize(0L);
+        entity.setOwner(owner);
+
+        entityManager.persist(entity);
+        return entity;
+    }
+
+    @Override
     public long getTotalUsageByUser(String username) {
         String query = "SELECT COALESCE(SUM(f.fileSize), 0) FROM FileEntity f WHERE f.owner.username = :username";
         return entityManager.createQuery(query, Long.class)
@@ -58,8 +77,22 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
     public void markAsDeleted(Long id) {
         FileEntity entity = entityManager.find(FileEntity.class, id);
         if (entity != null) {
-            entity.setDeletedAt(LocalDateTime.now());
-            // Al estar en un contexto @Transactional, se guarda automáticamente al final
+            LocalDateTime now = LocalDateTime.now();
+            entity.setDeletedAt(now);
+
+            if ("application/x-directory".equals(entity.getFileType())) {
+                String folderInsidePath = (entity.getFolderPath().endsWith("/") ?
+                        entity.getFolderPath() : entity.getFolderPath() + "/")
+                        + entity.getFileName() + "/";
+
+                entityManager.createQuery(
+                                "UPDATE FileEntity f SET f.deletedAt = :now " +
+                                        "WHERE f.owner = :owner AND f.folderPath LIKE :path")
+                        .setParameter("now", now)
+                        .setParameter("owner", entity.getOwner())
+                        .setParameter("path", folderInsidePath + "%")
+                        .executeUpdate();
+            }
         }
     }
 
@@ -69,6 +102,19 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
         FileEntity entity = entityManager.find(FileEntity.class, id);
         if (entity != null) {
             entity.setDeletedAt(null);
+
+            if ("application/x-directory".equals(entity.getFileType())) {
+                String folderInsidePath = (entity.getFolderPath().endsWith("/") ?
+                        entity.getFolderPath() : entity.getFolderPath() + "/")
+                        + entity.getFileName() + "/";
+
+                entityManager.createQuery(
+                                "UPDATE FileEntity f SET f.deletedAt = NULL " +
+                                        "WHERE f.owner = :owner AND f.folderPath LIKE :path")
+                        .setParameter("owner", entity.getOwner())
+                        .setParameter("path", folderInsidePath + "%")
+                        .executeUpdate();
+            }
         }
     }
 

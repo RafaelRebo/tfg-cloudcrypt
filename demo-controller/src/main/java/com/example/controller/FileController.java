@@ -41,12 +41,26 @@ public class FileController {
         }
     }
 
+    @PostMapping("/folder")
+    public ResponseEntity<?> createFolder(
+            @RequestParam("folderName") String folderName,
+            @RequestParam("username") String username,
+            @RequestParam("password") String password,
+            @RequestParam("folderPath") String folderPath) {
+        try {
+            FileDto savedFolder = fileService.createFolder(folderName, username, password, folderPath);
+            return ResponseEntity.ok(savedFolder);
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @GetMapping
     public ResponseEntity<Page<FileDto>> listFiles(
             @RequestParam String username,
             @RequestParam(defaultValue = "/") String folder,
             @RequestParam(value = "all", defaultValue = "false") boolean all,
-            @PageableDefault(size = 10, sort = "fileName") Pageable pageable) {
+            @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
         Page<FileDto> page = fileService.getFilesByFolder(username, folder, all, pageable);
         return ResponseEntity.ok(page);

@@ -6,6 +6,8 @@ public interface FileRepositoryCustom {
     FileEntity createFile(String name, String folderPath, String type, long size,
                           String checksum, String storagePath, String username);
 
+    FileEntity createFolder(String name, String folderPath, String username);
+
     long getTotalUsageByUser(String username);
 
     long countFilesByUser(String username);

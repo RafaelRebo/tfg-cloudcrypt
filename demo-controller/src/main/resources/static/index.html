@@ -45,6 +45,10 @@
                         <span class="plus">+</span> Nuevo
                     </button>
                     <div class="dropdown-content">
+                        <a href="#" class="drop-item" @click.prevent="openNewFolderModal">
+                            <span>📁 Nueva carpeta</span>
+                        </a>
+                        <div class="dropdown-divider"></div>
                         <label class="drop-item">
                             <span>📄 Subir archivo</span>
                             <input type="file" ref="fileInput" @change="onUpload" multiple hidden>
@@ -82,12 +86,12 @@
             <header class="top-header">
                 <div class="breadcrumbs">
                     <div class="crumb-item" @click="goToFolder('/')">
-                        <span class="crumb-icon">🏠</span>
+                        <span class="crumb-icon">{{ currentCategory === 'trash' ? '🗑️' : '🏠' }}</span>
                         <span class="crumb-text">
-                            {{ currentCategory === 'all' ? 'Mis archivos' : 'Explorar ' + currentCategory }}
+                            {{ currentCategory === 'trash' ? 'Papelera' : (currentCategory === 'all' ? 'Mis archivos' : 'Explorar ' + currentCategory) }}
                         </span>
                     </div>
-                    <template v-if="currentCategory === 'all'">
+                    <template v-if="currentCategory === 'all' || currentCategory === 'trash'">
                         <div v-for="(seg, index) in pathSegments" :key="seg.path" class="crumb-wrapper">
                             <span class="crumb-separator">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
@@ -121,19 +125,9 @@
                 </div>
 
                 <div class="file-list-body">
-                    <template v-if="currentCategory === 'all'">
-                        <div v-for="folder in subFolders" :key="folder" class="file-row" @click="enterFolder(folder)"> <div class="col-name">
-                            <span class="icon folder">📁</span>
-                            {{ folder }}
-                        </div>
-                            <div class="col-size">--</div>
-                            <div class="col-actions" @click.stop></div>
-                        </div>
-                    </template>
-
-                    <div v-for="f in displayFiles" :key="f.id" class="file-row" @click="handlePreview(f)">
+                    <div v-for="f in displayFiles" :key="f.id" class="file-row" @click="f.fileType === 'application/x-directory' ? enterFolder(f.fileName) : handlePreview(f)">
                         <div class="col-name">
-                            <span class="icon">{{ getFileIcon(f.fileType) }}</span>
+                            <span class="icon">{{ f.fileType === 'application/x-directory' ? '📁' : getFileIcon(f.fileType) }}</span>
                             {{ f.fileName }}
                         </div>
                         <div class="col-size">{{ (f.fileSize / 1024).toFixed(1) }} KB</div>
@@ -141,7 +135,7 @@
                             <button v-if="currentCategory === 'trash'" @click="handleRestore(f)" class="btn-icon" title="Restaurar archivo">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
                             </button>
-                            <button @click="handleDownload(f.id, f.fileName)" class="btn-icon" title="Descargar">
+                            <button v-if="f.fileType !== 'application/x-directory'" @click="handleDownload(f.id, f.fileName)" class="btn-icon" title="Descargar">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             </button>
                             <button @click="handleDelete(f)" class="btn-icon btn-delete" :title="currentCategory === 'trash' ? 'Eliminar permanentemente' : 'Mover a papelera'">
@@ -150,25 +144,38 @@
                         </div>
                     </div>
 
-                    <div v-if="subFolders.length === 0 && filesInCurrentFolder.length === 0" class="empty-state">
+                    <div v-if="displayFiles.length === 0" class="empty-state">
                         <p>Esta carpeta está vacía</p>
                     </div>
                 </div>
             </div>
         </main>
     </div>
-    <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;">
+    <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;" @click.self="confirmModal.onCancel">
         <div class="auth-card" style="max-width: 440px; text-align: left; padding: 2rem;">
+
             <h2 style="margin-bottom: 0.8rem; display: flex; align-items: center; gap: 10px;">
-                <span style="color: #fbbf24;">⚠️</span> ¿Estás seguro?
+                {{ confirmModal.title || '⚠️ ¿Estás seguro?' }}
             </h2>
-            <p style="margin-bottom: 2rem; color: var(--text-muted); line-height: 1.5;">
+
+            <p style="margin-bottom: 1.5rem; color: var(--text-muted); line-height: 1.5;">
                 {{ confirmModal.message }}
             </p>
 
+            <template v-if="confirmModal.isInput">
+                <input v-model="confirmModal.inputValue"
+                       class="auth-input"
+                       placeholder="Nombre de la carpeta"
+                       @keyup.enter="confirmModal.onConfirm"
+                       ref="modalInput"
+                       style="margin-bottom: 2rem;">
+            </template>
+
             <div class="modal-footer">
                 <button @click="confirmModal.onCancel" class="btn-modal btn-cancel">Cancelar</button>
-                <button @click="confirmModal.onConfirm" class="btn-modal btn-confirm">Confirmar</button>
+                <button @click="confirmModal.onConfirm" class="btn-modal btn-confirm">
+                    {{ confirmModal.isInput ? 'Crear' : 'Confirmar' }}
+                </button>
             </div>
         </div>
     </div>

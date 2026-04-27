@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 import javax.crypto.Cipher;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -47,6 +48,8 @@ public class FileService {
         String storageName = UUID.randomUUID().toString();
         String finalStoragePath = physicalFolder + "/" + storageName;
 
+        ensureFolderExists(username, folderPath);
+
         fileStorageRepository.save(
                 file.getInputStream(),
                 physicalFolder,
@@ -63,6 +66,39 @@ public class FileService {
                 finalStoragePath,
                 username
         );
+
+        return fileMapper.toDto(entity);
+    }
+
+    private void ensureFolderExists(String username, String folderPath) {
+        if (folderPath == null || folderPath.equals("/")) return;
+
+        String[] parts = folderPath.split("/");
+        String currentPath = "/";
+
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+
+            // Comprobar si esta carpeta ya existe para el usuario
+            boolean exists = fileRepository.existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(
+                    username, part, currentPath, "application/x-directory");
+
+            if (!exists) {
+                fileRepository.createFolder(part, currentPath, username);
+            }
+
+            // Avanzar al siguiente nivel
+            currentPath = (currentPath.equals("/") ? "" : currentPath) + "/" + part;
+        }
+    }
+
+    @Transactional
+    public FileDto createFolder(String folderName, String username, String rawPassword, String currentFolderPath) throws Exception {
+        userService.authenticate(username, rawPassword);
+
+        quotaUtils.checkQuota(username, 0);
+
+        FileEntity entity = fileRepository.createFolder(folderName, currentFolderPath, username);
 
         return fileMapper.toDto(entity);
     }
@@ -85,6 +121,10 @@ public class FileService {
 
         FileEntity entity = fileRepository.findById(fileId)
                 .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado en la base de datos"));
+
+        if ("application/x-directory".equals(entity.getFileType())) {
+            throw new InternalStorageException("No se puede descargar un directorio directamente.");
+        }
 
         // Verificación de integridad física
         if (!fileStorageRepository.exists(entity.getStoragePath())) {
@@ -111,20 +151,65 @@ public class FileService {
         FileEntity entity = fileRepository.findById(id)
                 .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
 
+        // La ruta que identifica a los hijos es: folderPath actual + / + nombre
+        // Ej: folderPath "/" + fileName "Carpeta" = "/Carpeta"
+        String childrenPath = (entity.getFolderPath().endsWith("/") ?
+                entity.getFolderPath() : entity.getFolderPath() + "/")
+                + entity.getFileName();
+
         if (entity.getDeletedAt() == null) {
+            // --- BORRADO LÓGICO ---
             fileRepository.markAsDeleted(id);
+
+            if ("application/x-directory".equals(entity.getFileType())) {
+                // Buscamos todos los hijos usando la nueva Query
+                List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePath(
+                        entity.getOwner().getUsername(), childrenPath);
+
+                for (FileEntity child : children) {
+                    fileRepository.markAsDeleted(child.getId());
+                }
+            }
         } else {
-            fileStorageRepository.delete(entity.getStoragePath());
+            // --- BORRADO FÍSICO ---
+            if ("application/x-directory".equals(entity.getFileType())) {
+                List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePath(
+                        entity.getOwner().getUsername(), childrenPath);
+
+                for (FileEntity child : children) {
+                    // Borrar archivo físico si existe
+                    if (child.getStoragePath() != null) {
+                        fileStorageRepository.delete(child.getStoragePath());
+                    }
+                    fileRepository.hardDelete(child.getId());
+                }
+            } else {
+                if (entity.getStoragePath() != null) {
+                    fileStorageRepository.delete(entity.getStoragePath());
+                }
+            }
             fileRepository.hardDelete(id);
         }
     }
 
     @Transactional
     public FileDto restoreFile(Long id) throws InstanceNotFoundException {
-        fileRepository.restoreFile(id);
-
         FileEntity entity = fileRepository.findById(id)
                 .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
+
+        String childrenPath = (entity.getFolderPath().endsWith("/") ?
+                entity.getFolderPath() : entity.getFolderPath() + "/")
+                + entity.getFileName();
+
+        fileRepository.restoreFile(id);
+
+        if ("application/x-directory".equals(entity.getFileType())) {
+            List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePath(
+                    entity.getOwner().getUsername(), childrenPath);
+            for (FileEntity child : children) {
+                fileRepository.restoreFile(child.getId());
+            }
+        }
         return fileMapper.toDto(entity);
     }
 

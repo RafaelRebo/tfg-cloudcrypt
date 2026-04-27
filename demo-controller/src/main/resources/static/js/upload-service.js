@@ -6,7 +6,7 @@ const UploadService = {
         // Validación de cuota (Idéntica a la que tenías)
         if (totalSize > context.stats.maxQuota - context.stats.totalSize) {
             const msg = isFolder ? "La carpeta completa supera tu espacio disponible." : "El total de los archivos seleccionados supera tu espacio disponible.";
-            alert("Error: " + msg);
+            context.showError(msg);
             return false; // Indica que no se inició nada
         }
 

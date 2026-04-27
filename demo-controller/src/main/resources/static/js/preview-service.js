@@ -40,17 +40,6 @@ const PreviewService = {
             return { type: 'text', content: text };
         }
 
-        // --- GRUPO 4: OFFICE (Word, Excel, PowerPoint) ---
-        // Nota: El navegador no puede abrirlos nativamente, pero podemos detectarlos
-        const isOffice = mime.includes('officedocument') ||
-                         mime.includes('ms-word') ||
-                         mime.includes('ms-excel') ||
-                         mime.includes('ms-powerpoint');
-
-        if (isOffice) {
-            return { type: 'office', url }; // En el HTML podrías dar un aviso especial
-        }
-
         // --- GRUPO 5: ARCHIVOS COMPRIMIDOS ---
         if (mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
             return { type: 'archive', url };

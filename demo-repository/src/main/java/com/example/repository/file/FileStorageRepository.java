@@ -52,15 +52,28 @@ public class FileStorageRepository {
 
     public void delete(String storagePath) throws IOException {
         Path path = this.root.resolve(storagePath);
-        Path parentFolder = path.getParent();
 
         if (Files.exists(path)) {
-            parentFolder.toFile().setWritable(true, true);
+            // Otorgamos permisos para borrar
+            path.getParent().toFile().setWritable(true, true);
             path.toFile().setWritable(true, true);
 
-            Files.delete(path);
+            Files.delete(path); // Borra el archivo
 
-            parentFolder.toFile().setWritable(false, false);
+            // Intentar borrar carpetas vacías hacia arriba (hasta llegar a 'uploads')
+            Path parent = path.getParent();
+            while (!parent.equals(this.root)) {
+                try (var s = Files.list(parent)) {
+                    if (s.findAny().isEmpty()) {
+                        Files.delete(parent);
+                        parent = parent.getParent();
+                    } else {
+                        break;
+                    }
+                } catch (DirectoryNotEmptyException e) {
+                    break;
+                }
+            }
         }
     }
 
