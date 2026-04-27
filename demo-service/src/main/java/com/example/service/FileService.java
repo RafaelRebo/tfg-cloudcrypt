@@ -73,7 +73,7 @@ public class FileService {
         if (all) {
             entities = fileRepository.findByOwner_Username(username, pageable);
         } else {
-            entities = fileRepository.findByOwner_UsernameAndFolderPath(username, folder, pageable);
+            entities = fileRepository.findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(username, folder, pageable);
         }
 
         // Transformamos Page<FileEntity> a Page<FileDto> usando el mapper
@@ -106,12 +106,26 @@ public class FileService {
                 .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado con ID: " + id));
     }
 
+    @Transactional
     public void deleteFile(Long id) throws Exception {
         FileEntity entity = fileRepository.findById(id)
                 .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
 
-        fileStorageRepository.delete(entity.getStoragePath());
-        fileRepository.delete(entity);
+        if (entity.getDeletedAt() == null) {
+            fileRepository.markAsDeleted(id);
+        } else {
+            fileStorageRepository.delete(entity.getStoragePath());
+            fileRepository.hardDelete(id);
+        }
+    }
+
+    @Transactional
+    public FileDto restoreFile(Long id) throws InstanceNotFoundException {
+        fileRepository.restoreFile(id);
+
+        FileEntity entity = fileRepository.findById(id)
+                .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
+        return fileMapper.toDto(entity);
     }
 
     public Map<String, Object> getUserStats(String username) {

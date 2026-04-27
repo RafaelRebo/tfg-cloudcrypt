@@ -6,6 +6,8 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+
 public class FileRepositoryImpl implements FileRepositoryCustom {
 
     @PersistenceContext
@@ -49,5 +51,33 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
         return entityManager.createQuery(query, Long.class)
                 .setParameter("username", username)
                 .getSingleResult();
+    }
+
+    @Override
+    @Transactional
+    public void markAsDeleted(Long id) {
+        FileEntity entity = entityManager.find(FileEntity.class, id);
+        if (entity != null) {
+            entity.setDeletedAt(LocalDateTime.now());
+            // Al estar en un contexto @Transactional, se guarda automáticamente al final
+        }
+    }
+
+    @Override
+    @Transactional
+    public void restoreFile(Long id) {
+        FileEntity entity = entityManager.find(FileEntity.class, id);
+        if (entity != null) {
+            entity.setDeletedAt(null);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void hardDelete(Long id) {
+        FileEntity entity = entityManager.find(FileEntity.class, id);
+        if (entity != null) {
+            entityManager.remove(entity);
+        }
     }
 }

@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(name = "files")
 @Getter
@@ -20,6 +22,7 @@ public class FileEntity {
     private Long fileSize;
     private String folderPath;
     private String storagePath;
+    private LocalDateTime deletedAt;
 
     @Column(length = 64)
     private String checksum;

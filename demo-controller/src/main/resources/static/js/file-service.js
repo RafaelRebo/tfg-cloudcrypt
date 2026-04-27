@@ -16,21 +16,52 @@ const FileService = {
             a.remove();
             context.status = "Descarga completada.";
         } catch (err) {
-            alert("Error: " + err.message);
+            context.showError("Error en la descarga: " + err.message);
             context.status = "Error en la descarga.";
         }
     },
-    async deleteFile(id, context) {
-        if (confirm("¿Estás seguro de que quieres borrar este archivo para siempre?")) {
-            try {
-                const res = await API.deleteFile(id);
-                if (res.ok) {
-                    context.status = "Archivo eliminado correctamente.";
-                    await context.refreshAppData();
-                } else {
-                    alert("Error al intentar borrar el archivo.");
-                }
-            } catch (error) { console.error(error); }
+
+    async deleteFile(file, context) {
+        const isTrashed = !!file.deletedAt;
+        let proceed = true;
+
+        if (isTrashed) {
+            // USAMOS EL NUEVO MODAL DEDICADO
+            proceed = await context.askConfirmation(`Vas a eliminar "${file.fileName}" permanentemente. No podrás recuperarlo.`);
         }
-    }
+
+        if (!proceed) return;
+
+        try {
+            const res = await API.deleteFile(file.id);
+            if (res.ok) {
+                const msg = isTrashed ? "Archivo destruido permanentemente" : "Archivo movido a la papelera";
+                context.showInfo(msg); // <--- AHORA ES AZUL (INFO)
+                await context.refreshAppData();
+            }
+        } catch (error) {
+            context.showError("Error al eliminar el archivo");
+        }
+    },
+
+    async restoreFile(file, context) {
+        try {
+            const res = await fetch(`/api/files/${file.id}/restore`, { method: 'POST' });
+            if (res.ok) {
+                context.showInfo("Archivo restaurado en su ubicación original"); // <--- INFO
+                await context.refreshAppData();
+            }
+        } catch (e) { context.showError("Error al restaurar"); }
+    },
+
+    getFileIcon(mime) {
+        if (!mime) return '📄';
+        if (mime.startsWith('image/')) return '🖼️';
+        if (mime.startsWith('video/')) return '🎬';
+        if (mime.startsWith('audio/')) return '🎵';
+        if (mime === 'application/pdf') return '📕';
+        if (mime.includes('text') || mime.includes('json')) return '📝';
+        return '📄';
+    },
+
 };

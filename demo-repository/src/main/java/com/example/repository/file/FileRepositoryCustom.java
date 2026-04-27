@@ -9,4 +9,10 @@ public interface FileRepositoryCustom {
     long getTotalUsageByUser(String username);
 
     long countFilesByUser(String username);
+
+    void markAsDeleted(Long id);
+
+    void restoreFile(Long id);
+
+    void hardDelete(Long id);
 }

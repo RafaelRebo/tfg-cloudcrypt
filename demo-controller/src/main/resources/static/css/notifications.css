@@ -9,7 +9,6 @@
 }
 
 .toast {
-    background: var(--danger);
     color: white;
     padding: 16px;
     border-radius: 12px;
@@ -21,6 +20,15 @@
     box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
     animation: slideIn 0.3s ease-out forwards;
     pointer-events: auto;
+}
+
+.toast.error {
+    background: var(--danger);
+}
+
+
+.toast.info {
+    background: #3b82f6;
 }
 
 .toast.leaving {
@@ -75,4 +83,46 @@
 
 .toast-close:hover {
     opacity: 1;
+}
+
+/* Nuevo Toast dedicado para subidas */
+.toast.upload {
+    background: var(--sidebar-bg); /* Fondo oscuro como el sidebar */
+    border: 1px solid var(--border-color); /* Un borde sutil */
+    color: var(--text-main);
+    padding: 20px;
+    width: 400px; /* Un poco más ancho para la barra */
+    pointer-events: auto; /* Permite interactuar con él (por ejemplo, si añadieras un botón cancelar en el futuro) */
+    display: block; /* Diseño en bloque para apilar elementos */
+}
+
+.upload-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+
+.upload-stats {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+/* La barra de progreso estilo Drive dentro del Toast */
+.progress-container-toast {
+    background: rgba(255, 255, 255, 0.05);
+    height: 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    width: 100%;
+}
+
+.progress-fill-toast {
+    background: #3b82f6; /* Azul brillante (el color de Info) */
+    height: 100%;
+    width: 0%; /* Vue controlará esto */
+    transition: width 0.1s linear; /* Animación suave */
 }

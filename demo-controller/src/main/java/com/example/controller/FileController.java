@@ -86,4 +86,14 @@ public class FileController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @PostMapping("/{id}/restore")
+    public ResponseEntity<?> restoreFile(@PathVariable Long id) {
+        try {
+            FileDto restored = fileService.restoreFile(id);
+            return ResponseEntity.ok(restored);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
+        }
+    }
 }
