@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
@@ -22,4 +23,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             @Param("path") String path
     );
     boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
+    Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(
+            String username, String fileName, String folderPath, String fileType);
 }

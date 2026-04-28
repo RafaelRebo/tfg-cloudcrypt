@@ -26,8 +26,7 @@ const FileService = {
         let proceed = true;
 
         if (isTrashed) {
-            // USAMOS EL NUEVO MODAL DEDICADO
-            proceed = await context.askConfirmation(`Vas a eliminar "${file.fileName}" permanentemente. No podrás recuperarlo.`);
+            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente?`);
         }
 
         if (!proceed) return;
@@ -35,23 +34,29 @@ const FileService = {
         try {
             const res = await API.deleteFile(file.id);
             if (res.ok) {
-                const msg = isTrashed ? "Archivo destruido permanentemente" : "Archivo movido a la papelera";
-                context.showInfo(msg); // <--- AHORA ES AZUL (INFO)
+                context.showInfo(isTrashed ? "Eliminado definitivamente" : "Movido a la papelera");
                 await context.refreshAppData();
             }
         } catch (error) {
-            context.showError("Error al eliminar el archivo");
+            context.showError("Error al eliminar");
         }
     },
 
     async restoreFile(file, context) {
         try {
-            const res = await fetch(`/api/files/${file.id}/restore`, { method: 'POST' });
+            const res = await fetch(`/api/files/${file.id}/restore`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
+                }
+            });
             if (res.ok) {
-                context.showInfo("Archivo restaurado en su ubicación original"); // <--- INFO
+                context.showInfo("Restaurado correctamente");
                 await context.refreshAppData();
             }
-        } catch (e) { context.showError("Error al restaurar"); }
+        } catch (e) {
+            context.showError("Error al restaurar");
+        }
     },
 
     getFileIcon(mime) {

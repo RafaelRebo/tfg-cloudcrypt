@@ -26,58 +26,112 @@ const appInstance = createApp({
         window.addEventListener('scroll', this.handleInfiniteScroll);
     },
     computed: {
-        quotaPercentage() { return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100).toFixed(1); },
+        quotaPercentage() {
+            return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100).toFixed(1);
+        },
         pathSegments() {
             if (this.currentFolder === '/') return [];
             let path = '';
             return this.currentFolder.split('/').filter(p => p !== '').map(p => {
                 path += '/' + p;
-                return { name: p, path: path };
+                return {name: p, path: path};
             });
         },
         displayFiles() {
             const isDeleted = f => !!f.deletedAt;
             const viewingTrash = this.currentCategory === 'trash';
 
-            // 1. Filtrar por estado de borrado (Sincronizado con el backend)
+            // 1. Filtro maestro: Borrados vs Activos
             let filtered = this.allUserFiles.filter(f => isDeleted(f) === viewingTrash);
 
-            // 2. Filtro de ruta (Solo lo que está en la carpeta actual)
-            if (this.currentCategory === 'all' || viewingTrash) {
-                filtered = filtered.filter(f => f.folderPath === this.currentFolder);
+            // --- FUNCIÓN DE NORMALIZACIÓN (Elimina errores por barras extra) ---
+            const normalize = (path) => {
+                if (!path) return '/';
+                let p = path.replace(/\/+/g, '/'); // Une dobles barras // -> /
+                if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1); // Quita barra final
+                return p;
+            };
+
+            const currentNormalized = normalize(this.currentFolder);
+
+            if (viewingTrash) {
+                // --- LÓGICA DE PAPELERA ---
+                if (currentNormalized === '/') {
+                    // Mostrar solo "Raíces de borrado"
+                    return filtered.filter(f => {
+                        const fPath = normalize(f.folderPath);
+                        if (fPath === '/') return true;
+
+                        const parts = fPath.split('/').filter(p => p);
+                        const parentName = parts[parts.length - 1];
+                        const grandparentPath = normalize('/' + parts.slice(0, -1).join('/'));
+
+                        const isParentDeleted = this.allUserFiles.some(p =>
+                            p.fileName === parentName &&
+                            normalize(p.folderPath) === grandparentPath &&
+                            isDeleted(p)
+                        );
+                        return !isParentDeleted;
+                    });
+                } else {
+                    // Dentro de una carpeta borrada: Comparación estricta normalizada
+                    return filtered.filter(f => {
+                        const fPathNormalized = normalize(f.folderPath);
+                        // Solo logueamos si el nombre del archivo parece estar cerca de lo que buscamos
+                        if (f.folderPath.includes("Carp")) {
+                            console.log(`Comparando archivo '${f.fileName}':`);
+                            console.log(`   Path archivo: '${fPathNormalized}'`);
+                            console.log(`   ¿Coincide?:`, fPathNormalized === currentNormalized);
+                        }
+                        return fPathNormalized === currentNormalized;
+                    });
+                }
+            } else {
+                // --- LÓGICA VISTA NORMAL ---
+                if (this.currentCategory === 'all') {
+                    return filtered.filter(f => normalize(f.folderPath) === currentNormalized);
+                } else {
+                    // Filtros por categorías
+                    const cat = this.currentCategory;
+                    return filtered.filter(f => {
+                        if (f.fileType === 'application/x-directory') return false;
+                        const mime = (f.fileType || '').toLowerCase();
+                        if (cat === 'image') return mime.startsWith('image/');
+                        if (cat === 'audio') return mime.startsWith('audio/');
+                        if (cat === 'video') return mime.startsWith('video/');
+                        if (cat === 'document') return mime.includes('pdf') || mime.includes('text') || mime.includes('officedocument');
+                        return false;
+                    });
+                }
             }
-            // 3. Filtro de categorías (Solo archivos activos)
-            else {
-                filtered = filtered.filter(f => f.fileType !== 'application/x-directory');
-                const cat = this.currentCategory;
-                filtered = filtered.filter(f => {
-                    const mime = (f.fileType || '').toLowerCase();
-                    if (cat === 'image') return mime.startsWith('image/');
-                    if (cat === 'audio') return mime.startsWith('audio/');
-                    if (cat === 'video') return mime.startsWith('video/');
-                    if (cat === 'document') return mime.includes('pdf') || mime.includes('text') || mime.includes('officedocument');
-                    return false;
-                });
-            }
-            return filtered;
-        },
+        }
     },
     methods: {
         // --- Core Data ---
         async refreshAppData() {
             this.currentPage = 0;
             this.hasMore = true;
+            this.status = "Sincronizando...";
             try {
-                const [folderRes, allRes, stats] = await Promise.all([
-                    API.getFiles(this.username, this.currentFolder, false, 0),
-                    API.getFiles(this.username, null, true, 0, 1000),
-                    API.getStats(this.username)
-                ]);
-                this.filesInCurrentFolder = folderRes.content;
+                // 1. Pedimos primero las estadísticas (rápido)
+                this.stats = await API.getStats(this.username);
+
+                // 2. Pedimos la lista GLOBAL (fundamental para la papelera)
+                // Forzamos un tamaño grande para asegurar que traemos TODO lo borrado
+                const allRes = await API.getFiles(this.username, null, true, 0, 2000);
                 this.allUserFiles = allRes.content;
-                this.stats = stats;
+
+                // 3. Pedimos lo de la carpeta actual
+                const folderRes = await API.getFiles(this.username, this.currentFolder, false, 0);
+                this.filesInCurrentFolder = folderRes.content;
+
                 if (folderRes.last) this.hasMore = false;
-            } catch (e) { console.error(e); }
+                this.status = "";
+                console.log("Sincronización completa. Archivos en memoria:", this.allUserFiles.length);
+            } catch (e) {
+                console.error("Error fatal en sincronización:", e);
+                this.showError("Error al sincronizar con el servidor");
+            }
         },
         handleInfiniteScroll() {
             if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
@@ -136,19 +190,14 @@ const appInstance = createApp({
             try {
                 const success = await UploadService.processUpload(files, this, isFolder);
                 if (success) {
-                    // FIN EXITOSO: El servicio UploadService ya ha puesto context.uploadProgress = 100
-                    // La notificación de subida desaparecerá automáticamente por el updateUploadProgress
-                    // Y mostramos el Toast de éxito final
                     this.showInfo(`¡${isFolder ? 'Carpeta' : 'Archivos'} subidos con éxito!`);
                     this.$refs[isFolder ? 'folderInput' : 'fileInput'].value = '';
                 }
             } catch (e) {
-                // FIN CON ERROR: El servicio ha puesto progress = 0
-                this.showError(`SUBIDA ABORTADA: ${e.message}`);
+                console.error("Fallo en subida:", e);
+                this.showError(e.message || e);
             } finally {
-                // Limpieza
                 await this.refreshAppData();
-                // Ponemos el progreso a 0 para que la notificación de subida se vaya si quedaba algo
                 this.uploadProgress = 0;
             }
         },
@@ -212,7 +261,23 @@ const appInstance = createApp({
 
         // --- Navigation ---
         setCategory(cat) { this.currentCategory = cat; if (cat === 'all' || cat === 'trash') {this.currentFolder = '/';} this.refreshAppData(); },
-        enterFolder(n) { this.currentFolder = (this.currentFolder === '/' ? '' : this.currentFolder) + '/' + n; this.refreshAppData(); },
+        enterFolder(f) {
+            // 1. Calculamos la ruta base: si es raíz usamos vacío, si no su path
+            const base = f.folderPath === '/' ? '' : f.folderPath;
+
+            // 2. Construimos la nueva ruta completa
+            this.currentFolder = base + '/' + f.fileName;
+
+            // 3. Limpiamos posibles dobles barras (//) por seguridad
+            this.currentFolder = this.currentFolder.replace(/\/+/g, '/');
+
+            console.log("Navegando a:", this.currentFolder);
+            this.refreshAppData();
+        },
+        isTrashRoot(f) {
+            if (this.currentFolder !== '/') return false; // Si estoy dentro de una carpeta en papelera, no restauro archivos sueltos
+            return true; // Solo permito restaurar lo que veo en la pantalla principal de la papelera
+        },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
         goToFolder(p) { this.currentFolder = p; this.refreshAppData(); },
         getFileIcon(mime) { return FileService.getFileIcon(mime); },

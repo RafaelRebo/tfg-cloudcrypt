@@ -81,16 +81,17 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
             entity.setDeletedAt(now);
 
             if ("application/x-directory".equals(entity.getFileType())) {
-                String folderInsidePath = (entity.getFolderPath().endsWith("/") ?
+                String folderPathForChildren = (entity.getFolderPath().endsWith("/") ?
                         entity.getFolderPath() : entity.getFolderPath() + "/")
-                        + entity.getFileName() + "/";
+                        + entity.getFileName();
 
                 entityManager.createQuery(
                                 "UPDATE FileEntity f SET f.deletedAt = :now " +
-                                        "WHERE f.owner = :owner AND f.folderPath LIKE :path")
+                                        "WHERE f.owner = :owner AND (f.folderPath = :path OR f.folderPath LIKE :subPath)")
                         .setParameter("now", now)
                         .setParameter("owner", entity.getOwner())
-                        .setParameter("path", folderInsidePath + "%")
+                        .setParameter("path", folderPathForChildren)
+                        .setParameter("subPath", folderPathForChildren + "/%")
                         .executeUpdate();
             }
         }
@@ -104,15 +105,17 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
             entity.setDeletedAt(null);
 
             if ("application/x-directory".equals(entity.getFileType())) {
-                String folderInsidePath = (entity.getFolderPath().endsWith("/") ?
+                // Generamos la ruta que deben tener los hijos
+                String folderPathForChildren = (entity.getFolderPath().endsWith("/") ?
                         entity.getFolderPath() : entity.getFolderPath() + "/")
-                        + entity.getFileName() + "/";
+                        + entity.getFileName();
 
                 entityManager.createQuery(
                                 "UPDATE FileEntity f SET f.deletedAt = NULL " +
-                                        "WHERE f.owner = :owner AND f.folderPath LIKE :path")
+                                        "WHERE f.owner = :owner AND (f.folderPath = :path OR f.folderPath LIKE :subPath)")
                         .setParameter("owner", entity.getOwner())
-                        .setParameter("path", folderInsidePath + "%")
+                        .setParameter("path", folderPathForChildren)
+                        .setParameter("subPath", folderPathForChildren + "/%")
                         .executeUpdate();
             }
         }

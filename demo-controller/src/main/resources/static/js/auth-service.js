@@ -2,16 +2,30 @@ const AuthService = {
     async login(username, password) {
         const res = await API.login(username, password);
         if (res.ok) {
-            localStorage.setItem('userSession', JSON.stringify({ username, password }));
+            const data = await res.json();
+
+            localStorage.setItem('jwtToken', data.token);
+            localStorage.setItem('username', data.username);
+
+            sessionStorage.setItem('fileKey', password);
+
             return true;
         }
         return false;
     },
     logout() {
-        localStorage.removeItem('userSession');
+        localStorage.removeItem('jwtToken');
+        localStorage.removeItem('username');
+        sessionStorage.removeItem('fileKey');
     },
     getSavedSession() {
-        const saved = localStorage.getItem('userSession');
-        return saved ? JSON.parse(saved) : null;
+        const token = localStorage.getItem('jwtToken');
+        const username = localStorage.getItem('username');
+        const password = sessionStorage.getItem('fileKey');
+
+        if (token && password && username) {
+            return { token, username, password };
+        }
+        return null;
     }
 };

@@ -37,7 +37,6 @@ const UploadService = {
         return new Promise((resolve, reject) => {
             const formData = new FormData();
             formData.append("file", file);
-            formData.append("username", context.username);
             formData.append("password", context.password);
             formData.append("folderPath", folderPath);
             formData.append("fileName", file.name);
@@ -61,15 +60,23 @@ const UploadService = {
             xhr.onerror = () => reject("Error de red o servidor no alcanzable");
             xhr.onreadystatechange = () => {
                 if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status >= 200 && xhr.status < 300) resolve();
-                    else {
-                        const msg = xhr.status === 0 ? "Conexión perdida" : xhr.responseText;
-                        reject(msg);
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve();
+                    } else {
+                        let errorMessage = "Error desconocido";
+                        try {
+                            const response = JSON.parse(xhr.responseText);
+                            errorMessage = response.message || response;
+                        } catch (e) {
+                            errorMessage = xhr.responseText || `Error ${xhr.status}`;
+                        }
+                        reject(errorMessage);
                     }
                 }
             };
 
             xhr.open("POST", "/api/files/upload", true);
+            xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('jwtToken')}`);
             xhr.send(formData);
         });
     }

@@ -197,20 +197,52 @@ public class FileService {
         FileEntity entity = fileRepository.findById(id)
                 .orElseThrow(() -> new InstanceNotFoundException("Fichero no encontrado"));
 
-        String childrenPath = (entity.getFolderPath().endsWith("/") ?
-                entity.getFolderPath() : entity.getFolderPath() + "/")
-                + entity.getFileName();
+        // 1. Restauramos los padres (si restauro /a/b/c, activo 'a' y 'b' automáticamente)
+        restoreParentHierarchy(entity.getOwner().getUsername(), entity.getFolderPath());
 
+        // 2. Restauramos el elemento actual
         fileRepository.restoreFile(id);
 
+        // 3. Si es carpeta, restauramos TODO lo de dentro (recursivo)
         if ("application/x-directory".equals(entity.getFileType())) {
+            String childrenPath = (entity.getFolderPath().endsWith("/") ?
+                    entity.getFolderPath() : entity.getFolderPath() + "/")
+                    + entity.getFileName();
+
             List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePath(
                     entity.getOwner().getUsername(), childrenPath);
+
             for (FileEntity child : children) {
                 fileRepository.restoreFile(child.getId());
             }
         }
+
         return fileMapper.toDto(entity);
+    }
+
+    /**
+     * Método auxiliar para asegurar que toda la ruta del padre esté activa
+     */
+    private void restoreParentHierarchy(String username, String folderPath) {
+        if (folderPath == null || folderPath.equals("/")) return;
+
+        String[] parts = folderPath.split("/");
+        String currentPath = "/";
+
+        for (String part : parts) {
+            if (part.isEmpty()) continue;
+
+            // Buscamos la carpeta padre en la base de datos (esté borrada o no)
+            fileRepository.findByOwner_UsernameAndFileNameAndFolderPathAndFileType(
+                    username, part, currentPath, "application/x-directory"
+            ).ifPresent(parent -> {
+                if (parent.getDeletedAt() != null) {
+                    fileRepository.restoreFile(parent.getId());
+                }
+            });
+
+            currentPath = (currentPath.equals("/") ? "" : currentPath) + "/" + part;
+        }
     }
 
     public Map<String, Object> getUserStats(String username) {

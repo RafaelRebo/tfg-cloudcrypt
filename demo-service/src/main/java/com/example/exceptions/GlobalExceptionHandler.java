@@ -17,7 +17,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(QuotaExceededException.class)
     public ResponseEntity<?> handleQuota(QuotaExceededException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.PAYLOAD_TOO_LARGE); // 413
+        return buildResponse(ex.getMessage(), HttpStatus.FORBIDDEN); // 413
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
