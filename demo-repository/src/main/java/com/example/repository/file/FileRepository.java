@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
@@ -18,11 +19,27 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(String username, String folderPath, Pageable pageable);
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND (f.folderPath = :path OR f.folderPath LIKE CONCAT(:path, '/%'))")
-    List<FileEntity> findAllByOwnerAndRecursivePath(
+    Stream<FileEntity> findAllByOwnerAndRecursivePath(
             @Param("username") String username,
             @Param("path") String path
     );
+    Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
     boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(
             String username, String fileName, String folderPath, String fileType);
+
+    // Filtro por Categorías (Fotos, Vídeos, etc.)
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND f.deletedAt IS NULL " +
+            "AND f.fileType LIKE :mimePattern " +
+            "AND f.fileType <> 'application/x-directory'")
+    Page<FileEntity> findByCategory(@Param("username") String username,
+                                    @Param("mimePattern") String mimePattern,
+                                    Pageable pageable);
+
+    // Filtro para la Papelera (Solo raíces borradas)
+    // Aquí implementamos la lógica que antes hacías en Vue
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND f.deletedAt IS NOT NULL")
+    Page<FileEntity> findTrash(@Param("username") String username, Pageable pageable);
 }

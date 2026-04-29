@@ -12,9 +12,15 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class UserService {
-    @Autowired private UserRepository userRepository;
-    @Autowired private PasswordEncoder passwordEncoder;
-    @Autowired private UserMapper userMapper;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserMapper userMapper) {
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.userMapper = userMapper;
+    }
 
     public UserDto register(String username, String password, String email) throws UserAlreadyExistsException {
         if (userRepository.findByUsername(username) != null) {

@@ -1,10 +1,11 @@
 package com.example.repository.file;
 
 import com.example.model.FileEntity;
+import com.example.model.UserEntity;
 
 public interface FileRepositoryCustom {
     FileEntity createFile(String name, String folderPath, String type, long size,
-                          String checksum, String storagePath, String username);
+                          String checksum, String storagePath, UserEntity username, String salt);
 
     FileEntity createFolder(String name, String folderPath, String username);
 

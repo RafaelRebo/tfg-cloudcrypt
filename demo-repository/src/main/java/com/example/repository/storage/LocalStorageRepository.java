@@ -1,5 +1,6 @@
-package com.example.repository.file;
+package com.example.repository.storage;
 
+import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
 
@@ -12,7 +13,9 @@ import java.io.OutputStream;
 import java.nio.file.*;
 
 @Component
-public class FileStorageRepository {
+@Primary
+public class LocalStorageRepository implements IStorageRepository {
+
     private final Path root = Paths.get("uploads");
 
     @PostConstruct
@@ -21,19 +24,18 @@ public class FileStorageRepository {
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
             }
-            root.toFile().setReadable(true, true);
-            root.toFile().setWritable(true, true);
-            root.toFile().setExecutable(true, true);
+            // Permisos restringidos: solo el dueño puede leer/escribir/ejecutar
+            root.toFile().setReadable(true, false);
+            root.toFile().setWritable(true, false);
+            root.toFile().setExecutable(true, false);
         } catch (IOException e) {
-            throw new RuntimeException("Error inicializando almacenamiento");
+            throw new RuntimeException("Error inicializando almacenamiento local");
         }
     }
 
-    public void save(InputStream input, String folder, String filename, javax.crypto.Cipher cipher) throws IOException {
+    @Override
+    public void save(InputStream input, String folder, String filename, Cipher cipher) throws IOException {
         Path targetFolder = this.root.resolve(folder);
-
-        targetFolder.toFile().setWritable(true, true);
-
         if (!Files.exists(targetFolder)) {
             Files.createDirectories(targetFolder);
         }
@@ -44,44 +46,37 @@ public class FileStorageRepository {
              CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
             input.transferTo(cos);
         }
-
-
-        targetFile.toFile().setWritable(false, false);
-        targetFolder.toFile().setWritable(false, false);
     }
 
+    @Override
     public void delete(String storagePath) throws IOException {
         Path path = this.root.resolve(storagePath);
 
         if (Files.exists(path)) {
-            // Otorgamos permisos para borrar
-            path.getParent().toFile().setWritable(true, true);
-            path.toFile().setWritable(true, true);
+            Files.delete(path);
 
-            Files.delete(path); // Borra el archivo
-
-            // Intentar borrar carpetas vacías hacia arriba (hasta llegar a 'uploads')
+            // Borrado recursivo de carpetas vacías
             Path parent = path.getParent();
-            while (!parent.equals(this.root)) {
-                try (var s = Files.list(parent)) {
-                    if (s.findAny().isEmpty()) {
+            while (parent != null && !parent.equals(this.root) && Files.exists(parent)) {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(parent)) {
+                    if (!stream.iterator().hasNext()) {
                         Files.delete(parent);
                         parent = parent.getParent();
                     } else {
                         break;
                     }
-                } catch (DirectoryNotEmptyException e) {
-                    break;
                 }
             }
         }
     }
 
+    @Override
     public InputStream loadDecryptedStream(String relativePath, Cipher cipher) throws IOException {
         InputStream is = Files.newInputStream(this.root.resolve(relativePath));
         return new CipherInputStream(is, cipher);
     }
 
+    @Override
     public boolean exists(String storagePath) {
         return Files.exists(this.root.resolve(storagePath));
     }

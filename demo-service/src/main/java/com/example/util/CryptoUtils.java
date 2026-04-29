@@ -1,27 +1,38 @@
 package com.example.util;
 
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 import javax.crypto.Cipher;
+import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.util.Arrays;
+import java.security.spec.KeySpec;
 
-@Service
+@Component
 public class CryptoUtils {
     private static final String ALGORITHM = "AES";
+    private static final String DERIVATION_ALGORITHM = "PBKDF2WithHmacSHA256";
+    private static final int ITERATIONS = 65536;
+    private static final int KEY_LENGTH = 256;
 
-    private SecretKeySpec deriveKey(String password) throws Exception {
-        byte[] key = password.getBytes(StandardCharsets.UTF_8);
-        MessageDigest sha = MessageDigest.getInstance("SHA-256");
-        key = sha.digest(key);
-        key = Arrays.copyOf(key, 16);
-        return new SecretKeySpec(key, ALGORITHM);
+    // Genera un salt aleatorio de 16 bytes
+    public byte[] generateRandomSalt() {
+        byte[] salt = new byte[16];
+        new java.security.SecureRandom().nextBytes(salt);
+        return salt;
     }
 
-    public Cipher getCipher(int mode, String password) throws Exception {
-        Cipher c = Cipher.getInstance(ALGORITHM);
-        c.init(mode, deriveKey(password));
-        return c;
+    // Ahora recibe el salt como parámetro
+    private SecretKey deriveKey(String password, byte[] salt) throws Exception {
+        SecretKeyFactory factory = SecretKeyFactory.getInstance(DERIVATION_ALGORITHM);
+        KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, ITERATIONS, KEY_LENGTH);
+        SecretKey tmp = factory.generateSecret(spec);
+        return new SecretKeySpec(tmp.getEncoded(), ALGORITHM);
+    }
+
+    public Cipher getReadyCipher(int mode, String password, byte[] salt) throws Exception {
+        Cipher cipher = Cipher.getInstance(ALGORITHM);
+        cipher.init(mode, deriveKey(password, salt));
+        return cipher;
     }
 }

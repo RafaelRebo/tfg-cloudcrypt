@@ -59,6 +59,61 @@ const FileService = {
         }
     },
 
+    getDisplayFiles(allUserFiles, currentFolder, currentCategory) {
+        const isDeleted = f => !!f.deletedAt;
+        const viewingTrash = currentCategory === 'trash';
+        const currentNormalized = this.normalizePath(currentFolder);
+
+        if (viewingTrash) {
+            if (currentNormalized === '/') {
+                return allUserFiles.filter(f => {
+                    const fPath = this.normalizePath(f.folderPath);
+                    if (fPath === '/') return true;
+
+                    const parts = fPath.split('/').filter(p => p);
+                    const parentName = parts[parts.length - 1];
+                    const grandparentPath = this.normalizePath('/' + parts.slice(0, -1).join('/'));
+
+                    const isParentInList = allUserFiles.some(p =>
+                        p.fileName === parentName &&
+                        this.normalizePath(p.folderPath) === grandparentPath &&
+                        isDeleted(p)
+                    );
+                    return !isParentInList;
+                });
+            } else {
+                return allUserFiles;
+            }
+        }
+        return allUserFiles;
+    },
+
+    getPathSegments(currentFolder, currentCategory) {
+        if (!currentFolder || currentFolder === '/') return [];
+
+        const segments = [];
+        const parts = currentFolder.split('/').filter(p => p !== '');
+        let pathAccumulated = '';
+
+        parts.forEach((name) => {
+            pathAccumulated += '/' + name;
+            segments.push({
+                name: name,
+                path: pathAccumulated
+            });
+        });
+
+        return segments;
+    },
+
+    normalizePath(path) {
+        if (!path || path === '/') return '/';
+        let p = path.replace(/\/+/g, '/');
+        if (p.endsWith('/') && p.length > 1) p = p.slice(0, -1);
+        if (!p.startsWith('/')) p = '/' + p;
+        return p;
+    },
+
     getFileIcon(mime) {
         if (!mime) return '📄';
         if (mime.startsWith('image/')) return '🖼️';

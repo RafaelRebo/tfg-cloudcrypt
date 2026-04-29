@@ -17,5 +17,6 @@ public class FileDto {
     private String folderPath;
     private String checksum;
     private LocalDateTime deletedAt;
+    private String salt;
 }
 

@@ -1,10 +1,8 @@
 package com.example.controller;
 
-import com.example.config.StorageConfig;
 import com.example.dto.FileDto;
 import com.example.service.FileService;
-import com.example.util.JwtUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.config.JwtUtils;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -24,11 +22,13 @@ import java.util.Map;
 @RequestMapping("/api/files")
 public class FileController {
 
-    @Autowired
-    private FileService fileService;
+    private final FileService fileService;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    private JwtUtils jwtUtils;
+    public FileController(FileService fileService, JwtUtils jwtUtils) {
+        this.fileService = fileService;
+        this.jwtUtils = jwtUtils;
+    }
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
@@ -71,13 +71,13 @@ public class FileController {
     public ResponseEntity<?> listFiles(
             @RequestHeader("Authorization") String authHeader,
             @RequestParam(defaultValue = "/") String folder,
-            @RequestParam(value = "all", defaultValue = "false") boolean all,
+            @RequestParam(value = "category", defaultValue = "all") String category,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
         String username = getUsernameFromToken(authHeader);
         if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
 
-        Page<FileDto> page = fileService.getFilesByFolder(username, folder, all, pageable);
+        Page<FileDto> page = fileService.getFilesByFolder(username, folder, category, pageable);
         return ResponseEntity.ok(page);
     }
 

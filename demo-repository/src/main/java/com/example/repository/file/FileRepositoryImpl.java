@@ -16,14 +16,7 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
     @Override
     @Transactional
     public FileEntity createFile(String name, String folderPath, String type, long size,
-                                 String checksum, String storagePath, String username) {
-
-        // El repositorio busca al dueño internamente para establecer la relación
-        UserEntity owner = entityManager.createQuery(
-                        "SELECT u FROM UserEntity u WHERE u.username = :username", UserEntity.class)
-                .setParameter("username", username)
-                .getSingleResult();
-
+                                 String checksum, String storagePath, UserEntity owner, String salt) {
         FileEntity entity = new FileEntity();
         entity.setFileName(name);
         entity.setFolderPath(folderPath);
@@ -31,7 +24,8 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
         entity.setFileSize(size);
         entity.setChecksum(checksum);
         entity.setStoragePath(storagePath);
-        entity.setOwner(owner); // Aquí se establece la Foreign Key
+        entity.setOwner(owner); // Asignación directa
+        entity.setSalt(salt);
 
         entityManager.persist(entity);
         return entity;

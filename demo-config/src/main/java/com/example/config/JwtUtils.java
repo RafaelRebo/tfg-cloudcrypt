@@ -1,4 +1,4 @@
-package com.example.util;
+package com.example.config;
 
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;

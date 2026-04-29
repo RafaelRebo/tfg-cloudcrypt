@@ -9,8 +9,13 @@ import org.springframework.stereotype.Service;
 @Service
 public class QuotaUtils {
 
-    @Autowired private FileRepository fileRepository;
-    @Autowired private StorageConfig storageConfig;
+    private final FileRepository fileRepository;
+    private final StorageConfig storageConfig;
+
+    public QuotaUtils(FileRepository fileRepository, StorageConfig storageConfig) {
+        this.fileRepository = fileRepository;
+        this.storageConfig = storageConfig;
+    }
 
     public void checkQuota(String username, long newFileSize) throws QuotaExceededException {
         long currentUsage = fileRepository.getTotalUsageByUser(username);

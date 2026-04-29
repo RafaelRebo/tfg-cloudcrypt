@@ -10,7 +10,7 @@ public class FileMapper {
         if (entity == null) return null;
         return new FileDto(
                 entity.getId(), entity.getFileName(), entity.getFileType(),
-                entity.getFileSize(), entity.getFolderPath(), entity.getChecksum(), entity.getDeletedAt()
+                entity.getFileSize(), entity.getFolderPath(), entity.getChecksum(), entity.getDeletedAt(), entity.getSalt()
         );
     }
 }

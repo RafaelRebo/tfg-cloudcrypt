@@ -3,8 +3,7 @@ package com.example.controller;
 import com.example.dto.UserDto;
 import com.example.exceptions.InvalidCredentialsException;
 import com.example.service.UserService;
-import com.example.util.JwtUtils;
-import org.springframework.beans.factory.annotation.Autowired;
+import com.example.config.JwtUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,11 +15,13 @@ import java.util.Map;
 @RequestMapping("/api/users")
 public class UserController {
 
-    @Autowired
-    private UserService userService;
+    private final UserService userService;
+    private final JwtUtils jwtUtils;
 
-    @Autowired
-    private JwtUtils jwtUtils;
+    public UserController(UserService userService, JwtUtils jwtUtils) {
+        this.userService = userService;
+        this.jwtUtils = jwtUtils;
+    }
 
     @PostMapping("/register")
     public ResponseEntity<?> register(

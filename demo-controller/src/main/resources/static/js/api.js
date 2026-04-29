@@ -18,14 +18,14 @@ const API = {
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
 
-    async getFiles(username, folder = null, all = false, page = 0, size = 20) {
-        let url = `/api/files?page=${page}&size=${size}`;
-        if (all) url += `&all=true`;
-        if (folder) url += `&folder=${encodeURIComponent(folder)}`;
+    async getFiles(username, folder = null, category = 'all', page = 0, size = 20) {
+        let url = `/api/files?page=${page}&size=${size}&category=${category}`;
 
-        const res = await fetch(url, {
-            headers: this.getAuthHeader() // Inyectamos JWT
-        });
+        if (folder && folder !== '/') {
+            url += `&folder=${encodeURIComponent(folder)}`;
+        }
+
+        const res = await fetch(url, { headers: this.getAuthHeader() });
         if (!res.ok) throw new Error("Error API getFiles");
         return res.json();
     },

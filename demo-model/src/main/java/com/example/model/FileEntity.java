@@ -7,7 +7,10 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "files")
+@Table(name = "files", indexes = {
+        @Index(name = "idx_owner_path", columnList = "user_id, folderPath"),
+        @Index(name = "idx_owner_deleted", columnList = "user_id, deletedAt")
+})
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,6 +26,7 @@ public class FileEntity {
     private String folderPath;
     private String storagePath;
     private LocalDateTime deletedAt;
+    private String salt;
 
     @Column(length = 64)
     private String checksum;
