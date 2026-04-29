@@ -31,11 +31,56 @@ const appInstance = createApp({
         },
         pathSegments() {
             if (this.currentFolder === '/') return [];
-            let path = '';
-            return this.currentFolder.split('/').filter(p => p !== '').map(p => {
-                path += '/' + p;
-                return {name: p, path: path};
+
+            let segments = [];
+            let pathAccumulated = '';
+            const allParts = this.currentFolder.split('/').filter(p => p !== '');
+
+            // Si estamos en la papelera, queremos encontrar dónde empezar a mostrar
+            if (this.currentCategory === 'trash') {
+                let firstDeletedIndex = -1;
+                let checkPath = '';
+
+                // Buscamos cuál es la primera carpeta de la ruta que está borrada
+                for (let i = 0; i < allParts.length; i++) {
+                    const partName = allParts[i];
+                    const currentLevelPath = checkPath || '/';
+
+                    const isThisPartDeleted = this.allUserFiles.some(f =>
+                        f.fileName === partName &&
+                        f.folderPath === currentLevelPath &&
+                        !!f.deletedAt
+                    );
+
+                    if (isThisPartDeleted) {
+                        firstDeletedIndex = i;
+                        break;
+                    }
+                    checkPath = (checkPath === '/' ? '' : checkPath) + '/' + partName;
+                }
+
+                // Si encontramos la carpeta borrada (b), solo mostramos desde ahí
+                if (firstDeletedIndex !== -1) {
+                    // Reconstruimos el path acumulado hasta el punto de borrado para que los clics funcionen
+                    let prefixPath = '/' + allParts.slice(0, firstDeletedIndex).join('/');
+                    if (prefixPath.endsWith('/')) prefixPath = prefixPath.slice(0, -1);
+
+                    pathAccumulated = prefixPath;
+
+                    for (let i = firstDeletedIndex; i < allParts.length; i++) {
+                        pathAccumulated += '/' + allParts[i];
+                        segments.push({ name: allParts[i], path: pathAccumulated });
+                    }
+                    return segments;
+                }
+            }
+
+            // Lógica normal para "Mis Archivos" (muestra toda la ruta)
+            allParts.map(p => {
+                pathAccumulated += '/' + p;
+                segments.push({ name: p, path: pathAccumulated });
             });
+            return segments;
         },
         displayFiles() {
             const isDeleted = f => !!f.deletedAt;
