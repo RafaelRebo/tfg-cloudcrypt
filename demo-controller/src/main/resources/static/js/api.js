@@ -66,5 +66,12 @@ const API = {
                 'X-File-Password': password
             }
         });
-    }
+    },
+
+    async searchFiles(query, page = 0, size = 20) {
+        const url = `/api/files/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`;
+        const res = await fetch(url, { headers: this.getAuthHeader() });
+        if (!res.ok) throw new Error("Error en la búsqueda");
+        return res.json();
+    },
 };

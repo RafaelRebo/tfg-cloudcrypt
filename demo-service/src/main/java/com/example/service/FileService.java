@@ -85,10 +85,12 @@ public class FileService {
         String cleanPath = pathUtils.sanitize(folder);
 
         if ("trash".equals(category)) {
-            return ("/".equals(cleanPath)
-                    ? fileRepository.findTrash(username, pageable)
-                    : fileRepository.findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(username, cleanPath, pageable))
-                    .map(fileMapper::toDto);
+            if ("/".equals(cleanPath)) {
+                return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
+            } else {
+                return fileRepository.findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(username, cleanPath, pageable)
+                        .map(fileMapper::toDto);
+            }
         }
 
         String pattern = getMimePattern(category);
@@ -99,8 +101,8 @@ public class FileService {
     }
 
     @Transactional
-    public void deleteFile(Long id) throws Exception {
-        FileEntity entity = findOrThrow(id);
+    public void deleteFile(Long id, String username) throws Exception {
+        FileEntity entity = findOrThrow(id, username);
         if (entity.getDeletedAt() == null) {
             processLogicalDelete(entity);
         } else {
@@ -109,16 +111,16 @@ public class FileService {
     }
 
     @Transactional
-    public FileDto restoreFile(Long id) throws InstanceNotFoundException {
-        FileEntity entity = findOrThrow(id);
+    public FileDto restoreFile(Long id, String username) throws InstanceNotFoundException {
+        FileEntity entity = findOrThrow(id, username);
         folderService.restoreParentHierarchy(entity.getOwner().getUsername(), entity.getFolderPath());
 
         applyRecursiveAction(entity, fileRepository::restoreFile);
         return fileMapper.toDto(entity);
     }
 
-    public InputStream getFileDownloadStream(Long id, String password) throws Exception {
-        FileEntity entity = findOrThrow(id);
+    public InputStream getFileDownloadStream(Long id, String username, String password) throws Exception {
+        FileEntity entity = findOrThrow(id, username);
         if ("application/x-directory".equals(entity.getFileType())) throw new InternalStorageException("No es descargable");
         if (!storageUtils.exists(entity.getStoragePath())) throw new InternalStorageException("Archivo físico no encontrado");
 
@@ -129,14 +131,24 @@ public class FileService {
         return statsService.getUserStats(username);
     }
 
-    public FileDto getFileById(Long id) throws InstanceNotFoundException {
-        return fileMapper.toDto(findOrThrow(id));
+    public FileDto getFileById(Long id, String username) throws InstanceNotFoundException {
+        return fileMapper.toDto(findOrThrow(id, username));
+    }
+
+    public Page<FileDto> searchFiles(String username, String query, Pageable pageable) {
+        if (query == null || query.trim().isEmpty()) {
+            return Page.empty();
+        }
+
+        return fileRepository.searchByName(username, query.trim(), pageable)
+                .map(fileMapper::toDto);
     }
 
     // --- Métodos Privados de Soporte ---
 
-    private FileEntity findOrThrow(Long id) throws InstanceNotFoundException {
-        return fileRepository.findById(id).orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+    private FileEntity findOrThrow(Long id, String username) throws InstanceNotFoundException {
+        return fileRepository.findByIdAndOwner_Username(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
     }
 
     private void processLogicalDelete(FileEntity entity) {

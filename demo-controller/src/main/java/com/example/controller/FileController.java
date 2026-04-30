@@ -2,7 +2,6 @@ package com.example.controller;
 
 import com.example.dto.FileDto;
 import com.example.service.FileService;
-import com.example.config.JwtUtils;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Page;
@@ -23,26 +22,21 @@ import java.util.Map;
 public class FileController {
 
     private final FileService fileService;
-    private final JwtUtils jwtUtils;
 
-    public FileController(FileService fileService, JwtUtils jwtUtils) {
+    public FileController(FileService fileService) {
         this.fileService = fileService;
-        this.jwtUtils = jwtUtils;
     }
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @RequestParam("file") MultipartFile file,
             @RequestParam("password") String password,
             @RequestParam(value = "folderPath", defaultValue = "/") String folderPath,
             @RequestParam(value = "fileName", required = false) String fileName) {
 
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
         try {
-            FileDto savedFile = fileService.uploadFile(file, username, password, folderPath, fileName);
+            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, folderPath, fileName);
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -51,16 +45,13 @@ public class FileController {
 
     @PostMapping("/folder")
     public ResponseEntity<?> createFolder(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @RequestParam("folderName") String folderName,
             @RequestParam("password") String password,
             @RequestParam("folderPath") String folderPath) {
 
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
         try {
-            FileDto savedFolder = fileService.createFolder(folderName, username, password, folderPath);
+            FileDto savedFolder = fileService.createFolder(folderName, authenticatedUser, password, folderPath);
             return ResponseEntity.ok(savedFolder);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -69,32 +60,24 @@ public class FileController {
 
     @GetMapping
     public ResponseEntity<?> listFiles(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @RequestParam(defaultValue = "/") String folder,
             @RequestParam(value = "category", defaultValue = "all") String category,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
-        Page<FileDto> page = fileService.getFilesByFolder(username, folder, category, pageable);
+        Page<FileDto> page = fileService.getFilesByFolder(authenticatedUser, folder, category, pageable);
         return ResponseEntity.ok(page);
     }
 
     @GetMapping("/download/{id}")
     public ResponseEntity<Resource> downloadFile(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @PathVariable Long id,
             @RequestHeader("X-File-Password") String password) {
 
-
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
         try {
-            FileDto fileDto = fileService.getFileById(id);
-
-            InputStream stream = fileService.getFileDownloadStream(id, password);
+            FileDto fileDto = fileService.getFileById(id, authenticatedUser);
+            InputStream stream = fileService.getFileDownloadStream(id, authenticatedUser, password);
             InputStreamResource resource = new InputStreamResource(stream);
 
             return ResponseEntity.ok()
@@ -107,24 +90,18 @@ public class FileController {
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<?> getUserStats(@RequestHeader("Authorization") String authHeader) {
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
-        Map<String, Object> stats = fileService.getUserStats(username);
+    public ResponseEntity<?> getUserStats(String authenticatedUser) {
+        Map<String, Object> stats = fileService.getUserStats(authenticatedUser);
         return ResponseEntity.ok(stats);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteFile(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @PathVariable Long id) {
 
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
         try {
-            fileService.deleteFile(id);
+            fileService.deleteFile(id, authenticatedUser);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
@@ -133,28 +110,24 @@ public class FileController {
 
     @PostMapping("/{id}/restore")
     public ResponseEntity<?> restoreFile(
-            @RequestHeader("Authorization") String authHeader,
+            String authenticatedUser,
             @PathVariable Long id) {
 
-        String username = getUsernameFromToken(authHeader);
-        if (username == null) return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
-
         try {
-            FileDto restored = fileService.restoreFile(id);
+            FileDto restored = fileService.restoreFile(id, authenticatedUser);
             return ResponseEntity.ok(restored);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
     }
 
-    private String getUsernameFromToken(String authHeader) {
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            return null;
-        }
-        String token = authHeader.substring(7);
-        if (jwtUtils.validateToken(token)) {
-            return jwtUtils.getUsernameFromToken(token);
-        }
-        return null;
+    @GetMapping("/search")
+    public ResponseEntity<Page<FileDto>> searchFiles(
+            String authenticatedUser,
+            @RequestParam("q") String query,
+            @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
+
+        Page<FileDto> results = fileService.searchFiles(authenticatedUser, query, pageable);
+        return ResponseEntity.ok(results);
     }
 }

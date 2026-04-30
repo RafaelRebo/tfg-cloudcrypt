@@ -3,7 +3,6 @@ package com.example.util;
 import com.example.config.StorageConfig;
 import com.example.exceptions.QuotaExceededException;
 import com.example.repository.file.FileRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 @Service

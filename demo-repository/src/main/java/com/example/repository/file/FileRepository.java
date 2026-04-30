@@ -15,7 +15,7 @@ import java.util.stream.Stream;
 
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
 
-    Page<FileEntity> findByOwner_Username(String username, Pageable pageable);
+    Optional<FileEntity> findByIdAndOwner_Username(Long id, String username);
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(String username, String folderPath, Pageable pageable);
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND (f.folderPath = :path OR f.folderPath LIKE CONCAT(:path, '/%'))")
@@ -28,7 +28,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(
             String username, String fileName, String folderPath, String fileType);
 
-    // Filtro por Categorías (Fotos, Vídeos, etc.)
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NULL " +
             "AND f.fileType LIKE :mimePattern " +
@@ -37,9 +36,24 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                     @Param("mimePattern") String mimePattern,
                                     Pageable pageable);
 
-    // Filtro para la Papelera (Solo raíces borradas)
-    // Aquí implementamos la lógica que antes hacías en Vue
+
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
-            "AND f.deletedAt IS NOT NULL")
-    Page<FileEntity> findTrash(@Param("username") String username, Pageable pageable);
+            "AND f.fileName LIKE CONCAT('%', :query, '%') " +
+            "AND f.deletedAt IS NULL")
+    Page<FileEntity> searchByName(@Param("username") String username,
+                                  @Param("query") String query,
+                                  Pageable pageable);
+
+    // En FileRepository.java
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND f.deletedAt IS NOT NULL " +
+            "AND NOT EXISTS ( " +
+            "  SELECT p FROM FileEntity p WHERE p.owner.username = :username " +
+            "  AND p.fileType = 'application/x-directory' " +
+            "  AND p.deletedAt IS NOT NULL " +
+            "  AND f.folderPath = CASE " +
+            "      WHEN p.folderPath = '/' THEN CONCAT('/', p.fileName) " +
+            "      ELSE CONCAT(p.folderPath, '/', p.fileName) END " +
+            ")")
+    Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
 }

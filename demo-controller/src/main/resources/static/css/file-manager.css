@@ -4,6 +4,53 @@
     padding: 1rem 2rem;
     background: #0b0f1a;
     scrollbar-color: var(--sidebar-bg) transparent;
+    position: relative;
+}
+
+.file-manager.drag-over {
+    background: rgba(59, 130, 246, 0.05);
+    outline: 2px dashed var(--accent-blue);
+    outline-offset: -10px;
+}
+
+.file-manager {
+    position: relative; /* Para la capa overlay */
+}
+
+/* Efecto cuando se está arrastrando sobre el contenedor */
+.file-manager.drag-over {
+    background: rgba(59, 130, 246, 0.05);
+    outline: 2px dashed var(--accent-blue);
+    outline-offset: -10px;
+}
+
+.drop-overlay {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: rgba(15, 23, 42, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none; /* Permite que el evento drop llegue al padre */
+    z-index: 50;
+}
+
+.drop-message {
+    text-align: center;
+    color: white;
+}
+
+.drop-icon {
+    font-size: 3rem;
+    display: block;
+    margin-bottom: 1rem;
+    animation: bounce 1s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
 }
 
 .file-manager::-webkit-scrollbar {
@@ -38,6 +85,8 @@
     border-bottom: 1px solid var(--border-color);
     transition: background 0.2s ease;
     cursor: pointer; /* <--- ESTO cambia el cursor a la mano */
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .file-row:hover {
@@ -187,4 +236,88 @@
 .btn-new .plus {
     font-size: 1.4rem;
     line-height: 0;
+}
+
+.search-container {
+    padding: 1rem 0;
+    margin-bottom: 0.5rem;
+}
+
+.search-box {
+    display: flex;
+    align-items: center;
+    background: #1e293b; /* El mismo azul del sidebar */
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 0 1rem;
+    transition: all 0.3s ease;
+}
+
+.search-box:focus-within {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.search-icon {
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    margin-right: 12px;
+}
+
+.search-input {
+    background: transparent;
+    border: none;
+    color: white;
+    padding: 12px 0;
+    width: 100%;
+    font-size: 0.95rem;
+    outline: none;
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.highlight {
+    background-color: rgba(59, 130, 246, 0.4);
+    color: #ffffff;
+    padding: 0 2px;
+    border-radius: 4px;
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.selection-bar {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--accent-blue);
+    padding: 12px 20px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+}
+
+.selection-info {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-weight: 600;
+}
+
+.selection-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.file-row.selected {
+    background: rgba(59, 130, 246, 0.2) !important; /* Un poco más intenso para que se note */
+    outline: 1px solid var(--accent-blue); /* Añade un borde fino */
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
