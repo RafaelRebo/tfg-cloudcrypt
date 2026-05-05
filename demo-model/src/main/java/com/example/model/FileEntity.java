@@ -5,11 +5,13 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "files", indexes = {
-        @Index(name = "idx_owner_path", columnList = "user_id, folderPath"),
-        @Index(name = "idx_owner_deleted", columnList = "user_id, deletedAt")
+        @Index(name = "idx_owner_path", columnList = "user_id, folder_path"),
+        @Index(name = "idx_owner_deleted", columnList = "user_id, deleted_at")
 })
 @Getter
 @Setter
@@ -20,21 +22,38 @@ public class FileEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "file_name")
     private String fileName;
+
+    @Column(name = "file_type")
     private String fileType;
+
+    @Column(name = "file_size")
     private Long fileSize;
+
+    @Column(name = "folder_path")
     private String folderPath;
+
+    @Column(name = "storage_path")
     private String storagePath;
+
+    @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
     private String salt;
 
     @Column(length = 64)
     private String checksum;
 
-    // @JsonBackReference indica que este enlace no se debe serializar
-    // hacia atrás para evitar el bucle infinito.
     @ManyToOne
-    @JoinColumn(name = "user_id")
+    @JoinColumn(name = "user_id") // Coincide con tu columna 'user_id'
     @JsonBackReference
     private UserEntity owner;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_id")
+    private FileEntity parent;
+
+    @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FileEntity> children = new ArrayList<>();
 }

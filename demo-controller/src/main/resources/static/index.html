@@ -85,7 +85,7 @@
         <main class="content">
             <header class="top-header">
                 <div class="breadcrumbs">
-                    <div class="crumb-item" @click="goToFolder('/')">
+                    <div class="crumb-item" @click="goToFolder('/', null)">
                         <span class="crumb-icon">{{ currentCategory === 'trash' ? '🗑️' : '🏠' }}</span>
                         <span class="crumb-text">
                             {{ currentCategory === 'trash' ? 'Papelera' : (currentCategory === 'all' ? 'Mis archivos' : 'Explorar ' + currentCategory) }}
@@ -185,29 +185,45 @@
     </div>
     <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;" @click.self="confirmModal.onCancel">
         <div class="auth-card" style="max-width: 440px; text-align: left; padding: 2rem;">
-
             <h2 style="margin-bottom: 0.8rem; display: flex; align-items: center; gap: 10px;">
-                {{ confirmModal.title || '⚠️ ¿Estás seguro?' }}
+                <span v-if="confirmModal.isDuplicateMode">⚠️</span>
+                {{ confirmModal.title || '¿Estás seguro?' }}
             </h2>
 
             <p style="margin-bottom: 1.5rem; color: var(--text-muted); line-height: 1.5;">
                 {{ confirmModal.message }}
             </p>
 
+            <!-- CASO A: Nueva Carpeta (Input) -->
             <template v-if="confirmModal.isInput">
                 <input v-model="confirmModal.inputValue"
                        class="auth-input"
                        placeholder="Nombre de la carpeta"
                        @keyup.enter="confirmModal.onConfirm"
                        ref="modalInput"
-                       style="margin-bottom: 2rem;">
+                       style="margin-bottom: 2rem; width: 100%;">
             </template>
 
-            <div class="modal-footer">
-                <button @click="confirmModal.onCancel" class="btn-modal btn-cancel">Cancelar</button>
-                <button @click="confirmModal.onConfirm" class="btn-modal btn-confirm">
-                    {{ confirmModal.isInput ? 'Crear' : 'Confirmar' }}
-                </button>
+            <!-- CASO B: Conflicto (Checkbox) -->
+            <div v-if="confirmModal.isDuplicateMode" style="margin-bottom: 1.5rem; display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 0.9rem;">
+                <input type="checkbox" v-model="confirmModal.applyToAll" id="applyAll" style="width: auto; margin: 0;">
+                <label for="applyAll">Aplicar a todos los conflictos</label>
+            </div>
+
+            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+                <!-- Botones de Conflicto -->
+                <template v-if="confirmModal.isDuplicateMode">
+                    <button @click="confirmModal.onSkip" class="btn-modal btn-cancel">Omitir</button>
+                    <button @click="confirmModal.onCopy" class="btn-modal btn-copy">Copia</button>
+                    <button @click="confirmModal.onOverwrite" class="btn-modal btn-overwrite" style="background: #ef4444; color: white;">Reemplazar</button>
+                </template>
+                <!-- Botones Normales / Nueva Carpeta -->
+                <template v-else>
+                    <button @click="confirmModal.onCancel" class="btn-modal btn-cancel">Cancelar</button>
+                    <button @click="confirmModal.onConfirm" class="btn-modal btn-confirm">
+                        {{ confirmModal.isInput ? 'Crear' : 'Confirmar' }}
+                    </button>
+                </template>
             </div>
         </div>
     </div>

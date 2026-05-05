@@ -13,7 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.InputStream;
 import java.util.Map;
 
@@ -29,14 +28,15 @@ public class FileController {
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
-            String authenticatedUser,
+            @RequestParam("authenticatedUser") String authenticatedUser,
             @RequestParam("file") MultipartFile file,
             @RequestParam("password") String password,
-            @RequestParam(value = "folderPath", defaultValue = "/") String folderPath,
+            @RequestParam(value = "parentId", required = false) Long parentId,
             @RequestParam(value = "fileName", required = false) String fileName) {
 
         try {
-            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, folderPath, fileName);
+            // Ahora pasamos el parentId al service
+            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, parentId, fileName);
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -45,27 +45,51 @@ public class FileController {
 
     @PostMapping("/folder")
     public ResponseEntity<?> createFolder(
+            @RequestParam("authenticatedUser") String authenticatedUser,
+            @RequestParam("folderName") String folderName,
+            @RequestParam(value = "parentId", required = false) Long parentId) {
+        try {
+            FileDto savedFolder = fileService.createFolder(folderName, authenticatedUser, parentId);
+            return ResponseEntity.ok(savedFolder);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/folder/sync")
+    public ResponseEntity<?> createFolderSync(
             String authenticatedUser,
             @RequestParam("folderName") String folderName,
             @RequestParam("password") String password,
-            @RequestParam("folderPath") String folderPath) {
-
+            @RequestParam(value = "parentId", required = false) Long parentId) {
         try {
-            FileDto savedFolder = fileService.createFolder(folderName, authenticatedUser, password, folderPath);
-            return ResponseEntity.ok(savedFolder);
+            // Pasamos el parentId directamente al service
+            FileDto folder = fileService.ensureFolderSync(authenticatedUser, folderName, parentId);
+            return ResponseEntity.ok(folder);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
         }
+    }
+
+    @GetMapping("/check-exists")
+    public ResponseEntity<Map<String, Object>> checkFileExists(
+            @RequestParam String fileName,
+            @RequestParam(required = false) Long parentId,
+            @RequestParam String username) {
+
+        // El service ahora debe buscar por parentId
+        Map<String, Object> result = fileService.checkExistsById(username, fileName, parentId);
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping
     public ResponseEntity<?> listFiles(
             String authenticatedUser,
-            @RequestParam(defaultValue = "/") String folder,
+            @RequestParam(value = "folderId", required = false) Long folderId, // Cambiado de 'folder' a 'folderId'
             @RequestParam(value = "category", defaultValue = "all") String category,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
-        Page<FileDto> page = fileService.getFilesByFolder(authenticatedUser, folder, category, pageable);
+        Page<FileDto> page = fileService.getFilesByFolder(authenticatedUser, folderId, category, pageable);
         return ResponseEntity.ok(page);
     }
 

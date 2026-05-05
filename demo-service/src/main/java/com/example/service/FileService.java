@@ -8,7 +8,9 @@ import com.example.mapper.FileMapper;
 import com.example.model.FileEntity;
 import com.example.model.UserEntity;
 import com.example.repository.file.FileRepository;
+import com.example.repository.user.UserRepository;
 import com.example.util.*;
+import jakarta.annotation.Nonnull;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.springframework.data.domain.Page;
@@ -19,12 +21,15 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class FileService {
 
     private final FileRepository fileRepository;
+    private final UserRepository userRepository;
     private final StorageUtils storageUtils;
     private final QuotaUtils quotaUtils;
     private final UserService userService;
@@ -36,7 +41,7 @@ public class FileService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public FileService(FileRepository fileRepository, StorageUtils storageUtils,
+    public FileService(FileRepository fileRepository, UserRepository userRepository, StorageUtils storageUtils,
                        QuotaUtils quotaUtils, UserService userService, FolderService folderService,
                        StatsService statsService, PathUtils pathUtils, FileMapper fileMapper) {
         this.fileRepository = fileRepository;
@@ -47,57 +52,147 @@ public class FileService {
         this.statsService = statsService;
         this.pathUtils = pathUtils;
         this.fileMapper = fileMapper;
+        this.userRepository = userRepository;
     }
 
-    @Transactional
-    public FileDto uploadFile(MultipartFile file, String username, String rawPassword, String folderPath, String fileName) throws Exception {
-        String cleanPath = pathUtils.sanitize(folderPath);
-        UserDto user = userService.authenticate(username, rawPassword);
-        UserEntity owner = entityManager.getReference(UserEntity.class, user.getId());
+    // --- DENTRO DE FileService.java ---
+
+    @Transactional(rollbackFor = Exception.class)
+    public FileDto uploadFile(MultipartFile file, String username, String rawPassword,
+                              Long parentId, String fileName) throws Exception {
+
+        UserDto userDto = userService.authenticate(username, rawPassword);
+        UserEntity owner = entityManager.getReference(UserEntity.class, userDto.getId());
 
         quotaUtils.checkQuota(username, file.getSize());
-        folderService.ensureExists(username, cleanPath);
 
-        Map<String, String> storage = storageUtils.encryptAndSave(file.getInputStream(), username, cleanPath, rawPassword);
+        FileEntity parent = (parentId != null)
+                ? fileRepository.findById(parentId).orElseThrow(() -> new InstanceNotFoundException("Carpeta no encontrada"))
+                : null;
 
-        FileEntity entity = fileRepository.createFile(
-                fileName,
-                cleanPath,
-                file.getContentType(),
-                file.getSize(),
-                storage.get("checksum"), // Usamos el checksum generado por StorageUtils
-                storage.get("storagePath"),
-                owner,
-                storage.get("salt")
-        );
+        // REGLA 3: Reemplazo explícito.
+        // Si el usuario eligió "Reemplazar", el Front envía el nombre EXACTO.
+        // Solo borramos si existe un archivo con ese nombre EXACTO en ese padre.
+        Optional<FileEntity> existing = (parent == null)
+                ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, fileName)
+                : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, fileName, parentId);
 
-        return fileMapper.toDto(entity);
+        if (existing.isPresent()) {
+            FileEntity oldFile = existing.get();
+            // Si es una carpeta, no permitimos que un archivo la machaque (error de lógica)
+            if ("application/x-directory".equals(oldFile.getFileType())) {
+                throw new Exception("No puedes reemplazar una carpeta con un archivo.");
+            }
+
+            // FÍSICAMENTE: Borramos el viejo para dejar sitio al nuevo
+            if (oldFile.getStoragePath() != null) {
+                storageUtils.deletePhysicalFile(oldFile.getStoragePath());
+            }
+            fileRepository.delete(oldFile);
+            fileRepository.flush(); // Limpiar espacio en BD para el nuevo insert
+        }
+
+        String logicalPath = (parent == null) ? "/" :
+                (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
+
+        Map<String, String> storageResult = storageUtils.encryptAndSave(file.getInputStream(), username, logicalPath, rawPassword);
+
+        FileEntity newFile = new FileEntity();
+        newFile.setFileName(fileName);
+        newFile.setFileType(file.getContentType());
+        newFile.setFileSize(file.getSize());
+        newFile.setOwner(owner);
+        newFile.setParent(parent);
+        newFile.setFolderPath(logicalPath);
+        newFile.setStoragePath(storageResult.get("storagePath"));
+        newFile.setSalt(storageResult.get("salt"));
+        newFile.setChecksum(storageResult.get("checksum"));
+
+        return fileMapper.toDto(fileRepository.save(newFile));
+    }
+
+    // REGLA 1: Crear carpeta manual permite coexistencia
+
+
+    public FileDto ensureFolderSync(String username, String folderName, Long parentId) throws Exception {
+        FileEntity parent = (parentId != null)
+                ? fileRepository.findById(parentId).orElse(null)
+                : null;
+
+        // El FolderService.ensureExists debe devolver la FileEntity creada o encontrada
+        FileEntity folder = folderService.ensureExists(username, folderName, parent);
+        return fileMapper.toDto(folder);
+    }
+
+    public Map<String, Object> checkExistsById(String username, String fileName, Long parentId) {
+        Optional<FileEntity> existing = (parentId == null)
+                ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, fileName)
+                : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, fileName, parentId);
+
+        Map<String, Object> response = new java.util.HashMap<>();
+        response.put("exists", existing.isPresent());
+
+        if (existing.isPresent()) {
+            response.put("existingId", existing.get().getId());
+            response.put("suggestedName", generateUniqueName(fileName, existing.get().getFolderPath(), username));
+        }
+        return response;
     }
 
     @Transactional
-    public FileDto createFolder(String name, String username, String password, String path) throws Exception {
-        userService.authenticate(username, password);
-        quotaUtils.checkQuota(username, 0);
-        return fileMapper.toDto(fileRepository.createFolder(name, pathUtils.sanitize(path), username));
+    public FileDto createFolder(String name, String username, Long parentId) {
+        UserEntity owner = userRepository.findByUsername(username);
+        FileEntity parent = (parentId != null) ? fileRepository.findById(parentId).orElse(null) : null;
+
+        FileEntity newFolder = getFileEntity(name, owner, parent);
+
+        // Guardado directo sin validaciones de nombre (las validaciones las hace el Front con el aviso)
+        FileEntity saved = fileRepository.save(newFolder);
+        return fileMapper.toDto(saved);
     }
 
-    public Page<FileDto> getFilesByFolder(String username, String folder, String category, Pageable pageable) {
-        String cleanPath = pathUtils.sanitize(folder);
+    @Nonnull
+    private static FileEntity getFileEntity(String name, UserEntity owner, FileEntity parent) {
+        FileEntity newFolder = new FileEntity();
+        newFolder.setFileName(name);
+        newFolder.setFileType("application/x-directory");
+        newFolder.setOwner(owner);
+        newFolder.setParent(parent);
+        newFolder.setFileSize(0L);
 
-        if ("trash".equals(category)) {
-            if ("/".equals(cleanPath)) {
-                return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
-            } else {
-                return fileRepository.findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(username, cleanPath, pageable)
-                        .map(fileMapper::toDto);
-            }
+        String derivedPath = "/";
+        if (parent != null) {
+            String base = parent.getFolderPath();
+            derivedPath = base.equals("/") ? "/" + parent.getFileName() : base + "/" + parent.getFileName();
+        }
+        newFolder.setFolderPath(derivedPath);
+        return newFolder;
+    }
+
+    // Cambia el parámetro 'String folder' por 'Long parentId'
+    public Page<FileDto> getFilesByFolder(String username, Long parentId, String category, Pageable pageable) {
+
+        // 1. Si hay una categoría (fotos, videos...), seguimos buscando globalmente (sin carpeta)
+        String pattern = getMimePattern(category);
+        if (pattern != null && !"trash".equals(category)) {
+            return fileRepository.findByCategory(username, pattern, pageable).map(fileMapper::toDto);
         }
 
-        String pattern = getMimePattern(category);
-        return (pattern != null
-                ? fileRepository.findByCategory(username, pattern, pageable)
-                : fileRepository.findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(username, cleanPath, pageable))
-                .map(fileMapper::toDto);
+        // 2. Lógica para la Papelera (si quieres mantenerla por rutas o ID)
+        if ("trash".equals(category)) {
+            return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
+        }
+
+        // 3. BÚSQUEDA REAL POR JERARQUÍA
+        if (parentId == null) {
+            // Estamos en la raíz
+            return fileRepository.findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(username, pageable)
+                    .map(fileMapper::toDto);
+        } else {
+            // Estamos dentro de una carpeta
+            return fileRepository.findByOwner_UsernameAndParentIdAndDeletedAtIsNull(username, parentId, pageable)
+                    .map(fileMapper::toDto);
+        }
     }
 
     @Transactional
@@ -144,6 +239,28 @@ public class FileService {
                 .map(fileMapper::toDto);
     }
 
+    // En FileService.java
+    public String generateUniqueName(String fileName, String folderPath, String username) {
+        String name = fileName;
+        String extension = "";
+        int lastDot = fileName.lastIndexOf('.');
+
+        if (lastDot > 0) {
+            name = fileName.substring(0, lastDot);
+            extension = fileName.substring(lastDot);
+        }
+
+        int counter = 1;
+        String finalName = fileName;
+
+        // Bucle para encontrar un nombre tipo "archivo (1).txt", "archivo (2).txt"...
+        while (fileRepository.existsByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(username, finalName, folderPath)) {
+            finalName = name + " (" + counter + ")" + extension;
+            counter++;
+        }
+        return finalName;
+    }
+
     // --- Métodos Privados de Soporte ---
 
     private FileEntity findOrThrow(Long id, String username) throws InstanceNotFoundException {
@@ -155,18 +272,26 @@ public class FileService {
         applyRecursiveAction(entity, fileRepository::markAsDeleted);
     }
 
+    @Transactional(rollbackFor = Exception.class)
     private void processPhysicalDelete(FileEntity entity) {
-        // Usamos el objeto directamente en lugar de solo el ID para evitar findById extras
-        applyRecursiveActionWithEntity(entity, f -> {
-            if (f.getStoragePath() != null) {
-                try {
-                    storageUtils.deletePhysicalFile(f.getStoragePath());
-                } catch (IOException e) {
-                    throw new RuntimeException("Error borrando archivo físico: " + f.getFileName(), e);
-                }
+        // 1. Si es una carpeta, borramos primero recursivamente el contenido de los hijos
+        if ("application/x-directory".equals(entity.getFileType())) {
+            for (FileEntity child : entity.getChildren()) {
+                processPhysicalDelete(child);
             }
-            fileRepository.hardDelete(f.getId());
-        });
+        }
+
+        // 2. Borramos el archivo físico del disco si no es una carpeta
+        if (entity.getStoragePath() != null) {
+            try {
+                storageUtils.deletePhysicalFile(entity.getStoragePath());
+            } catch (IOException e) {
+                // Log de error pero continuamos para no bloquear la limpieza
+            }
+        }
+
+        // 3. Al final, JPA borrará el registro de la tabla gracias a la cascada
+        fileRepository.delete(entity);
     }
 
     private void applyRecursiveAction(FileEntity entity, java.util.function.Consumer<Long> action) {

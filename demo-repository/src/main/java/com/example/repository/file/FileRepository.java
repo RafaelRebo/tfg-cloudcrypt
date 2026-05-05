@@ -1,32 +1,69 @@
 package com.example.repository.file;
 
 import com.example.model.FileEntity;
-
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
-
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
 
+    // --- BÚSQUEDAS BÁSICAS ---
     Optional<FileEntity> findByIdAndOwner_Username(Long id, String username);
+
+    // --- NAVEGACIÓN POR JERARQUÍA (ID) ---
+    Page<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId, Pageable pageable);
+
+    Page<FileEntity> findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(String username, Pageable pageable);
+
+    // --- NAVEGACIÓN POR RUTA (STRING) - Necesario para Breadcrumbs y compatibilidad ---
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(String username, String folderPath, Pageable pageable);
+
+    // --- GESTIÓN DE DUPLICADOS ---
+    // Buscar por ID de padre (Ficheros)
+    Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
+
+    // Buscar en la raíz (Ficheros)
+    Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
+
+    // Buscar por Objeto Parent y Tipo (Para FolderService.ensureExists)
+    Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(String username, String fileName, FileEntity parent);
+
+    // Buscar por String de ruta y Tipo (Para lógica antigua de carpetas)
+    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
+
+    Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
+
+    // Obtener todos para borrado masivo (Overwrite)
+    List<FileEntity> findAllByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
+
+    List<FileEntity> findAllByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
+
+    // Reemplazo de findAllByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull para FileService
+    List<FileEntity> findAllByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(String username, String fileName, String folderPath);
+
+    // --- VALIDACIÓN DE EXISTENCIA ---
+    boolean existsByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
+
+    boolean existsByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
+
+    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(String username, String fileName, String folderPath);
+
+    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileTypeNotAndDeletedAtIsNull(String username, String fileName, String folderPath, String fileTypeNot);
+
+    // --- RECURSIVIDAD Y CATEGORÍAS ---
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND (f.folderPath = :path OR f.folderPath LIKE CONCAT(:path, '/%'))")
     Stream<FileEntity> findAllByOwnerAndRecursivePath(
             @Param("username") String username,
             @Param("path") String path
     );
+
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
-    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
-    Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(
-            String username, String fileName, String folderPath, String fileType);
 
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NULL " +
@@ -36,7 +73,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                     @Param("mimePattern") String mimePattern,
                                     Pageable pageable);
 
-
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.fileName LIKE CONCAT('%', :query, '%') " +
             "AND f.deletedAt IS NULL")
@@ -44,7 +80,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                   @Param("query") String query,
                                   Pageable pageable);
 
-    // En FileRepository.java
+    // --- PAPELERA ---
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NOT NULL " +
             "AND NOT EXISTS ( " +

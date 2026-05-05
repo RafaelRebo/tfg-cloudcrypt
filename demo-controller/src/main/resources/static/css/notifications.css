@@ -126,3 +126,79 @@
     width: 0%; /* Vue controlará esto */
     transition: width 0.1s linear; /* Animación suave */
 }
+
+/* --- ESTILOS PARA EL MODAL DE DUPLICADOS --- */
+
+/* Contenedor de botones en modo duplicado para que se vean bien alineados */
+.modal-footer template {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    justify-content: flex-end;
+}
+
+/* Botón Sobrescribir: Rojo pero siguiendo tu esquema de color */
+.btn-overwrite {
+    background: var(--danger) !important;
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+}
+
+.btn-overwrite:hover {
+    background: #dc2626 !important;
+    transform: translateY(-1px);
+}
+
+/* Botón Copia: Usamos un azul cian o el azul principal para denotar seguridad */
+.btn-copy {
+    background: #0ea5e9 !important; /* Un azul más claro que el primary */
+    color: white !important;
+    box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+}
+
+.btn-copy:hover {
+    background: #0284c7 !important;
+    transform: translateY(-1px);
+}
+
+/* Ajuste para el input dentro del modal */
+.auth-input {
+    width: 100%;
+    padding: 0.8rem 1rem;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-color);
+    border-radius: 0.75rem;
+    color: white;
+    font-size: 1rem;
+    outline: none;
+    transition: all 0.3s ease;
+    box-sizing: border-box;
+}
+
+.auth-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Efecto de pulso suave para el icono de advertencia del modal */
+.modal-warning-icon {
+    animation: pulse-warn 2s infinite;
+}
+
+@keyframes pulse-warn {
+    0% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* Clase de utilidad para el texto de los botones del modal */
+.btn-modal {
+    text-transform: none;
+    letter-spacing: normal;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s ease;
+}

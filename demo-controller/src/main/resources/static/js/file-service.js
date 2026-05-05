@@ -88,13 +88,34 @@ const FileService = {
         return allUserFiles;
     },
 
-    getPathSegments(currentFolder, currentCategory) {
+    getPathSegments(currentFolder, currentCategory, trashRootPath) {
         if (!currentFolder || currentFolder === '/') return [];
 
         const segments = [];
         const parts = currentFolder.split('/').filter(p => p !== '');
         let pathAccumulated = '';
 
+        if (currentCategory === 'trash' && trashRootPath) {
+            const rootParts = trashRootPath.split('/').filter(p => p !== '');
+            let inTrashPath = false;
+
+            parts.forEach((name, index) => {
+                pathAccumulated += '/' + name;
+
+                // Solo empezamos a añadir al breadcrumb cuando llegamos
+                // a la carpeta que marcó el inicio de la papelera
+                if (name === rootParts[rootParts.length - 1] || inTrashPath) {
+                    inTrashPath = true;
+                    segments.push({
+                        name: name,
+                        path: pathAccumulated
+                    });
+                }
+            });
+            return segments;
+        }
+
+        // Ruta normal para Mis Archivos
         parts.forEach((name) => {
             pathAccumulated += '/' + name;
             segments.push({

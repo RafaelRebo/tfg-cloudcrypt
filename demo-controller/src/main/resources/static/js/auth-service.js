@@ -27,5 +27,16 @@ const AuthService = {
             return { token, username, password };
         }
         return null;
+    },
+    async deriveMasterKey(username, password) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(username.toLowerCase() + password);
+
+        // Usamos SHA-256 para generar una clave consistente a partir de user+pass
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+
+        // Retornamos el hash en Hexadecimal
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 };

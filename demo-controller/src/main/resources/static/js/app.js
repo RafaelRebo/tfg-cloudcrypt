@@ -19,13 +19,14 @@ const appInstance = createApp({
             isDragging: false,
             selectedIds: [],
             clickTimer: null,
+            trashRootPath: null,
+            currentFolderId: null,
         }
     },
     mounted() {
         const session = AuthService.getSavedSession();
         if (session) {
             this.username = session.username;
-            this.password = session.password;
             this.isLoggedIn = true;
             this.refreshAppData();
         }
@@ -36,7 +37,11 @@ const appInstance = createApp({
             return Math.min((this.stats.totalSize / this.stats.maxQuota) * 100, 100).toFixed(1);
         },
         pathSegments() {
-            return FileService.getPathSegments(this.currentFolder, this.currentCategory);
+            return FileService.getPathSegments(
+                this.currentFolder,
+                this.currentCategory,
+                this.trashRootPath
+            );
         },
         displayFiles() {
             return FileService.getDisplayFiles(this.allUserFiles, this.currentFolder, this.currentCategory);
@@ -49,19 +54,20 @@ const appInstance = createApp({
             this.hasMore = true;
             this.status = "Cargando...";
             try {
+                // IMPORTANTE: Enviamos currentFolderId para listar lo que hay DENTRO
                 const res = await API.getFiles(
                     this.username,
-                    this.currentFolder,
+                    this.currentFolderId,
                     this.currentCategory,
                     0
                 );
+
                 this.allUserFiles = res.content;
                 this.hasMore = !res.last;
-
                 this.stats = await API.getStats(this.username);
                 this.status = "";
             } catch (e) {
-                this.showError("Error de carga");
+                this.showError("Error de carga de archivos");
             }
         },
         handleInfiniteScroll() {
@@ -82,18 +88,47 @@ const appInstance = createApp({
 
         // --- Auth ---
         async handleLogin() {
-            const success = await AuthService.login(this.username, this.password);
-            if (success) {
-                this.loginError = false;
-                this.isLoggedIn = true;
-                this.refreshAppData();
-            } else {
-                this.loginError = true;
-                this.showError("Usuario o contraseña incorrectos");
+            try {
+                const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
+                const success = await AuthService.login(this.username, secureKey);
+
+                if (success) {
+                    sessionStorage.setItem('fileKey', secureKey);
+                    this.password = '';
+                    this.loginError = false;
+                    this.isLoggedIn = true;
+                    this.refreshAppData();
+                } else {
+                    this.loginError = true;
+                    this.showError("Usuario o contraseña incorrectos");
+                }
+            } catch (e) {
+                this.showError("Error en el proceso de autenticación");
             }
         },
+        // En app.js -> methods
         async handleRegister() {
-            if ((await API.register(this.username, this.password)).ok) alert("Registrado");
+            if (!this.username || !this.password) {
+                this.showError("Usuario y contraseña requeridos");
+                return;
+            }
+
+            try {
+                // 1. Derivamos la clave igual que en el Login
+                const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
+
+                // 2. Enviamos la clave derivada al servidor
+                const res = await API.register(this.username, secureKey);
+
+                if (res.ok) {
+                    this.showInfo("Registro completado. Ya puedes iniciar sesión.");
+                } else {
+                    const errorText = await res.text();
+                    this.showError("Error en registro: " + errorText);
+                }
+            } catch (e) {
+                this.showError("Error de conexión");
+            }
         },
         logout() {
             AuthService.logout();
@@ -108,29 +143,26 @@ const appInstance = createApp({
         },
         async onDrop(event) {
             this.isDragging = false;
-
-            // Obtenemos los items del evento
             const items = event.dataTransfer.items;
             if (!items) return;
 
             let filesToUpload = [];
             const scanPromises = [];
+            let containsFolder = false; // Flag para detectar si hay carpetas
 
-            // 1. Recolectamos todas las promesas de escaneo de archivos/carpetas
             for (let i = 0; i < items.length; i++) {
                 const item = items[i].webkitGetAsEntry();
                 if (item) {
+                    if (item.isDirectory) containsFolder = true;
                     scanPromises.push(this.traverseFileTree(item, "", filesToUpload));
                 }
             }
 
-            // 2. ESPERAMOS a que todo el árbol de archivos se haya leído en memoria
             await Promise.all(scanPromises);
 
             if (filesToUpload.length > 0) {
-                // 3. Enviamos la lista completa al proceso de subida
-                // Usamos 'true' porque el drop siempre debe ser tratado con lógica de rutas relativas
-                await this._handleUploadProcess(filesToUpload, true);
+                // Si solo soltamos archivos, pasamos false. Si hay carpetas, pasamos true.
+                await this._handleUploadProcess(filesToUpload, containsFolder);
             }
         },
 
@@ -192,16 +224,30 @@ const appInstance = createApp({
         // --- File Operations ---
         async _handleUploadProcess(files, isFolder) {
             try {
+                const sessionKey = sessionStorage.getItem('fileKey');
+
+                // IMPORTANTE: No clonamos con { ...this } porque perdemos la reactividad.
+                // Pasamos 'this' directamente. El UploadService debe estar preparado
+                // para recibir la instancia y la clave por separado o sobreescribirla.
+
+                // Modificamos temporalmente la propiedad de la instancia para la subida
+                const originalPassword = this.password;
+                this.password = sessionKey;
+
                 const success = await UploadService.processUpload(files, this, isFolder);
+
+                this.password = originalPassword; // Restauramos (aunque sea '')
+
                 if (success) {
-                    this.showInfo(`¡${isFolder ? 'Carpeta' : 'Archivos'} subidos con éxito!`);
-                    this.$refs[isFolder ? 'folderInput' : 'fileInput'].value = '';
+                    this.showInfo(`¡Subida completada!`);
+                    if (this.$refs.folderInput) this.$refs.folderInput.value = '';
+                    if (this.$refs.fileInput) this.$refs.fileInput.value = '';
                 }
             } catch (e) {
-                this.showError(e.message || e);
+                this.showError(e.message || "Error en la subida");
             } finally {
                 await this.refreshAppData();
-                this.uploadProgress = 0;
+                this.uploadProgress = 0; // Al ponerlo a 0, el NotificationService cerrará el toast
             }
         },
         async onUpload() {
@@ -211,37 +257,25 @@ const appInstance = createApp({
         async uploadFolder() {
             await this._handleUploadProcess(Array.from(this.$refs.folderInput.files), true);
         },
-        async openNewFolderModal() {
-            const targetPath = this.currentCategory === 'all' ? this.currentFolder : '/';
-            this.confirmModal = {
-                active: true,
-                title: '📁 Nueva carpeta',
-                message: `Crear en: ${this.currentCategory === 'all' ? targetPath : 'Raíz (/)'}`,
-                isInput: true, // Activamos el modo input
-                inputValue: 'Carpeta sin título', // Nombre por defecto
-                onConfirm: () => {
-                    if (this.confirmModal.inputValue.trim()) {
-                        this.handleCreateFolder(this.confirmModal.inputValue.trim(), targetPath);
-                        this.confirmModal.active = false;
-                    } else {
-                        this.showError("El nombre no puede estar vacío.");
-                    }
-                },
-                onCancel: () => { this.confirmModal.active = false; }
-            };
-        },
-        async handleCreateFolder(name, path) {
+        // En app.js -> methods
+        async handleCreateFolder(name, parentId) {
             try {
-                const res = await API.createFolder(this.username, this.password, path, name);
+                // Obtenemos la llave derivada de la sesión, NO de this.password
+                const sessionKey = sessionStorage.getItem('fileKey');
+
+                const res = await API.createFolder(
+                    this.username,
+                    sessionKey, // Usamos la llave derivada
+                    parentId,
+                    name
+                );
+
                 if (res.ok) {
-                    this.showInfo(`Carpeta "${name}" creada correctamente.`);
-                    await this.refreshAppData(); // Refrescamos para que aparezca
-                } else {
-                    const error = await res.text();
-                    this.showError(`No se pudo crear la carpeta: ${error}`);
+                    this.showInfo(`Carpeta "${name}" creada.`);
+                    await this.refreshAppData();
                 }
             } catch (e) {
-                this.showError("Error de conexión al crear la carpeta.");
+                this.showError("Error al crear carpeta");
             }
         },
         async handlePreview(f) {
@@ -250,7 +284,8 @@ const appInstance = createApp({
                 this.closePreview();
                 this.status = "Descifrando...";
                 try {
-                    const data = await PreviewService.getPreviewData(f, this.password);
+                    const sessionKey = sessionStorage.getItem('fileKey');
+                    const data = await PreviewService.getPreviewData(f, sessionKey);
                     this.preview = { active: true, id: f.id, name: f.fileName, mime: f.fileType, ...data };
                     this.status = "Vista previa cargada.";
                 } catch (e) { this.showError("No se pudo descifrar el archivo."); }
@@ -260,7 +295,10 @@ const appInstance = createApp({
             if (this.preview.url) URL.revokeObjectURL(this.preview.url);
             this.preview.active = false; this.preview.url = null; this.preview.content = '';
         },
-        async handleDownload(id, name) { await FileService.downloadFile(id, name, this.password, this); },
+        async handleDownload(id, name) {
+            const sessionKey = sessionStorage.getItem('fileKey');
+            await FileService.downloadFile(id, name, sessionKey, this);
+        },
         async handleRestore(f) { await FileService.restoreFile(f, this); },
         async handleDelete(f) { await FileService.deleteFile(f, this); },
         async handleSearch() {
@@ -345,6 +383,101 @@ const appInstance = createApp({
         clearSelection() {
             this.selectedIds = [];
         },
+        async askUserForDuplicateAction(name, isFolder) {
+            return new Promise((resolve) => {
+                this.confirmModal = {
+                    active: true,
+                    isDuplicateMode: true,
+                    isInput: false,
+                    applyToAll: false,
+                    title: isFolder ? '📁 Carpeta duplicada' : '📄 Archivo duplicado',
+                    message: `"${name}" ya existe. ¿Qué deseas hacer?`,
+                    onOverwrite: () => {
+                        const res = { action: 'overwrite', applyToAll: this.confirmModal.applyToAll };
+                        this.closeModal(resolve, res);
+                    },
+                    onCopy: () => {
+                        const res = { action: 'copy', applyToAll: this.confirmModal.applyToAll };
+                        this.closeModal(resolve, res);
+                    },
+                    onSkip: () => {
+                        const res = { action: 'skip', applyToAll: this.confirmModal.applyToAll };
+                        this.closeModal(resolve, res);
+                    },
+                    onCancel: () => {
+                        this.closeModal(resolve, { action: 'skip', applyToAll: false });
+                    }
+                };
+            });
+        },
+
+        // En app.js -> methods
+        closeModal(resolve, result) {
+            this.confirmModal.active = false;
+            // IMPORTANTE: Resetear todos los flags
+            setTimeout(() => {
+                this.confirmModal.isDuplicateMode = false;
+                this.confirmModal.isInput = false;
+                this.confirmModal.applyToAll = false;
+                this.confirmModal.title = '';
+                this.confirmModal.message = '';
+            }, 300); // Pequeño delay para que no se vea el cambio mientras cierra la animación
+            resolve(result);
+        },
+
+        // En app.js -> methods
+        // En app.js -> methods
+        async openNewFolderModal() {
+            const targetId = this.currentCategory === 'all' ? this.currentFolderId : null;
+            const targetName = this.currentFolder;
+
+            this.confirmModal = {
+                active: true,
+                isDuplicateMode: false,
+                isInput: true,
+                title: '📁 Nueva carpeta',
+                message: `Crear en: ${targetName}`,
+                inputValue: 'Carpeta sin título',
+                onConfirm: async () => {
+                    const name = this.confirmModal.inputValue.trim();
+                    if (!name) return;
+
+                    try {
+                        // 1. Verificar existencia
+                        const check = await API.checkExists(name, targetId, this.username);
+
+                        if (check.exists) {
+                            // Si existe, cerramos el modal de input para abrir el de confirmación
+                            this.confirmModal.active = false;
+
+                            // Pequeño delay para que Vue procese el cierre antes de abrir el siguiente
+                            await new Promise(r => setTimeout(r, 100));
+
+                            const proceed = await this.askConfirmation(
+                                `Ya existe una carpeta llamada "${name}". ¿Deseas crear otra con el mismo nombre?`
+                            );
+
+                            if (!proceed) return;
+                        }
+
+                        // 2. Ejecutar creación
+                        await this.handleCreateFolder(name, targetId);
+
+                        // 3. Limpiar y CERRAR de forma segura
+                        this.confirmModal.active = false;
+                        this.confirmModal.isInput = false;
+
+                    } catch (e) {
+                        console.error(e);
+                        this.showError("Error al procesar la carpeta");
+                    }
+                },
+                onCancel: () => {
+                    this.confirmModal.active = false;
+                    this.confirmModal.isInput = false;
+                }
+            };
+        },
         async deleteSelected() {
             const count = this.selectedIds.length;
             if (await this.askConfirmation(`¿Mover ${count} elementos a la papelera?`)) {
@@ -372,23 +505,32 @@ const appInstance = createApp({
         setCategory(cat) {
             this.currentCategory = cat;
             this.currentFolder = '/';
-            this.searchQuery = '';
-            this.isSearching = false;
+            this.trashRootPath = null;
+            this.clearSelection();
             this.refreshAppData();
         },
-        // En app.js -> methods
-        // En js/app.js -> methods
+
         enterFolder(f) {
-            this.clearSelection();
-            const base = f.folderPath === '/' ? '' : f.folderPath;
-            this.currentFolder = FileService.normalizePath(base + '/' + f.fileName);
+            // Al entrar en una carpeta, guardamos su ID y actualizamos el path visual
+            this.currentFolderId = f.id;
+            this.currentFolder = FileService.normalizePath(f.folderPath + '/' + f.fileName);
             this.refreshAppData();
         },
         isTrashRoot(f) {
             return this.currentCategory === 'trash';
         },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
-        goToFolder(p) { this.currentFolder = p; this.refreshAppData(); },
+        goToFolder(path, id = null) {
+            // Si path es '/', volvemos a la raíz
+            if (path === '/') {
+                this.currentFolder = '/';
+                this.currentFolderId = null;
+            } else {
+                this.currentFolder = path;
+                this.currentFolderId = id;
+            }
+            this.refreshAppData();
+        },
         getFileIcon(mime) { return FileService.getFileIcon(mime); },
         formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; }
     },

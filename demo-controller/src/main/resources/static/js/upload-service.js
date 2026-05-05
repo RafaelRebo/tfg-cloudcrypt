@@ -1,83 +1,97 @@
 const UploadService = {
-    // Orquestador principal: Recibe los archivos y decide cómo procesarlos
     async processUpload(files, context, isFolder = false) {
         const totalSize = files.reduce((acc, f) => acc + f.size, 0);
+        const fileProgressMap = new Map();
+        let globalAction = null;
+        let currentTargetId = context.currentFolderId;
 
-        // Validación de cuota (Idéntica a la que tenías)
-        if (totalSize > context.stats.maxQuota - context.stats.totalSize) {
-            const msg = isFolder ? "La carpeta completa supera tu espacio disponible." : "El total de los archivos seleccionados supera tu espacio disponible.";
-            context.showError(msg);
-            return false; // Indica que no se inició nada
+        // --- PASO 1: CARPETA RAÍZ ---
+        if (isFolder && files.length > 0) {
+            const rootName = files[0].webkitRelativePath.split('/')[0];
+            const check = await API.checkExists(rootName, currentTargetId, context.username);
+
+            if (check.exists) {
+                const res = await context.askUserForDuplicateAction(rootName, true);
+                if (res.action === 'skip') return false;
+                if (res.applyToAll) globalAction = res.action;
+
+                if (res.action === 'copy') {
+                    // REGLA 2 (Mantener): Creamos una carpeta nueva (independiente)
+                    // Usamos el nombre sugerido (ej: "a (1)")
+                    const newFolder = await API.createFolderSync(check.suggestedName, currentTargetId, context);
+                    currentTargetId = newFolder.id;
+                } else {
+                    // REGLA 2 (Reemplazar/Fusionar): Usamos el ID de la carpeta que ya existe
+                    currentTargetId = check.existingId;
+                }
+            } else {
+                const newFolder = await API.createFolderSync(rootName, currentTargetId, context);
+                currentTargetId = newFolder.id;
+            }
         }
 
-        let currentUploadedBytes = 0;
-        let base = context.currentFolder === '/' ? '' : context.currentFolder;
+        // --- PASO 2: ARCHIVOS ---
+        for (const file of files) {
+            let finalName = file.name;
+            let finalParentId = currentTargetId;
 
-        for (let f of files) {
-            // Lógica de carpetas: si es carpeta calcula el path relativo, si no usa la actual
-            let targetPath = context.currentFolder;
-            if (isFolder) {
-                const rel = f.webkitRelativePath.substring(0, f.webkitRelativePath.lastIndexOf('/'));
-                targetPath = (base + '/' + rel).replace(/\/+/g, '/');
+            if (isFolder && file.webkitRelativePath) {
+                const parts = file.webkitRelativePath.split('/');
+                parts.shift();
+                finalName = parts.pop();
+                if (parts.length > 0) {
+                    finalParentId = await this.resolveSubfolderChain(parts, currentTargetId, context);
+                }
             }
 
-            try {
-                await this.uploadSingle(f, targetPath, currentUploadedBytes, totalSize, context);
-                currentUploadedBytes += f.size;
-            } catch (e) {
-                // Lógica de "Todo o nada": Si falla uno, lanza el error hacia afuera para parar el bucle
-                throw { message: e, fileName: f.name };
+            // REGLA 3: Lógica de duplicados para archivos
+            let action = globalAction;
+            if (!action) {
+                const check = await API.checkExists(finalName, finalParentId, context.username);
+                if (check.exists) {
+                    const res = await context.askUserForDuplicateAction(finalName, false);
+                    action = res.action;
+                    if (res.applyToAll) globalAction = res.action;
+                }
             }
+
+            if (action === 'skip') continue;
+
+            // Si es copia, cambiamos el nombre para que el server cree otro registro
+            if (action === 'copy') {
+                const check = await API.checkExists(finalName, finalParentId, context.username);
+                finalName = check.suggestedName;
+            }
+
+            // Si es 'overwrite', el nombre se queda igual y el backend borrará el viejo
+            await this.uploadSingle(file, finalParentId, finalName, (bytes) => {
+                fileProgressMap.set(file, bytes);
+                const total = Array.from(fileProgressMap.values()).reduce((a, b) => a + b, 0);
+                context.uploadProgress = Math.min(Math.round((total / totalSize) * 100), 100);
+            }, context);
         }
-        return true; // Éxito total
+        return true;
     },
 
-    // El motor XHR (Mantengo tu lógica intacta)
-    async uploadSingle(file, folderPath, uploadedBytesSoFar, totalSize, context) {
-        return new Promise((resolve, reject) => {
-            const formData = new FormData();
-            formData.append("file", file);
-            formData.append("password", context.password);
-            formData.append("folderPath", folderPath);
-            formData.append("fileName", file.name);
+    async resolveSubfolderChain(parts, startParentId, context) {
+        let currentId = startParentId;
+        for (const part of parts) {
+            // Importante: createFolderSync ahora debe devolver el ID de la carpeta
+            const folder = await API.createFolderSync(part, currentId, context);
+            currentId = folder.id;
+        }
+        return currentId;
+    },
 
-            const xhr = new XMLHttpRequest();
+    // En upload-service.js
+    async uploadSingle(file, parentId, fileName, onProgress, context) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("password", context.password);
+        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
+        formData.append("fileName", fileName);
+        formData.append("authenticatedUser", context.username);
 
-            xhr.upload.addEventListener("progress", (e) => {
-                if (e.lengthComputable) {
-                    const currentFileProgress = e.loaded;
-                    const globalPercent = Math.round(((uploadedBytesSoFar + currentFileProgress) / totalSize) * 100);
-                    context.uploadProgress = globalPercent;
-
-                    if (totalSize === file.size) {
-                        context.status = globalPercent === 100 ? "Cifrando e integrando..." : `Subiendo: ${globalPercent}%`;
-                    } else {
-                        context.status = `Subiendo: ${globalPercent}% (${(uploadedBytesSoFar / (1024*1024)).toFixed(1)} MB enviados)`;
-                    }
-                }
-            });
-
-            xhr.onerror = () => reject("Error de red o servidor no alcanzable");
-            xhr.onreadystatechange = () => {
-                if (xhr.readyState === XMLHttpRequest.DONE) {
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        resolve();
-                    } else {
-                        let errorMessage = "Error desconocido";
-                        try {
-                            const response = JSON.parse(xhr.responseText);
-                            errorMessage = response.message || response;
-                        } catch (e) {
-                            errorMessage = xhr.responseText || `Error ${xhr.status}`;
-                        }
-                        reject(errorMessage);
-                    }
-                }
-            };
-
-            xhr.open("POST", "/api/files/upload", true);
-            xhr.setRequestHeader('Authorization', `Bearer ${localStorage.getItem('jwtToken')}`);
-            xhr.send(formData);
-        });
+        return API.uploadSingle(formData, onProgress);
     }
 };
