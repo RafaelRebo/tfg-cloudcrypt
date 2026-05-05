@@ -332,19 +332,51 @@ const appInstance = createApp({
             // Sustituimos el texto coincidente por el mismo texto envuelto en un span con clase CSS
             return text.replace(regex, '<span class="highlight">$1</span>');
         },
+        // En app.js -> methods
         handleFileClick(f, event) {
+            // 1. GESTIÓN DE SELECCIÓN MÚLTIPLE (CTRL o META para Mac)
             if (event.ctrlKey || event.metaKey) {
-                // ... lógica de selección múltiple (mantener igual)
-                return;
+                event.preventDefault(); // Evitar comportamientos por defecto
+                const index = this.selectedIds.indexOf(f.id);
+
+                if (index > -1) {
+                    // Si ya estaba seleccionado, lo quitamos
+                    this.selectedIds.splice(index, 1);
+                } else {
+                    // Si no estaba, lo añadimos
+                    this.selectedIds.push(f.id);
+                }
+                return; // Detenemos aquí para que NO abra la carpeta/archivo
             }
 
-            if (this.selectedIds.length > 0) this.clearSelection();
+            // 2. CLICK NORMAL (Sin Control)
+            // Si hay varios elementos seleccionados y haces click en uno sin CTRL, limpiamos y seleccionamos solo ese
+            if (this.selectedIds.length > 0 && !this.selectedIds.includes(f.id)) {
+                this.selectedIds = [f.id];
+            } else if (this.selectedIds.length === 0) {
+                this.selectedIds = [f.id];
+            }
 
-            if (f.fileType === 'application/x-directory') {
-                this.enterFolder(f);
+            // 3. DOBLE CLICK (Simulado): Si el usuario hace click rápido, se dispara la apertura
+            // Nota: Si prefieres que solo abra con doble click real, usa @dblclick en el HTML
+            // y deja este método solo para la selección.
+
+            if (this.clickTimer) {
+                // Es un doble click
+                clearTimeout(this.clickTimer);
+                this.clickTimer = null;
+
+                if (f.fileType === 'application/x-directory') {
+                    this.enterFolder(f);
+                } else {
+                    // Solo abrir preview si no está borrado
+                    if (!f.deletedAt) this.handlePreview(f);
+                }
             } else {
-                // Solo abrir preview si no está borrado (o si quieres permitirlo, mantén esto)
-                if (!f.deletedAt) this.handlePreview(f);
+                // Primer click: iniciamos temporizador para esperar el segundo
+                this.clickTimer = setTimeout(() => {
+                    this.clickTimer = null;
+                }, 300);
             }
         },
         // En app.js -> methods
