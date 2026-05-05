@@ -60,31 +60,8 @@ const FileService = {
     },
 
     getDisplayFiles(allUserFiles, currentFolder, currentCategory) {
-        const isDeleted = f => !!f.deletedAt;
-        const viewingTrash = currentCategory === 'trash';
-        const currentNormalized = this.normalizePath(currentFolder);
-
-        if (viewingTrash) {
-            if (currentNormalized === '/') {
-                return allUserFiles.filter(f => {
-                    const fPath = this.normalizePath(f.folderPath);
-                    if (fPath === '/') return true;
-
-                    const parts = fPath.split('/').filter(p => p);
-                    const parentName = parts[parts.length - 1];
-                    const grandparentPath = this.normalizePath('/' + parts.slice(0, -1).join('/'));
-
-                    const isParentInList = allUserFiles.some(p =>
-                        p.fileName === parentName &&
-                        this.normalizePath(p.folderPath) === grandparentPath &&
-                        isDeleted(p)
-                    );
-                    return !isParentInList;
-                });
-            } else {
-                return allUserFiles;
-            }
-        }
+        // En el modo navegación por ID, confiamos ciegamente en lo que el servidor nos devuelve
+        // para ese folderId específico.
         return allUserFiles;
     },
 

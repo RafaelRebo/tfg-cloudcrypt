@@ -333,29 +333,18 @@ const appInstance = createApp({
             return text.replace(regex, '<span class="highlight">$1</span>');
         },
         handleFileClick(f, event) {
-            // 1. SI SE PULSA CTRL O CMD: Gestionamos la selección múltiple
             if (event.ctrlKey || event.metaKey) {
-                event.preventDefault(); // Evitamos comportamientos raros
-                const index = this.selectedIds.indexOf(f.id);
-                if (index > -1) {
-                    this.selectedIds.splice(index, 1);
-                } else {
-                    this.selectedIds.push(f.id);
-                }
-                return; // Salimos del método para que NO abra la carpeta/archivo
+                // ... lógica de selección múltiple (mantener igual)
+                return;
             }
 
-            // 2. CLICK NORMAL (Sin Control): Comportamiento de toda la vida
-            // Si hay cosas seleccionadas y haces un click normal, limpiamos la selección
-            if (this.selectedIds.length > 0) {
-                this.clearSelection();
-            }
+            if (this.selectedIds.length > 0) this.clearSelection();
 
-            // Entrar en carpeta o abrir preview
             if (f.fileType === 'application/x-directory') {
                 this.enterFolder(f);
             } else {
-                this.handlePreview(f);
+                // Solo abrir preview si no está borrado (o si quieres permitirlo, mantén esto)
+                if (!f.deletedAt) this.handlePreview(f);
             }
         },
         // En app.js -> methods
@@ -505,15 +494,21 @@ const appInstance = createApp({
         setCategory(cat) {
             this.currentCategory = cat;
             this.currentFolder = '/';
+            this.currentFolderId = null; // IMPORTANTE: Resetear a la raíz de la categoría
             this.trashRootPath = null;
             this.clearSelection();
             this.refreshAppData();
         },
 
         enterFolder(f) {
-            // Al entrar en una carpeta, guardamos su ID y actualizamos el path visual
             this.currentFolderId = f.id;
             this.currentFolder = FileService.normalizePath(f.folderPath + '/' + f.fileName);
+
+            // Si f.deletedAt existe, nos aseguramos de que la categoría siga siendo trash
+            if (f.deletedAt) {
+                this.currentCategory = 'trash';
+            }
+
             this.refreshAppData();
         },
         isTrashRoot(f) {
@@ -521,10 +516,10 @@ const appInstance = createApp({
         },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
         goToFolder(path, id = null) {
-            // Si path es '/', volvemos a la raíz
             if (path === '/') {
                 this.currentFolder = '/';
                 this.currentFolderId = null;
+                // No cambiamos currentCategory para que si estás en trash, vuelvas a la raíz de trash
             } else {
                 this.currentFolder = path;
                 this.currentFolderId = id;

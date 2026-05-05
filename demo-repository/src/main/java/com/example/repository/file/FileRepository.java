@@ -55,6 +55,8 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileTypeNotAndDeletedAtIsNull(String username, String fileName, String folderPath, String fileTypeNot);
 
+    // Para navegar dentro de carpetas borradas
+    Page<FileEntity> findByOwner_UsernameAndParentId(String username, Long parentId, Pageable pageable);
     // --- RECURSIVIDAD Y CATEGORÍAS ---
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND (f.folderPath = :path OR f.folderPath LIKE CONCAT(:path, '/%'))")

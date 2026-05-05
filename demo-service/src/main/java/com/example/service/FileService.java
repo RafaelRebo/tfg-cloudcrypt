@@ -172,27 +172,29 @@ public class FileService {
     // Cambia el parámetro 'String folder' por 'Long parentId'
     public Page<FileDto> getFilesByFolder(String username, Long parentId, String category, Pageable pageable) {
 
-        // 1. Si hay una categoría (fotos, videos...), seguimos buscando globalmente (sin carpeta)
-        String pattern = getMimePattern(category);
-        if (pattern != null && !"trash".equals(category)) {
-            return fileRepository.findByCategory(username, pattern, pageable).map(fileMapper::toDto);
-        }
-
-        // 2. Lógica para la Papelera (si quieres mantenerla por rutas o ID)
-        if ("trash".equals(category)) {
+        // 1. Si estamos en la RAIZ de la papelera (parentId es null)
+        if ("trash".equals(category) && parentId == null) {
             return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
         }
 
-        // 3. BÚSQUEDA REAL POR JERARQUÍA
-        if (parentId == null) {
-            // Estamos en la raíz
-            return fileRepository.findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(username, pageable)
-                    .map(fileMapper::toDto);
-        } else {
-            // Estamos dentro de una carpeta
-            return fileRepository.findByOwner_UsernameAndParentIdAndDeletedAtIsNull(username, parentId, pageable)
+        // 2. Si estamos DENTRO de una carpeta (parentId NO es null)
+        if (parentId != null) {
+            // IMPORTANTE: Aquí buscamos los hijos directos del ID.
+            // No filtramos por deletedAt porque si la carpeta padre está borrada,
+            // queremos ver sus hijos aunque también estén borrados.
+            return fileRepository.findByOwner_UsernameAndParentId(username, parentId, pageable)
                     .map(fileMapper::toDto);
         }
+
+        // 3. Lógica para categorías (fotos, etc) - Solo activos
+        String pattern = getMimePattern(category);
+        if (pattern != null) {
+            return fileRepository.findByCategory(username, pattern, pageable).map(fileMapper::toDto);
+        }
+
+        // 4. Raíz de Mis Archivos (parentId null y category all)
+        return fileRepository.findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(username, pageable)
+                .map(fileMapper::toDto);
     }
 
     @Transactional
