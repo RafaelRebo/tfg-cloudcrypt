@@ -87,6 +87,8 @@
     cursor: pointer; /* <--- ESTO cambia el cursor a la mano */
     user-select: none;
     -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
 }
 
 .file-row:hover {

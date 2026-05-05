@@ -117,7 +117,7 @@
                 </div>
             </header>
 
-            <div class="file-manager":class="{ 'drag-over': isDragging }" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop">
+            <div class="file-manager":class="{ 'drag-over': isDragging }" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop" @click.self="selectedIds = []">
                 <div class="search-container">
                     <div class="search-box">
                         <span class="search-icon">

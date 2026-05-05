@@ -32,11 +32,12 @@ public class FileController {
             @RequestParam("file") MultipartFile file,
             @RequestParam("password") String password,
             @RequestParam(value = "parentId", required = false) Long parentId,
-            @RequestParam(value = "fileName", required = false) String fileName) {
+            @RequestParam(value = "fileName", required = false) String fileName,
+            @RequestParam("totalBatchSize") Long totalBatchSize) { // <--- NUEVO PARÁMETRO
 
         try {
-            // Ahora pasamos el parentId al service
-            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, parentId, fileName);
+            // Pasamos el totalBatchSize al service
+            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, parentId, fileName, totalBatchSize);
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());

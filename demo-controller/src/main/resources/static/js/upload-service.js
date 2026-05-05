@@ -68,7 +68,7 @@ const UploadService = {
                 fileProgressMap.set(file, bytes);
                 const total = Array.from(fileProgressMap.values()).reduce((a, b) => a + b, 0);
                 context.uploadProgress = Math.min(Math.round((total / totalSize) * 100), 100);
-            }, context);
+            }, context, totalSize);
         }
         return true;
     },
@@ -84,13 +84,16 @@ const UploadService = {
     },
 
     // En upload-service.js
-    async uploadSingle(file, parentId, fileName, onProgress, context) {
+    async uploadSingle(file, parentId, fileName, onProgress, context, totalBatchSize) {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("password", context.password);
         formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
         formData.append("fileName", fileName);
         formData.append("authenticatedUser", context.username);
+
+        // ENVIAMOS EL PESO TOTAL DEL LOTE
+        formData.append("totalBatchSize", totalBatchSize);
 
         return API.uploadSingle(formData, onProgress);
     }

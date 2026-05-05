@@ -59,10 +59,15 @@ const FileService = {
         }
     },
 
+    // En file-service.js
     getDisplayFiles(allUserFiles, currentFolder, currentCategory) {
-        // En el modo navegación por ID, confiamos ciegamente en lo que el servidor nos devuelve
-        // para ese folderId específico.
-        return allUserFiles;
+        if (currentCategory === 'trash') {
+            // En la papelera solo mostramos lo que tiene fecha de borrado
+            return allUserFiles.filter(f => f.deletedAt !== null);
+        } else {
+            // En "Mis Archivos" o categorías, NUNCA mostrar lo que tenga fecha de borrado
+            return allUserFiles.filter(f => f.deletedAt === null);
+        }
     },
 
     getPathSegments(currentFolder, currentCategory, trashRootPath) {

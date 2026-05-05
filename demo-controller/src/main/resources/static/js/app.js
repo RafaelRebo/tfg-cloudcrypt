@@ -49,12 +49,14 @@ const appInstance = createApp({
     },
     methods: {
         // --- Core Data ---
+        // En app.js -> methods
         async refreshAppData() {
             this.currentPage = 0;
             this.hasMore = true;
-            this.status = "Cargando...";
+            this.status = "Actualizando...";
+            this.selectedIds = []; // <--- IMPORTANTE: Limpiar selección al refrescar
+
             try {
-                // IMPORTANTE: Enviamos currentFolderId para listar lo que hay DENTRO
                 const res = await API.getFiles(
                     this.username,
                     this.currentFolderId,
@@ -62,12 +64,15 @@ const appInstance = createApp({
                     0
                 );
 
+                // Forzamos la limpieza del array antes de asignar los nuevos datos
+                this.allUserFiles = [];
                 this.allUserFiles = res.content;
+
                 this.hasMore = !res.last;
                 this.stats = await API.getStats(this.username);
                 this.status = "";
             } catch (e) {
-                this.showError("Error de carga de archivos");
+                this.showError("Error al actualizar la vista");
             }
         },
         handleInfiniteScroll() {
@@ -224,6 +229,14 @@ const appInstance = createApp({
         // --- File Operations ---
         async _handleUploadProcess(files, isFolder) {
             try {
+                const totalBatchSize = files.reduce((acc, f) => acc + f.size, 0);
+                const availableQuota = this.stats.maxQuota - this.stats.totalSize;
+
+                if (totalBatchSize > availableQuota) {
+                    // Error inmediato: No se activa la barra de progreso ni se llama al servicio
+                    this.showError(`Espacio insuficiente. Faltan ${this.formatSize(totalBatchSize - availableQuota)}`);
+                    return; // Cortamos aquí
+                }
                 const sessionKey = sessionStorage.getItem('fileKey');
 
                 // IMPORTANTE: No clonamos con { ...this } porque perdemos la reactividad.
@@ -332,72 +345,37 @@ const appInstance = createApp({
             // Sustituimos el texto coincidente por el mismo texto envuelto en un span con clase CSS
             return text.replace(regex, '<span class="highlight">$1</span>');
         },
-        // En app.js -> methods
         handleFileClick(f, event) {
-            // 1. GESTIÓN DE SELECCIÓN MÚLTIPLE (CTRL o META para Mac)
-            if (event.ctrlKey || event.metaKey) {
-                event.preventDefault(); // Evitar comportamientos por defecto
+            const isControlPressed = event.ctrlKey || event.metaKey;
+
+            if (isControlPressed) {
+                // --- MODO SELECCIÓN (Solo con Control) ---
+                event.preventDefault();
                 const index = this.selectedIds.indexOf(f.id);
-
                 if (index > -1) {
-                    // Si ya estaba seleccionado, lo quitamos
-                    this.selectedIds.splice(index, 1);
+                    this.selectedIds.splice(index, 1); // Deseleccionar
                 } else {
-                    // Si no estaba, lo añadimos
-                    this.selectedIds.push(f.id);
+                    this.selectedIds.push(f.id); // Seleccionar
                 }
-                return; // Detenemos aquí para que NO abra la carpeta/archivo
-            }
+                // Aquí NO hay apertura, solo gestión de la lista
+            } else {
+                // --- MODO ABRIR (Clic normal) ---
+                // 1. Limpiamos la selección para que no se quede nada marcado
+                this.selectedIds = [];
 
-            // 2. CLICK NORMAL (Sin Control)
-            // Si hay varios elementos seleccionados y haces click en uno sin CTRL, limpiamos y seleccionamos solo ese
-            if (this.selectedIds.length > 0 && !this.selectedIds.includes(f.id)) {
-                this.selectedIds = [f.id];
-            } else if (this.selectedIds.length === 0) {
-                this.selectedIds = [f.id];
-            }
-
-            // 3. DOBLE CLICK (Simulado): Si el usuario hace click rápido, se dispara la apertura
-            // Nota: Si prefieres que solo abra con doble click real, usa @dblclick en el HTML
-            // y deja este método solo para la selección.
-
-            if (this.clickTimer) {
-                // Es un doble click
-                clearTimeout(this.clickTimer);
-                this.clickTimer = null;
-
+                // 2. Ejecutamos la acción de abrir directamente
                 if (f.fileType === 'application/x-directory') {
                     this.enterFolder(f);
                 } else {
-                    // Solo abrir preview si no está borrado
-                    if (!f.deletedAt) this.handlePreview(f);
+                    // Si no es papelera, abrimos la preview
+                    if (!f.deletedAt) {
+                        this.handlePreview(f);
+                    }
                 }
-            } else {
-                // Primer click: iniciamos temporizador para esperar el segundo
-                this.clickTimer = setTimeout(() => {
-                    this.clickTimer = null;
-                }, 300);
             }
         },
-        // En app.js -> methods
-        toggleSelect(f, event) {
-            // 1. Caso de selección múltiple (CTRL / CMD) - Se ejecuta al instante
-            if (event.ctrlKey || event.metaKey) {
-                const index = this.selectedIds.indexOf(f.id);
-                if (index > -1) this.selectedIds.splice(index, 1);
-                else this.selectedIds.push(f.id);
-                return;
-            }
 
-            // 2. Caso de click normal: Retrasamos la selección para no pisar el Doble Click
-            if (this.clickTimer) clearTimeout(this.clickTimer);
 
-            this.clickTimer = setTimeout(() => {
-                // Si después de 250ms no ha habido un doble click, seleccionamos este único
-                this.selectedIds = [f.id];
-                this.clickTimer = null;
-            }, 250);
-        },
         isSelected(id) {
             return this.selectedIds.includes(id);
         },
@@ -501,13 +479,22 @@ const appInstance = createApp({
         },
         async deleteSelected() {
             const count = this.selectedIds.length;
-            if (await this.askConfirmation(`¿Mover ${count} elementos a la papelera?`)) {
-                for (const id of this.selectedIds) {
-                    await API.deleteFile(id);
+            const isTrash = this.currentCategory === 'trash';
+            const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos?` : `¿Mover ${count} elementos a la papelera?`;
+
+            if (await this.askConfirmation(msg)) {
+                try {
+                    // Usamos Promise.all para esperar a que todas las peticiones terminen
+                    await Promise.all(this.selectedIds.map(id => API.deleteFile(id)));
+
+                    this.showInfo(`${count} elementos procesados correctamente`);
+                    this.selectedIds = [];
+                    // Refrescamos DESPUÉS de que todas las promesas se hayan cumplido
+                    await this.refreshAppData();
+                } catch (e) {
+                    this.showError("Hubo un error al eliminar algunos archivos");
+                    await this.refreshAppData(); // Refrescamos igual para ver qué quedó
                 }
-                this.showInfo(`${count} elementos procesados`);
-                this.selectedIds = [];
-                await this.refreshAppData();
             }
         },
         async downloadSelected() {
