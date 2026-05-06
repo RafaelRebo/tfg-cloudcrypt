@@ -117,7 +117,8 @@
                 </div>
             </header>
 
-            <div class="file-manager":class="{ 'drag-over': isDragging }" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop" @click.self="selectedIds = []">
+            <div class="file-manager":class="{ 'drag-over': isDragging }" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop" @mousedown="startDragSelect" @mousemove="onDragSelect" @mouseup="stopDragSelect" @mouseleave="stopDragSelect" @click.self="handleBackgroundClick">
+                <div id="selection-box" v-show="selectionBox.active" :style="selectionBox.style"></div>
                 <div class="search-container">
                     <div class="search-box">
                         <span class="search-icon">
@@ -149,6 +150,7 @@
                 <div class="file-list-body">
                     <div v-for="f in displayFiles"
                          :key="f.id"
+                         :data-id="f.id"
                          class="file-row"
                          :class="{ 'selected': isSelected(f.id) }"
                          @click="handleFileClick(f, $event)">

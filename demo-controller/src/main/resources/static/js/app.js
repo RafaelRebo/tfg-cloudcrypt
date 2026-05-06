@@ -22,6 +22,13 @@ const appInstance = createApp({
             trashRootPath: null,
             currentFolderId: null,
             uploadController: null,
+            selectionBox: {
+                active: false,
+                wasDragging: false,
+                startX: 0,
+                startY: 0,
+                style: { top: 0, left: 0, width: 0, height: 0 }
+            },
         }
     },
     mounted() {
@@ -31,7 +38,12 @@ const appInstance = createApp({
             this.isLoggedIn = true;
             this.refreshAppData();
         }
+        window.addEventListener('keydown', this.handleGlobalKeydown);
         window.addEventListener('scroll', this.handleInfiniteScroll);
+    },
+    unmounted() {
+        window.removeEventListener('keydown', this.handleGlobalKeydown);
+        window.removeEventListener('scroll', this.handleInfiniteScroll);
     },
     computed: {
         quotaPercentage() {
@@ -576,7 +588,125 @@ const appInstance = createApp({
             this.refreshAppData();
         },
         getFileIcon(mime) { return FileService.getFileIcon(mime); },
-        formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; }
+        formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; },
+        startDragSelect(e) {
+            if (e.button !== 0 || e.target.closest('.file-row')) return;
+
+            this.selectionBox.active = true;
+            this.selectionBox.wasDragging = false; // Reiniciamos
+            this.selectionBox.startX = e.clientX;
+            this.selectionBox.startY = e.clientY;
+
+            this.selectionBox.style = {
+                left: `${e.clientX}px`,
+                top: `${e.clientY}px`,
+                width: '0px',
+                height: '0px'
+            };
+        },
+
+        onDragSelect(e) {
+            if (!this.selectionBox.active) return;
+
+            // Si el ratón se ha movido más de 5px, consideramos que es un arrastre
+            if (!this.selectionBox.wasDragging) {
+                const dist = Math.hypot(e.clientX - this.selectionBox.startX, e.clientY - this.selectionBox.startY);
+                if (dist > 5) {
+                    this.selectionBox.wasDragging = true;
+                    this.selectedIds = []; // Limpiamos solo al empezar a arrastrar de verdad
+                }
+            }
+
+            if (!this.selectionBox.wasDragging) return;
+
+            const currentX = e.clientX;
+            const currentY = e.clientY;
+            const startX = this.selectionBox.startX;
+            const startY = this.selectionBox.startY;
+
+            const left = Math.min(startX, currentX);
+            const top = Math.min(startY, currentY);
+            const width = Math.abs(currentX - startX);
+            const height = Math.abs(currentY - startY);
+
+            this.selectionBox.style = {
+                left: `${left}px`,
+                top: `${top}px`,
+                width: `${width}px`,
+                height: `${height}px`
+            };
+
+            this.calculateSelection(left, top, width, height);
+        },
+
+        calculateSelection(boxLeft, boxTop, boxWidth, boxHeight) {
+            const boxRight = boxLeft + boxWidth;
+            const boxBottom = boxTop + boxHeight;
+
+            const newSelection = [];
+            // Buscamos todos los elementos de archivo en el DOM
+            const fileElements = document.querySelectorAll('.file-row');
+
+            fileElements.forEach((el) => {
+                const rect = el.getBoundingClientRect();
+
+                // Verificamos si el rectángulo de selección se solapa con el archivo
+                const isOverlap = !(
+                    rect.left > boxRight ||
+                    rect.right < boxLeft ||
+                    rect.top > boxBottom ||
+                    rect.bottom < boxTop
+                );
+
+                if (isOverlap) {
+                    // Obtenemos el ID que Vue tiene asociado (puedes usar un data-id en el HTML)
+                    // O buscar en tu array allUserFiles basándote en el índice o texto
+                    const id = this.getIdFromElement(el);
+                    if (id) newSelection.push(id);
+                }
+            });
+
+            this.selectedIds = newSelection;
+        },
+
+        stopDragSelect() {
+            this.selectionBox.active = false;
+            // No reseteamos wasDragging aquí, lo haremos en el manejador del clic
+        },
+
+        handleBackgroundClick(e) {
+            // Si acabamos de terminar un arrastre, NO limpiamos la selección
+            if (this.selectionBox.wasDragging) {
+                this.selectionBox.wasDragging = false; // Consumimos la bandera
+                return;
+            }
+            // Si fue un clic limpio en el fondo, entonces sí borramos
+            this.selectedIds = [];
+        },
+
+        // Función auxiliar para sacar el ID del elemento DOM
+        getIdFromElement(el) {
+            // Asumiendo que en el v-for de displayFiles pusiste :data-id="f.id"
+            return parseInt(el.getAttribute('data-id'));
+        },
+        handleGlobalKeydown(e) {
+            // 1. Evitar que se active si el usuario está escribiendo en un input o textarea
+            const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
+            if (isInput) return;
+
+            // 2. Detectar Ctrl + A (o Cmd + A)
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+                e.preventDefault(); // Evita que el navegador seleccione el texto de toda la página
+                this.selectAllFiles();
+            }
+        },
+
+        selectAllFiles() {
+            // Seleccionamos los IDs de los ficheros que se muestran actualmente en pantalla
+            if (this.displayFiles && this.displayFiles.length > 0) {
+                this.selectedIds = this.displayFiles.map(f => f.id);
+            }
+        }
     },
     watch: {
         uploadProgress(newVal) {

@@ -15,6 +15,16 @@
 
 .file-manager {
     position: relative; /* Para la capa overlay */
+    user-select: none;
+}
+
+#selection-box {
+    position: fixed; /* O absolute si el padre es relative, pero fixed es más fácil para e.clientX */
+    border: 1px solid #3b82f6; /* Azul de tu tema */
+    background-color: rgba(59, 130, 246, 0.2); /* Azul transparente */
+    z-index: 1000; /* Por debajo de modales pero sobre las filas */
+    pointer-events: none; /* ¡CRÍTICO! Permite que el mousemove pase a través del div */
+    border-radius: 2px;
 }
 
 /* Efecto cuando se está arrastrando sobre el contenedor */
