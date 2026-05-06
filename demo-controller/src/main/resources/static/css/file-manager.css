@@ -85,6 +85,7 @@
     font-size: 0.75rem;
     letter-spacing: 0.05em;
     padding-bottom: 12px;
+    margin-top: 5px;
 }
 
 .file-row {
@@ -103,6 +104,16 @@
 
 .file-row:hover {
     background: var(--row-hover); /* Resaltado al pasar el ratón */
+}
+
+.file-row.is-dragging {
+    cursor: grabbing !important;
+}
+
+.file-row.drag-target {
+    background: rgba(59, 130, 246, 0.4) !important;
+    outline: 2px dashed var(--accent-blue);
+    outline-offset: -4px;
 }
 
 .storage-info {
@@ -300,16 +311,65 @@
     text-decoration: underline;
 }
 
+.selection-bar-container {
+    height: 30px; /* Altura compacta */
+    margin-bottom: 15px; /* Un poco más de espacio con la tabla */
+    display: flex;
+    align-items: center;
+    overflow: visible; /* Cambiado a visible para que las sombras o bordes no se corten */
+    transition: all 0.3s ease;
+}
+
 .selection-bar {
+    width: 100%;
+    height: 100%; /* Obligamos a la barra a medir los 30px del contenedor */
     background: var(--sidebar-bg);
     border: 1px solid var(--accent-blue);
-    padding: 12px 20px;
-    border-radius: 12px;
-    margin-bottom: 15px;
+    padding: 0 15px; /* Eliminamos padding vertical, solo dejamos horizontal */
+    border-radius: 8px; /* Bordes un poco menos exagerados para una barra fina */
     display: flex;
     align-items: center;
     justify-content: space-between;
     color: white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+
+    /* Estado inicial */
+    opacity: 0;
+    transform: translateY(-5px);
+    pointer-events: none;
+    transition: all 0.2s ease-out;
+}
+
+/* Ajuste de Texto (Más pequeño) */
+.selection-info span {
+    font-size: 0.8rem; /* Texto más pequeño */
+    font-weight: 600;
+}
+
+/* Ajuste de Iconos y Botones (Más pequeños) */
+.selection-bar .btn-icon {
+    padding: 4px; /* Menos espacio alrededor del icono */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.selection-bar .btn-icon svg {
+    width: 16px; /* Iconos reducidos de 20px a 16px */
+    height: 16px;
+}
+
+/* El botón de cerrar (X) específico */
+.selection-info .btn-icon {
+    margin-right: 8px;
+    font-size: 0.9rem;
+}
+
+/* Estado Activo */
+.selection-bar-container.active .selection-bar {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
 }
 
 .selection-info {

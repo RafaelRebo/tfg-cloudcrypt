@@ -120,6 +120,19 @@ const API = {
         return res.json();
     },
 
+    async moveFiles(fileIds, targetParentId, username) {
+        const formData = new FormData();
+        formData.append("authenticatedUser", username);
+        formData.append("targetParentId", targetParentId || "");
+        fileIds.forEach(id => formData.append("fileIds", id));
+
+        return fetch('/api/files/move', {
+            method: 'POST',
+            body: formData,
+            headers: this.getAuthHeader()
+        });
+    },
+
     async deleteFile(id) {
         return fetch(`/api/files/${id}`, {
             method: 'DELETE',

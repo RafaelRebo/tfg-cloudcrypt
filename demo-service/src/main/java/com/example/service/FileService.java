@@ -165,6 +165,55 @@ public class FileService {
         return fileMapper.toDto(saved);
     }
 
+    // En FileService.java
+    @Transactional
+    public void moveFiles(List<Long> fileIds, Long targetParentId, String username) throws Exception {
+        FileEntity newParent = (targetParentId != null)
+                ? fileRepository.findById(targetParentId).orElseThrow(() -> new Exception("Carpeta destino no encontrada"))
+                : null;
+
+        for (Long id : fileIds) {
+            FileEntity entity = fileRepository.findByIdAndOwner_Username(id, username)
+                    .orElseThrow(() -> new Exception("Archivo no encontrado"));
+
+            // Evitar bucles infinitos (no mover carpeta dentro de sí misma)
+            if (newParent != null && isChildOf(newParent, entity)) continue;
+
+            entity.setParent(newParent);
+
+            // Recalculamos la ruta base
+            String newBasePath = (newParent == null) ? "/" :
+                    (newParent.getFolderPath().equals("/") ? "/" + newParent.getFileName() : newParent.getFolderPath() + "/" + newParent.getFileName());
+
+            entity.setFolderPath(newBasePath);
+            fileRepository.save(entity);
+
+            // Si es carpeta, actualizamos a todos los descendientes recursivamente
+            if ("application/x-directory".equals(entity.getFileType())) {
+                updateChildrenPaths(entity, newBasePath + "/" + entity.getFileName());
+            }
+        }
+    }
+
+    private void updateChildrenPaths(FileEntity folder, String newFolderPath) {
+        for (FileEntity child : folder.getChildren()) {
+            child.setFolderPath(newFolderPath);
+            fileRepository.save(child);
+            if ("application/x-directory".equals(child.getFileType())) {
+                updateChildrenPaths(child, newFolderPath + "/" + child.getFileName());
+            }
+        }
+    }
+
+    private boolean isChildOf(FileEntity potentialParent, FileEntity folder) {
+        FileEntity current = potentialParent;
+        while (current != null) {
+            if (current.getId().equals(folder.getId())) return true;
+            current = current.getParent();
+        }
+        return false;
+    }
+
     @Nonnull
     private static FileEntity getFileEntity(String name, UserEntity owner, FileEntity parent) {
         FileEntity newFolder = new FileEntity();

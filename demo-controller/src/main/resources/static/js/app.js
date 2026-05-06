@@ -29,6 +29,10 @@ const appInstance = createApp({
                 startY: 0,
                 style: { top: 0, left: 0, width: 0, height: 0 }
             },
+            lastClickTime: 0,
+            clickThreshold: 300,
+            selectionTimer: null,
+            draggingId: null,
         }
     },
     mounted() {
@@ -154,7 +158,13 @@ const appInstance = createApp({
             Object.assign(this.$data, this.$options.data());
         },
         onDragOver() {
-            this.isDragging = true;
+
+            const isExternalFile = event.dataTransfer.types.includes('Files');
+
+            if (isExternalFile) {
+                this.isDragging = true;
+            }
+
         },
         onDragLeave() {
             this.isDragging = false;
@@ -375,33 +385,7 @@ const appInstance = createApp({
             return text.replace(regex, '<span class="highlight">$1</span>');
         },
         handleFileClick(f, event) {
-            const isControlPressed = event.ctrlKey || event.metaKey;
-
-            if (isControlPressed) {
-                // --- MODO SELECCIÓN (Solo con Control) ---
-                event.preventDefault();
-                const index = this.selectedIds.indexOf(f.id);
-                if (index > -1) {
-                    this.selectedIds.splice(index, 1); // Deseleccionar
-                } else {
-                    this.selectedIds.push(f.id); // Seleccionar
-                }
-                // Aquí NO hay apertura, solo gestión de la lista
-            } else {
-                // --- MODO ABRIR (Clic normal) ---
-                // 1. Limpiamos la selección para que no se quede nada marcado
-                this.selectedIds = [];
-
-                // 2. Ejecutamos la acción de abrir directamente
-                if (f.fileType === 'application/x-directory') {
-                    this.enterFolder(f);
-                } else {
-                    // Si no es papelera, abrimos la preview
-                    if (!f.deletedAt) {
-                        this.handlePreview(f);
-                    }
-                }
-            }
+            event.preventDefault();
         },
 
 
@@ -590,7 +574,7 @@ const appInstance = createApp({
         getFileIcon(mime) { return FileService.getFileIcon(mime); },
         formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; },
         startDragSelect(e) {
-            if (e.button !== 0 || e.target.closest('.file-row')) return;
+            if (e.button !== 0 || e.target.closest('.file-row') || e.target.closest('button')) return;
 
             this.selectionBox.active = true;
             this.selectionBox.wasDragging = false; // Reiniciamos
@@ -706,7 +690,120 @@ const appInstance = createApp({
             if (this.displayFiles && this.displayFiles.length > 0) {
                 this.selectedIds = this.displayFiles.map(f => f.id);
             }
-        }
+        },
+        onFileDragStart(file, event) {
+            // Si el usuario empieza a arrastrar y el timer de selección aún no ha terminado
+            if (this.selectionTimer) {
+                clearTimeout(this.selectionTimer);
+                this.selectionTimer = null;
+                if (!this.isSelected(file.id)) {
+                    this.selectedIds = [file.id];
+                }
+            }
+
+            // 2. Forzamos la selección si no lo estaba
+            if (!this.isSelected(file.id)) {
+                this.selectedIds = [file.id];
+            }
+
+            // 3. Activamos el estado de arrastre para el cursor CSS
+            this.draggingId = file.id;
+
+            // 4. Configuramos los datos del drag
+            event.dataTransfer.setData("text/plain", JSON.stringify(this.selectedIds));
+            event.dataTransfer.dropEffect = "move";
+
+            // Cambiamos el cursor del sistema a 'grabbing' (algunos navegadores lo requieren)
+            event.dataTransfer.effectAllowed = "move";
+        },
+
+        onFileDragOver(file, event) {
+            if (file.fileType === 'application/x-directory' && !this.isSelected(file.id)) {
+                event.currentTarget.classList.add('drag-target');
+            }
+        },
+
+        onFileDragEnd() {
+            // Limpiamos el estado al soltar el archivo (sea donde sea)
+            this.draggingId = null;
+            this.status = "";
+        },
+
+        onFileDragLeave(file, event) {
+            event.currentTarget.classList.remove('drag-target');
+        },
+
+        // En app.js -> methods
+        handleFileMouseDown(file, event) {
+            const now = Date.now();
+            const isDoubleClick = (now - this.lastClickTime) < this.clickThreshold;
+            this.lastClickTime = now;
+
+            // 1. Si es doble clic, abortamos cualquier selección pendiente y abrimos
+            if (isDoubleClick) {
+                if (this.selectionTimer) {
+                    clearTimeout(this.selectionTimer);
+                    this.selectionTimer = null;
+                }
+                this.openFileOrFolder(file);
+                return;
+            }
+
+            // 2. Si ya está seleccionado, no hacemos nada (permitimos arrastre de grupo)
+            if (this.isSelected(file.id)) return;
+
+            // 3. Manejo de selección (con retraso para esperar al posible doble clic)
+            const isControlPressed = event.ctrlKey || event.metaKey;
+
+            if (isControlPressed) {
+                // Con Control la selección suele ser instantánea en Windows, pero si quieres
+                // evitar el parpadeo también aquí, podemos usar el mismo timer.
+                const index = this.selectedIds.indexOf(file.id);
+                if (index > -1) {
+                    this.selectedIds.splice(index, 1);
+                } else {
+                    this.selectedIds.push(file.id);
+                }
+            } else {
+                // LIMPIEZA DE TIMERS PREVIOS
+                if (this.selectionTimer) clearTimeout(this.selectionTimer);
+
+                // RETRASAMOS LA SELECCIÓN
+                this.selectionTimer = setTimeout(() => {
+                    // Solo seleccionamos si no hemos hecho un segundo clic entre medias
+                    this.selectedIds = [file.id];
+                    this.selectionTimer = null;
+                }, 200); // 200ms es suficiente para que no se sienta lento pero evite el parpadeo
+            }
+        },
+
+        openFileOrFolder(f) {
+            this.selectedIds = []; // Limpiamos al entrar
+            if (f.fileType === 'application/x-directory') {
+                this.enterFolder(f);
+            } else {
+                if (!f.deletedAt) this.handlePreview(f);
+            }
+        },
+
+        async onFileDrop(targetFolder, event) {
+            event.currentTarget.classList.remove('drag-target');
+            if (targetFolder.fileType !== 'application/x-directory') return;
+
+            try {
+                const idsToMove = JSON.parse(event.dataTransfer.getData("text/plain"));
+                // Evitar moverse a sí mismo
+                if (idsToMove.includes(targetFolder.id)) return;
+
+                const res = await API.moveFiles(idsToMove, targetFolder.id, this.username);
+                if (res.ok) {
+                    this.showInfo("Elementos movidos.");
+                    await this.refreshAppData();
+                }
+            } catch (e) {
+                console.error("Error al mover:", e);
+            }
+        },
     },
     watch: {
         uploadProgress(newVal) {

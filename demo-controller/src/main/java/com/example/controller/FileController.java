@@ -14,6 +14,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -92,6 +93,19 @@ public class FileController {
 
         Page<FileDto> page = fileService.getFilesByFolder(authenticatedUser, folderId, category, pageable);
         return ResponseEntity.ok(page);
+    }
+
+    @PostMapping("/move")
+    public ResponseEntity<?> moveFiles(
+            @RequestParam String authenticatedUser,
+            @RequestParam List<Long> fileIds,
+            @RequestParam(required = false) Long targetParentId) {
+        try {
+            fileService.moveFiles(fileIds, targetParentId, authenticatedUser);
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @GetMapping("/download/{id}")
