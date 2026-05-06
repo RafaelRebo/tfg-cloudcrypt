@@ -32,7 +32,7 @@
         </div>
     </div>
 
-    <div v-else class="main-layout">
+    <div v-else class="main-layout" :inert="confirmModal.active || preview.active">
         <aside class="sidebar">
             <div class="brand">
                 <span class="logo-icon">🔐</span>
