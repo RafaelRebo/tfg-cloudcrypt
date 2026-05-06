@@ -15,6 +15,11 @@ public class GlobalExceptionHandler {
         return buildResponse(ex.getMessage(), HttpStatus.NOT_FOUND);
     }
 
+    @ExceptionHandler(InputValidationException.class)
+    public ResponseEntity<?> handleInputValidation(InputValidationException ex) {
+        return buildResponse(ex.getMessage(), HttpStatus.NOT_FOUND);
+    }
+
     @ExceptionHandler(QuotaExceededException.class)
     public ResponseEntity<?> handleQuota(QuotaExceededException ex) {
         return buildResponse(ex.getMessage(), HttpStatus.FORBIDDEN); // 413

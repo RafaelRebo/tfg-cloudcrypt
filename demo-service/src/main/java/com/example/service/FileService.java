@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.dto.FileDto;
 import com.example.dto.UserDto;
+import com.example.exceptions.InputValidationException;
 import com.example.exceptions.InstanceNotFoundException;
 import com.example.exceptions.InternalStorageException;
 import com.example.mapper.FileMapper;
@@ -59,12 +60,12 @@ public class FileService {
 
     @Transactional(rollbackFor = Exception.class)
     public FileDto uploadFile(MultipartFile file, String username, String rawPassword,
-                              Long parentId, String fileName) throws Exception {
+                              Long parentId, String fileName, Long totalBatchSize) throws Exception {
 
         UserDto userDto = userService.authenticate(username, rawPassword);
         UserEntity owner = entityManager.getReference(UserEntity.class, userDto.getId());
 
-        quotaUtils.checkQuota(username, file.getSize());
+        quotaUtils.checkQuota(username, totalBatchSize);
 
         FileEntity parent = (parentId != null)
                 ? fileRepository.findById(parentId).orElseThrow(() -> new InstanceNotFoundException("Carpeta no encontrada"))
@@ -95,26 +96,36 @@ public class FileService {
         String logicalPath = (parent == null) ? "/" :
                 (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
 
-        Map<String, String> storageResult = storageUtils.encryptAndSave(file.getInputStream(), username, logicalPath, rawPassword);
+        String storagePathCancel = null;
 
-        FileEntity newFile = new FileEntity();
-        newFile.setFileName(fileName);
-        newFile.setFileType(file.getContentType());
-        newFile.setFileSize(file.getSize());
-        newFile.setOwner(owner);
-        newFile.setParent(parent);
-        newFile.setFolderPath(logicalPath);
-        newFile.setStoragePath(storageResult.get("storagePath"));
-        newFile.setSalt(storageResult.get("salt"));
-        newFile.setChecksum(storageResult.get("checksum"));
+        try {
+            Map<String, String> storageResult = storageUtils.encryptAndSave(file.getInputStream(), username, logicalPath, rawPassword);
+            storagePathCancel = storageResult.get("storagePath");
+            FileEntity newFile = new FileEntity();
+            newFile.setFileName(fileName);
+            newFile.setFileType(file.getContentType());
+            newFile.setFileSize(file.getSize());
+            newFile.setOwner(owner);
+            newFile.setParent(parent);
+            newFile.setFolderPath(logicalPath);
+            newFile.setStoragePath(storagePathCancel);
+            newFile.setSalt(storageResult.get("salt"));
+            newFile.setChecksum(storageResult.get("checksum"));
 
-        return fileMapper.toDto(fileRepository.save(newFile));
+            return fileMapper.toDto(fileRepository.save(newFile));
+        } catch (Exception e) {
+            // Si hay un error de red (Aborted) o de escritura, borramos el archivo físico si se creó
+            if (storagePathCancel != null) {
+                try { storageUtils.deletePhysicalFile(storagePathCancel); } catch (IOException ignored) {}
+            }
+            throw e; // Relanzamos para que actúe @Transactional
+        }
     }
 
     // REGLA 1: Crear carpeta manual permite coexistencia
 
 
-    public FileDto ensureFolderSync(String username, String folderName, Long parentId) throws Exception {
+    public FileDto ensureFolderSync(String username, String folderName, Long parentId){
         FileEntity parent = (parentId != null)
                 ? fileRepository.findById(parentId).orElse(null)
                 : null;
@@ -140,7 +151,10 @@ public class FileService {
     }
 
     @Transactional
-    public FileDto createFolder(String name, String username, Long parentId) {
+    public FileDto createFolder(String name, String username, Long parentId) throws InputValidationException {
+        if (name.contains("/") || name.contains("\\")) {
+            throw new InputValidationException("Nombre de carpeta inválido: no puede contener /");
+        }
         UserEntity owner = userRepository.findByUsername(username);
         FileEntity parent = (parentId != null) ? fileRepository.findById(parentId).orElse(null) : null;
 

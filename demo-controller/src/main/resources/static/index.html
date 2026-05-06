@@ -88,7 +88,7 @@
                     <div class="crumb-item" @click="goToFolder('/', null)">
                         <span class="crumb-icon">{{ currentCategory === 'trash' ? '🗑️' : '🏠' }}</span>
                         <span class="crumb-text">
-                            {{ currentCategory === 'trash' ? 'Papelera' : (currentCategory === 'all' ? 'Mis archivos' : 'Explorar ' + currentCategory) }}
+                            {{ formatCategory(currentCategory) }}
                         </span>
                     </div>
                     <template v-if="currentCategory === 'all' || currentCategory === 'trash'">
@@ -171,7 +171,8 @@
                     </div>
 
                     <div v-if="displayFiles.length === 0" class="empty-state">
-                        <p>Esta carpeta está vacía</p>
+                        <p v-if="isSearching">🔍 No se han encontrado resultados para "{{ searchQuery }}"</p>
+                        <p v-else>Esta carpeta está vacía</p>
                     </div>
                 </div>
                 <div v-if="isDragging" class="drop-overlay">
@@ -238,12 +239,15 @@
 
             <template v-else>
                 <div class="upload-header">
-                    <span>Subiendo elementos...</span>
-                    <span>{{ uploadProgress }}%</span>
+                    <div class="upload-title-group">
+                        <span class="upload-spinner" v-if="uploadProgress < 100"></span>
+                        <span>Subiendo elementos...</span>
+                    </div>
+                    <button class="toast-close upload-cancel-btn" @click="cancelUpload" title="Cancelar subida">✕</button>
                 </div>
 
                 <div class="upload-stats">
-                    {{ status }}
+                    {{ status }} • {{ uploadProgress }}%
                 </div>
 
                 <div class="progress-container-toast">

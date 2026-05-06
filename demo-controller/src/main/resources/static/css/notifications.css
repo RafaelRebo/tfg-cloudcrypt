@@ -202,3 +202,59 @@
     border: none;
     transition: all 0.2s ease;
 }
+
+/* Estilo específico para el botón de cancelar en el Toast de subida */
+.upload-cancel-btn {
+    margin-left: auto;
+    background: rgba(255, 255, 255, 0.1);
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    transition: all 0.2s ease;
+}
+
+.upload-cancel-btn:hover {
+    background: var(--danger);
+    color: white;
+    transform: rotate(90deg);
+}
+
+/* Grupo del título para alinear spinner y texto */
+.upload-title-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Spinner pequeño para el toast de subida */
+.upload-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(59, 130, 246, 0.3);
+    border-top: 2px solid #3b82f6;
+    border-radius: 50%;
+    animation: spin-toast 0.8s linear infinite;
+}
+
+@keyframes spin-toast {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Mejoras en el toast de subida */
+.toast.upload {
+    border-left: 4px solid #3b82f6; /* Línea azul de acento */
+    backdrop-filter: blur(10px);   /* Efecto cristal si el fondo lo permite */
+}
+
+.upload-stats {
+    display: block;
+    margin-top: -5px;
+    margin-bottom: 12px;
+    font-family: monospace; /* Estilo más "técnico" para las estadísticas */
+    letter-spacing: 0.5px;
+}

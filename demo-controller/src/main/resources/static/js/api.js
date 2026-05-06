@@ -18,10 +18,18 @@ const API = {
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
 
-    async uploadSingle(formData, onProgress) {
+    async uploadSingle(formData, onProgress, signal) { // <--- Añadimos signal
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("POST", "/api/files/upload", true);
+
+            // Adjuntamos el signal al evento abort
+            if (signal) {
+                signal.addEventListener('abort', () => {
+                    xhr.abort();
+                    reject(new Error('Aborted'));
+                });
+            }
 
             const auth = this.getAuthHeader();
             if (auth.Authorization) {
@@ -34,12 +42,7 @@ const API = {
 
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    // CAMBIO: Devolver la respuesta parseada (el FileDto)
-                    try {
-                        resolve(JSON.parse(xhr.response));
-                    } catch(e) {
-                        resolve(xhr.response);
-                    }
+                    try { resolve(JSON.parse(xhr.response)); } catch(e) { resolve(xhr.response); }
                 } else {
                     reject(new Error(xhr.responseText || `Error ${xhr.status}`));
                 }
@@ -106,8 +109,6 @@ const API = {
             body: formData,
             headers: this.getAuthHeader()
         });
-        // Es mejor lanzar error aquí si falla para que el try/catch de app.js lo pesque
-        if (!res.ok) throw new Error("Error al crear carpeta");
         return res;
     },
 

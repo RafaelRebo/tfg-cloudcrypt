@@ -21,6 +21,7 @@ const appInstance = createApp({
             clickTimer: null,
             trashRootPath: null,
             currentFolderId: null,
+            uploadController: null,
         }
     },
     mounted() {
@@ -237,17 +238,14 @@ const appInstance = createApp({
                     this.showError(`Espacio insuficiente. Faltan ${this.formatSize(totalBatchSize - availableQuota)}`);
                     return; // Cortamos aquí
                 }
+
+                this.uploadController = new AbortController();
+
                 const sessionKey = sessionStorage.getItem('fileKey');
-
-                // IMPORTANTE: No clonamos con { ...this } porque perdemos la reactividad.
-                // Pasamos 'this' directamente. El UploadService debe estar preparado
-                // para recibir la instancia y la clave por separado o sobreescribirla.
-
-                // Modificamos temporalmente la propiedad de la instancia para la subida
                 const originalPassword = this.password;
                 this.password = sessionKey;
 
-                const success = await UploadService.processUpload(files, this, isFolder);
+                const success = await UploadService.processUpload(files, this, isFolder, this.uploadController.signal);
 
                 this.password = originalPassword; // Restauramos (aunque sea '')
 
@@ -257,16 +255,31 @@ const appInstance = createApp({
                     if (this.$refs.fileInput) this.$refs.fileInput.value = '';
                 }
             } catch (e) {
-                this.showError(e.message || "Error en la subida");
+                if (e.name === 'AbortError' || e.message === 'Aborted') {
+                    this.showInfo("Subida cancelada");
+                } else {
+                    this.showError(e.message || "Error en la subida");
+                }
             } finally {
                 await this.refreshAppData();
+                this.uploadController = null;
                 this.uploadProgress = 0; // Al ponerlo a 0, el NotificationService cerrará el toast
             }
         },
         async onUpload() {
             await this._handleUploadProcess(Array.from(this.$refs.fileInput.files), false);
         },
+        cancelUpload() {
+            if (this.uploadController) {
+                this.uploadController.abort(); // Corta la subida actual
+                this.uploadController = null;
+                this.uploadProgress = 0;
+                this.status = "Subida cancelada por el usuario";
 
+                // Opcional: Refrescar para limpiar posibles carpetas vacías creadas
+                setTimeout(() => this.refreshAppData(), 500);
+            }
+        },
         async uploadFolder() {
             await this._handleUploadProcess(Array.from(this.$refs.folderInput.files), true);
         },
@@ -286,6 +299,9 @@ const appInstance = createApp({
                 if (res.ok) {
                     this.showInfo(`Carpeta "${name}" creada.`);
                     await this.refreshAppData();
+                } else {
+                    const errorText = await res.text();
+                    this.showError(errorText);
                 }
             } catch (e) {
                 this.showError("Error al crear carpeta");
@@ -333,6 +349,7 @@ const appInstance = createApp({
                     this.status = "";
                 } catch (e) {
                     this.showError("Error en la búsqueda");
+                    this.isSearching = false;
                 }
             }, 400);
         },
@@ -509,12 +526,25 @@ const appInstance = createApp({
             }
             this.status = "";
         },
+        formatCategory(cat) {
+            const labels = {
+                'all': 'Mis archivos',
+                'image': 'Imágenes',
+                'audio': 'Música',
+                'video': 'Vídeos',
+                'document': 'Documentos',
+                'trash': 'Papelera'
+            };
+            return labels[cat] || cat;
+        },
         // --- Navigation ---
         setCategory(cat) {
             this.currentCategory = cat;
             this.currentFolder = '/';
-            this.currentFolderId = null; // IMPORTANTE: Resetear a la raíz de la categoría
+            this.currentFolderId = null;
             this.trashRootPath = null;
+            this.searchQuery = '';
+            this.isSearching = false;
             this.clearSelection();
             this.refreshAppData();
         },

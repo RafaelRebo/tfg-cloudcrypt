@@ -1,13 +1,14 @@
 const UploadService = {
-    async processUpload(files, context, isFolder = false) {
+    // 1. Añadimos 'signal' como cuarto parámetro
+    async processUpload(files, context, isFolder = false, signal = null) {
         const totalSize = files.reduce((acc, f) => acc + f.size, 0);
         const fileProgressMap = new Map();
         let globalAction = null;
         let currentTargetId = context.currentFolderId;
 
-        // --- PASO 1: CARPETA RAÍZ ---
         if (isFolder && files.length > 0) {
             const rootName = files[0].webkitRelativePath.split('/')[0];
+            // En las llamadas a API también podrías pasar el signal si quieres que se cancelen las creaciones de carpetas
             const check = await API.checkExists(rootName, currentTargetId, context.username);
 
             if (check.exists) {
@@ -16,12 +17,9 @@ const UploadService = {
                 if (res.applyToAll) globalAction = res.action;
 
                 if (res.action === 'copy') {
-                    // REGLA 2 (Mantener): Creamos una carpeta nueva (independiente)
-                    // Usamos el nombre sugerido (ej: "a (1)")
                     const newFolder = await API.createFolderSync(check.suggestedName, currentTargetId, context);
                     currentTargetId = newFolder.id;
                 } else {
-                    // REGLA 2 (Reemplazar/Fusionar): Usamos el ID de la carpeta que ya existe
                     currentTargetId = check.existingId;
                 }
             } else {
@@ -30,8 +28,10 @@ const UploadService = {
             }
         }
 
-        // --- PASO 2: ARCHIVOS ---
         for (const file of files) {
+            // VERIFICACIÓN PREVENTIVA: Si el usuario canceló, salimos del bucle inmediatamente
+            if (signal && signal.aborted) throw new Error('Aborted');
+
             let finalName = file.name;
             let finalParentId = currentTargetId;
 
@@ -40,11 +40,10 @@ const UploadService = {
                 parts.shift();
                 finalName = parts.pop();
                 if (parts.length > 0) {
-                    finalParentId = await this.resolveSubfolderChain(parts, currentTargetId, context);
+                    finalParentId = await this.resolveSubfolderChain(parts, currentTargetId, context, signal); // <--- Pasar signal
                 }
             }
 
-            // REGLA 3: Lógica de duplicados para archivos
             let action = globalAction;
             if (!action) {
                 const check = await API.checkExists(finalName, finalParentId, context.username);
@@ -57,44 +56,44 @@ const UploadService = {
 
             if (action === 'skip') continue;
 
-            // Si es copia, cambiamos el nombre para que el server cree otro registro
             if (action === 'copy') {
                 const check = await API.checkExists(finalName, finalParentId, context.username);
                 finalName = check.suggestedName;
             }
 
-            // Si es 'overwrite', el nombre se queda igual y el backend borrará el viejo
+            // 2. Pasamos el signal al método uploadSingle
             await this.uploadSingle(file, finalParentId, finalName, (bytes) => {
                 fileProgressMap.set(file, bytes);
                 const total = Array.from(fileProgressMap.values()).reduce((a, b) => a + b, 0);
                 context.uploadProgress = Math.min(Math.round((total / totalSize) * 100), 100);
-            }, context, totalSize);
+            }, context, totalSize, signal); // <--- Signal incluido aquí
         }
         return true;
     },
 
-    async resolveSubfolderChain(parts, startParentId, context) {
+    async resolveSubfolderChain(parts, startParentId, context, signal) { // <--- Recibe signal
         let currentId = startParentId;
         for (const part of parts) {
-            // Importante: createFolderSync ahora debe devolver el ID de la carpeta
+            // Si el usuario canceló, no seguimos creando carpetas
+            if (signal && signal.aborted) throw new Error('Aborted');
+
             const folder = await API.createFolderSync(part, currentId, context);
             currentId = folder.id;
         }
         return currentId;
     },
 
-    // En upload-service.js
-    async uploadSingle(file, parentId, fileName, onProgress, context, totalBatchSize) {
+    // 3. Actualizamos la firma para recibir el signal
+    async uploadSingle(file, parentId, fileName, onProgress, context, totalBatchSize, signal) {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("password", context.password);
         formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
         formData.append("fileName", fileName);
         formData.append("authenticatedUser", context.username);
-
-        // ENVIAMOS EL PESO TOTAL DEL LOTE
         formData.append("totalBatchSize", totalBatchSize);
 
-        return API.uploadSingle(formData, onProgress);
+        // 4. Lo pasamos finalmente a la función de la API
+        return API.uploadSingle(formData, onProgress, signal);
     }
 };
