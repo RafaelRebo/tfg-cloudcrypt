@@ -93,8 +93,14 @@ public class FileService {
             fileRepository.flush(); // Limpiar espacio en BD para el nuevo insert
         }
 
-        String logicalPath = (parent == null) ? "/" :
-                (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
+        String logicalPath;
+        if (parent == null) {
+            logicalPath = "/";
+        } else {
+            String base = parent.getFolderPath();
+            // Si la base ya es /, no añadimos otro slash antes del nombre
+            logicalPath = base.endsWith("/") ? base + parent.getFileName() : base + "/" + parent.getFileName();
+        }
 
         String storagePathCancel = null;
 

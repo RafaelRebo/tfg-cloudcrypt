@@ -1,8 +1,13 @@
 const API = {
+    /**
+     * Recupera el token del almacenamiento local y prepara la cabecera Bearer.
+     */
     getAuthHeader() {
         const token = localStorage.getItem('jwtToken');
         return token ? { 'Authorization': `Bearer ${token}` } : {};
     },
+
+    // --- AUTENTICACIÓN ---
 
     async login(username, password) {
         const formData = new FormData();
@@ -18,12 +23,23 @@ const API = {
         return fetch('/api/users/register', { method: 'POST', body: formData });
     },
 
-    async uploadSingle(formData, onProgress, signal) { // <--- Añadimos signal
+    // --- GESTIÓN DE ARCHIVOS ---
+
+    async getFiles(folderId = null, category = 'all', page = 0, size = 20) {
+        const fId = (folderId && !isNaN(folderId)) ? folderId : '';
+        // Ya no enviamos el usuario, Spring Security lo sabe por el token
+        const url = `/api/files?page=${page}&size=${size}&category=${category}&folderId=${fId}`;
+
+        const res = await fetch(url, { headers: this.getAuthHeader() });
+        if (!res.ok) throw new Error("Error al obtener archivos");
+        return res.json();
+    },
+
+    async uploadSingle(formData, onProgress, signal) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open("POST", "/api/files/upload", true);
 
-            // Adjuntamos el signal al evento abort
             if (signal) {
                 signal.addEventListener('abort', () => {
                     xhr.abort();
@@ -53,76 +69,18 @@ const API = {
         });
     },
 
-    // --- Actualizar en api.js ---
-
-    async checkExists(fileName, parentId, username) {
-        const pId = (parentId && !isNaN(parentId)) ? parentId : '';
-
-        const url = `/api/files/check-exists?fileName=${encodeURIComponent(fileName)}&parentId=${pId}&username=${encodeURIComponent(username)}`;
-        const res = await fetch(url, { headers: this.getAuthHeader() });
-        if (!res.ok) throw new Error("Error en check-exists");
-        return res.json();
-    },
-
-    // En api.js (Asegúrate de que esté así)
-    // En api.js
-    async createFolderSync(folderName, parentId, context) {
-        const formData = new FormData();
-        formData.append("folderName", folderName);
-        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
-        // context.password viene del objeto que pasamos en UploadService
-        formData.append("password", context.password);
-        formData.append("authenticatedUser", context.username);
-
-        const res = await fetch('/api/files/folder/sync', {
-            method: 'POST',
-            body: formData,
-            headers: this.getAuthHeader()
+    async download(fileId, password) {
+        return fetch(`/api/files/download/${fileId}`, {
+            method: 'GET',
+            headers: {
+                ...this.getAuthHeader(),
+                'X-File-Password': password
+            }
         });
-
-        if (!res.ok) throw new Error("Error en sincronización de carpetas");
-        return res.json();
     },
 
-    async getFiles(username, folderId = null, category = 'all', page = 0, size = 20) {
-        // Si folderId es nulo o '/' (raíz), mandamos cadena vacía para que Spring reciba null
-        const fId = (folderId && !isNaN(folderId)) ? folderId : '';
-
-        let url = `/api/files?authenticatedUser=${encodeURIComponent(username)}&page=${page}&size=${size}&category=${category}&folderId=${fId}`;
-
-        const res = await fetch(url, { headers: this.getAuthHeader() });
-        if (!res.ok) throw new Error("Error API getFiles");
-        return res.json();
-    },
-
-    // Asegúrate de que el orden sea consistente: user, key, parentId, name
-    async createFolder(username, sessionKey, parentId, folderName) {
+    async moveFiles(fileIds, targetParentId) {
         const formData = new FormData();
-        formData.append("authenticatedUser", username);
-        formData.append("password", sessionKey);
-        // Aseguramos que si es null mande vacío para evitar errores de conversión en Java
-        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
-        formData.append("folderName", folderName);
-
-        const res = await fetch('/api/files/folder', {
-            method: 'POST',
-            body: formData,
-            headers: this.getAuthHeader()
-        });
-        return res;
-    },
-
-    async getStats(username) {
-        const res = await fetch(`/api/files/stats?t=${Date.now()}`, {
-            headers: this.getAuthHeader() // Inyectamos JWT
-        });
-        if (!res.ok) throw new Error("Error API getStats");
-        return res.json();
-    },
-
-    async moveFiles(fileIds, targetParentId, username) {
-        const formData = new FormData();
-        formData.append("authenticatedUser", username);
         formData.append("targetParentId", targetParentId || "");
         fileIds.forEach(id => formData.append("fileIds", id));
 
@@ -140,14 +98,62 @@ const API = {
         });
     },
 
-    async download(fileId, password) {
-        return fetch(`/api/files/download/${fileId}`, {
-            method: 'GET',
-            headers: {
-                ...this.getAuthHeader(),
-                'X-File-Password': password
-            }
+    async restoreFile(id) {
+        return fetch(`/api/files/${id}/restore`, {
+            method: 'POST',
+            headers: this.getAuthHeader()
         });
+    },
+
+    // --- CARPETAS ---
+
+    async createFolder(folderName, parentId, sessionKey) {
+        const formData = new FormData();
+        formData.append("folderName", folderName);
+        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
+        formData.append("password", sessionKey);
+
+        return fetch('/api/files/folder', {
+            method: 'POST',
+            body: formData,
+            headers: this.getAuthHeader()
+        });
+    },
+
+    async createFolderSync(folderName, parentId, context) {
+        const formData = new FormData();
+        formData.append("folderName", folderName);
+        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
+        formData.append("password", context.password);
+
+        const res = await fetch('/api/files/folder/sync', {
+            method: 'POST',
+            body: formData,
+            headers: this.getAuthHeader()
+        });
+
+        if (!res.ok) throw new Error("Error en sincronización de carpetas");
+        return res.json();
+    },
+
+    async checkExists(fileName, parentId) {
+        const pId = (parentId && !isNaN(parentId)) ? parentId : '';
+        // Ya NO incluimos &username=...
+        let url = `/api/files/check-exists?fileName=${encodeURIComponent(fileName)}&parentId=${pId}`;
+
+        const res = await fetch(url, { headers: this.getAuthHeader() });
+        if (!res.ok) throw new Error("Error al verificar existencia en el servidor");
+        return res.json();
+    },
+
+    // --- UTILIDADES ---
+
+    async getStats() {
+        const res = await fetch(`/api/files/stats?t=${Date.now()}`, {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) throw new Error("Error al obtener estadísticas");
+        return res.json();
     },
 
     async searchFiles(query, page = 0, size = 20) {
@@ -156,4 +162,44 @@ const API = {
         if (!res.ok) throw new Error("Error en la búsqueda");
         return res.json();
     },
+
+    // --- INFRAESTRUCTURA DE CLAVES (PKI) ---
+
+    /**
+     * Registra las llaves del usuario.
+     * @param {string} publicKeyStr - El String JSON de la llave pública.
+     * @param {string} encryptedPrivateKey - La llave privada en Base64.
+     */
+    async registerUserKeys(publicKeyStr, encryptedPrivateKey) {
+        const payload = {
+            // Parseamos el String JSON a Objeto para evitar el doble escapado
+            publicKey: publicKeyStr,
+            encryptedPrivateKey: encryptedPrivateKey
+        };
+
+        return fetch('/api/keys/register', {
+            method: 'POST',
+            headers: {
+                ...this.getAuthHeader(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        });
+    },
+
+    async getMyPrivateKey() {
+        const res = await fetch('/api/keys/my-private', {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) return null;
+        return res.text();
+    },
+
+    async getUserPublicKey(username) {
+        const res = await fetch(`/api/keys/public/${username}`, {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) return null;
+        return res.text();
+    }
 };

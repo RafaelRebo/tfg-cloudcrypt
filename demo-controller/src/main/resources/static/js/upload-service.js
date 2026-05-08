@@ -9,7 +9,7 @@ const UploadService = {
         if (isFolder && files.length > 0) {
             const rootName = files[0].webkitRelativePath.split('/')[0];
             // En las llamadas a API también podrías pasar el signal si quieres que se cancelen las creaciones de carpetas
-            const check = await API.checkExists(rootName, currentTargetId, context.username);
+            const check = await API.checkExists(rootName, currentTargetId);
 
             if (check.exists) {
                 const res = await context.askUserForDuplicateAction(rootName, true);
@@ -46,7 +46,7 @@ const UploadService = {
 
             let action = globalAction;
             if (!action) {
-                const check = await API.checkExists(finalName, finalParentId, context.username);
+                const check = await API.checkExists(finalName, finalParentId);
                 if (check.exists) {
                     const res = await context.askUserForDuplicateAction(finalName, false);
                     action = res.action;
@@ -90,7 +90,6 @@ const UploadService = {
         formData.append("password", context.password);
         formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
         formData.append("fileName", fileName);
-        formData.append("authenticatedUser", context.username);
         formData.append("totalBatchSize", totalBatchSize);
 
         // 4. Lo pasamos finalmente a la función de la API

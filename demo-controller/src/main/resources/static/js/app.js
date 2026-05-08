@@ -75,7 +75,6 @@ const appInstance = createApp({
 
             try {
                 const res = await API.getFiles(
-                    this.username,
                     this.currentFolderId,
                     this.currentCategory,
                     0
@@ -102,7 +101,7 @@ const appInstance = createApp({
             this.isLoadingMore = true;
             this.currentPage++;
             try {
-                const res = await API.getFiles(this.username, this.currentFolder, this.currentCategory, this.currentPage);
+                const res = await API.getFiles(this.currentFolder, this.currentCategory, this.currentPage);
                 this.allUserFiles.push(...res.content);
                 if (res.last) this.hasMore = false;
             } catch (e) { console.error(e); } finally { this.isLoadingMore = false; }
@@ -129,27 +128,40 @@ const appInstance = createApp({
             }
         },
         // En app.js -> methods
+        // En app.js -> methods -> handleRegister
         async handleRegister() {
-            if (!this.username || !this.password) {
-                this.showError("Usuario y contraseña requeridos");
-                return;
-            }
-
             try {
-                // 1. Derivamos la clave igual que en el Login
-                const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
+                this.status = "Generando identidad segura...";
+                const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
 
-                // 2. Enviamos la clave derivada al servidor
-                const res = await API.register(this.username, secureKey);
+                // 1. Crear el usuario en la BD (tabla 'users')
+                const res = await API.register(this.username, masterKey);
+                if (!res.ok) throw new Error("Fallo al crear usuario");
 
-                if (res.ok) {
-                    this.showInfo("Registro completado. Ya puedes iniciar sesión.");
+                // 2. Login rápido para obtener el Token JWT (pero sin intentar bajar llaves aún)
+                // Usamos API.login directamente para no disparar la lógica de recuperar llaves de AuthService
+                const loginRes = await API.login(this.username, masterKey);
+                if (!loginRes.ok) throw new Error("Fallo al autenticar tras registro");
+
+                const loginData = await loginRes.json();
+                localStorage.setItem('jwtToken', loginData.token);
+                localStorage.setItem('username', loginData.username);
+
+                // 3. AHORA generamos y registramos las llaves (tabla 'user_keys')
+                // Como ya tenemos el Token en el localStorage, registerUserKeys funcionará
+                const cryptoRes = await AuthService.setupUserCrypto(this.username, masterKey);
+
+                if (cryptoRes.ok) {
+                    this.showInfo("Registro e identidad completados.");
+                    this.isLoggedIn = true;
+                    await this.refreshAppData();
                 } else {
-                    const errorText = await res.text();
-                    this.showError("Error en registro: " + errorText);
+                    throw new Error("Fallo al registrar llaves criptográficas");
                 }
             } catch (e) {
-                this.showError("Error de conexión");
+                this.showError(e.message);
+            } finally {
+                this.status = "";
             }
         },
         logout() {
@@ -312,10 +324,9 @@ const appInstance = createApp({
                 const sessionKey = sessionStorage.getItem('fileKey');
 
                 const res = await API.createFolder(
-                    this.username,
-                    sessionKey, // Usamos la llave derivada
+                    name,
                     parentId,
-                    name
+                    sessionKey
                 );
 
                 if (res.ok) {
@@ -440,7 +451,8 @@ const appInstance = createApp({
         // En app.js -> methods
         // En app.js -> methods
         async openNewFolderModal() {
-            const targetId = this.currentCategory === 'all' ? this.currentFolderId : null;
+            const numericId = parseInt(this.currentFolderId);
+            const targetId = (!isNaN(numericId) && numericId > 0) ? numericId : null;
             const targetName = this.currentFolder;
 
             this.confirmModal = {
@@ -456,7 +468,7 @@ const appInstance = createApp({
 
                     try {
                         // 1. Verificar existencia
-                        const check = await API.checkExists(name, targetId, this.username);
+                        const check = await API.checkExists(name, targetId);
 
                         if (check.exists) {
                             // Si existe, cerramos el modal de input para abrir el de confirmación
@@ -795,7 +807,7 @@ const appInstance = createApp({
                 // Evitar moverse a sí mismo
                 if (idsToMove.includes(targetFolder.id)) return;
 
-                const res = await API.moveFiles(idsToMove, targetFolder.id, this.username);
+                const res = await API.moveFiles(idsToMove, targetFolder.id);
                 if (res.ok) {
                     this.showInfo("Elementos movidos.");
                     await this.refreshAppData();

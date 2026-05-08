@@ -11,6 +11,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
@@ -29,7 +30,7 @@ public class FileController {
 
     @PostMapping("/upload")
     public ResponseEntity<?> uploadFile(
-            @RequestParam("authenticatedUser") String authenticatedUser,
+            Authentication auth,
             @RequestParam("file") MultipartFile file,
             @RequestParam("password") String password,
             @RequestParam(value = "parentId", required = false) Long parentId,
@@ -38,7 +39,7 @@ public class FileController {
 
         try {
             // Pasamos el totalBatchSize al service
-            FileDto savedFile = fileService.uploadFile(file, authenticatedUser, password, parentId, fileName, totalBatchSize);
+            FileDto savedFile = fileService.uploadFile(file, auth.getName(), password, parentId, fileName, totalBatchSize);
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -47,11 +48,11 @@ public class FileController {
 
     @PostMapping("/folder")
     public ResponseEntity<?> createFolder(
-            @RequestParam("authenticatedUser") String authenticatedUser,
+            Authentication auth,
             @RequestParam("folderName") String folderName,
             @RequestParam(value = "parentId", required = false) Long parentId) {
         try {
-            FileDto savedFolder = fileService.createFolder(folderName, authenticatedUser, parentId);
+            FileDto savedFolder = fileService.createFolder(folderName, auth.getName(), parentId);
             return ResponseEntity.ok(savedFolder);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
@@ -60,13 +61,13 @@ public class FileController {
 
     @PostMapping("/folder/sync")
     public ResponseEntity<?> createFolderSync(
-            String authenticatedUser,
+            Authentication auth,
             @RequestParam("folderName") String folderName,
             @RequestParam("password") String password,
             @RequestParam(value = "parentId", required = false) Long parentId) {
         try {
             // Pasamos el parentId directamente al service
-            FileDto folder = fileService.ensureFolderSync(authenticatedUser, folderName, parentId);
+            FileDto folder = fileService.ensureFolderSync(auth.getName(), folderName, parentId);
             return ResponseEntity.ok(folder);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -75,33 +76,33 @@ public class FileController {
 
     @GetMapping("/check-exists")
     public ResponseEntity<Map<String, Object>> checkFileExists(
+            Authentication auth,
             @RequestParam String fileName,
-            @RequestParam(required = false) Long parentId,
-            @RequestParam String username) {
+            @RequestParam(required = false) Long parentId) {
 
-        // El service ahora debe buscar por parentId
-        Map<String, Object> result = fileService.checkExistsById(username, fileName, parentId);
+        // Usamos auth.getName() en lugar del parámetro 'username'
+        Map<String, Object> result = fileService.checkExistsById(auth.getName(), fileName, parentId);
         return ResponseEntity.ok(result);
     }
 
     @GetMapping
     public ResponseEntity<?> listFiles(
-            String authenticatedUser,
+            Authentication auth,
             @RequestParam(value = "folderId", required = false) Long folderId, // Cambiado de 'folder' a 'folderId'
             @RequestParam(value = "category", defaultValue = "all") String category,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
-        Page<FileDto> page = fileService.getFilesByFolder(authenticatedUser, folderId, category, pageable);
+        Page<FileDto> page = fileService.getFilesByFolder(auth.getName(), folderId, category, pageable);
         return ResponseEntity.ok(page);
     }
 
     @PostMapping("/move")
     public ResponseEntity<?> moveFiles(
-            @RequestParam String authenticatedUser,
+            Authentication auth,
             @RequestParam List<Long> fileIds,
             @RequestParam(required = false) Long targetParentId) {
         try {
-            fileService.moveFiles(fileIds, targetParentId, authenticatedUser);
+            fileService.moveFiles(fileIds, targetParentId, auth.getName());
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
@@ -110,13 +111,13 @@ public class FileController {
 
     @GetMapping("/download/{id}")
     public ResponseEntity<Resource> downloadFile(
-            String authenticatedUser,
+            Authentication auth,
             @PathVariable Long id,
             @RequestHeader("X-File-Password") String password) {
 
         try {
-            FileDto fileDto = fileService.getFileById(id, authenticatedUser);
-            InputStream stream = fileService.getFileDownloadStream(id, authenticatedUser, password);
+            FileDto fileDto = fileService.getFileById(id, auth.getName());
+            InputStream stream = fileService.getFileDownloadStream(id, auth.getName(), password);
             InputStreamResource resource = new InputStreamResource(stream);
 
             return ResponseEntity.ok()
@@ -129,18 +130,18 @@ public class FileController {
     }
 
     @GetMapping("/stats")
-    public ResponseEntity<?> getUserStats(String authenticatedUser) {
-        Map<String, Object> stats = fileService.getUserStats(authenticatedUser);
+    public ResponseEntity<?> getUserStats(Authentication auth) { // <--- CAMBIO: Usar Authentication
+        Map<String, Object> stats = fileService.getUserStats(auth.getName());
         return ResponseEntity.ok(stats);
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteFile(
-            String authenticatedUser,
+            Authentication auth,
             @PathVariable Long id) {
 
         try {
-            fileService.deleteFile(id, authenticatedUser);
+            fileService.deleteFile(id, auth.getName());
             return ResponseEntity.ok().build();
         } catch (Exception e) {
             return ResponseEntity.internalServerError().build();
@@ -149,11 +150,11 @@ public class FileController {
 
     @PostMapping("/{id}/restore")
     public ResponseEntity<?> restoreFile(
-            String authenticatedUser,
+            Authentication auth,
             @PathVariable Long id) {
 
         try {
-            FileDto restored = fileService.restoreFile(id, authenticatedUser);
+            FileDto restored = fileService.restoreFile(id, auth.getName());
             return ResponseEntity.ok(restored);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
@@ -162,11 +163,11 @@ public class FileController {
 
     @GetMapping("/search")
     public ResponseEntity<Page<FileDto>> searchFiles(
-            String authenticatedUser,
+            Authentication auth,
             @RequestParam("q") String query,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
 
-        Page<FileDto> results = fileService.searchFiles(authenticatedUser, query, pageable);
+        Page<FileDto> results = fileService.searchFiles(auth.getName(), query, pageable);
         return ResponseEntity.ok(results);
     }
 }
