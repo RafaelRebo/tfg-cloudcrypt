@@ -1,14 +1,17 @@
 package com.example.service;
 
 import com.example.dto.FileDto;
+import com.example.dto.FileUploadRequestDto;
 import com.example.dto.UserDto;
 import com.example.exceptions.InputValidationException;
 import com.example.exceptions.InstanceNotFoundException;
 import com.example.exceptions.InternalStorageException;
 import com.example.mapper.FileMapper;
 import com.example.model.FileEntity;
+import com.example.model.FileKeyEntity;
 import com.example.model.UserEntity;
 import com.example.repository.file.FileRepository;
+import com.example.repository.keys.FileKeyRepository;
 import com.example.repository.user.UserRepository;
 import com.example.util.*;
 import jakarta.annotation.Nonnull;
@@ -30,6 +33,8 @@ import java.util.Optional;
 public class FileService {
 
     private final FileRepository fileRepository;
+
+    private final FileKeyRepository fileKeyRepository;
     private final UserRepository userRepository;
     private final StorageUtils storageUtils;
     private final QuotaUtils quotaUtils;
@@ -42,10 +47,11 @@ public class FileService {
     @PersistenceContext
     private EntityManager entityManager;
 
-    public FileService(FileRepository fileRepository, UserRepository userRepository, StorageUtils storageUtils,
+    public FileService(FileRepository fileRepository, FileKeyRepository fileKeyRepository, UserRepository userRepository, StorageUtils storageUtils,
                        QuotaUtils quotaUtils, UserService userService, FolderService folderService,
                        StatsService statsService, PathUtils pathUtils, FileMapper fileMapper) {
         this.fileRepository = fileRepository;
+        this.fileKeyRepository = fileKeyRepository;
         this.storageUtils = storageUtils;
         this.quotaUtils = quotaUtils;
         this.userService = userService;
@@ -56,79 +62,101 @@ public class FileService {
         this.userRepository = userRepository;
     }
 
-    // --- DENTRO DE FileService.java ---
-
     @Transactional(rollbackFor = Exception.class)
-    public FileDto uploadFile(MultipartFile file, String username, String rawPassword,
-                              Long parentId, String fileName, Long totalBatchSize) throws Exception {
+    public FileDto uploadFile(FileUploadRequestDto request, String username) throws Exception {
 
-        UserDto userDto = userService.authenticate(username, rawPassword);
-        UserEntity owner = entityManager.getReference(UserEntity.class, userDto.getId());
+        // 1. Obtenemos el owner (Ya no autenticamos con password aquí,
+        // asumimos que el filtro de seguridad ya validó el token)
+        UserEntity owner = userRepository.findByUsername(username);
+        if (owner == null) throw new InstanceNotFoundException("Usuario no encontrado");
 
-        quotaUtils.checkQuota(username, totalBatchSize);
+        // 2. Verificamos cuota
+        quotaUtils.checkQuota(username, request.getTotalBatchSize());
 
-        FileEntity parent = (parentId != null)
-                ? fileRepository.findById(parentId).orElseThrow(() -> new InstanceNotFoundException("Carpeta no encontrada"))
+        // 3. Obtener carpeta padre
+        FileEntity parent = (request.getParentId() != null)
+                ? fileRepository.findById(request.getParentId())
+                .orElseThrow(() -> new InstanceNotFoundException("Carpeta no encontrada"))
                 : null;
 
-        // REGLA 3: Reemplazo explícito.
-        // Si el usuario eligió "Reemplazar", el Front envía el nombre EXACTO.
-        // Solo borramos si existe un archivo con ese nombre EXACTO en ese padre.
+        // 4. Lógica de reemplazo (Regla 3)
         Optional<FileEntity> existing = (parent == null)
-                ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, fileName)
-                : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, fileName, parentId);
+                ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, request.getFileName())
+                : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, request.getFileName(), request.getParentId());
 
         if (existing.isPresent()) {
             FileEntity oldFile = existing.get();
-            // Si es una carpeta, no permitimos que un archivo la machaque (error de lógica)
             if ("application/x-directory".equals(oldFile.getFileType())) {
                 throw new Exception("No puedes reemplazar una carpeta con un archivo.");
             }
-
-            // FÍSICAMENTE: Borramos el viejo para dejar sitio al nuevo
             if (oldFile.getStoragePath() != null) {
                 storageUtils.deletePhysicalFile(oldFile.getStoragePath());
             }
             fileRepository.delete(oldFile);
-            fileRepository.flush(); // Limpiar espacio en BD para el nuevo insert
+            fileRepository.flush();
         }
 
+        // 5. Construcción de ruta lógica
         String logicalPath;
         if (parent == null) {
             logicalPath = "/";
         } else {
             String base = parent.getFolderPath();
-            // Si la base ya es /, no añadimos otro slash antes del nombre
             logicalPath = base.endsWith("/") ? base + parent.getFileName() : base + "/" + parent.getFileName();
         }
 
         String storagePathCancel = null;
 
         try {
-            Map<String, String> storageResult = storageUtils.encryptAndSave(file.getInputStream(), username, logicalPath, rawPassword);
+            // --- CAMBIO CLAVE ---
+            // Para que el servidor cifre, necesitamos la llave AES.
+            // IMPORTANTE: Aquí deberías pasar la llave que el servidor usará para cifrar.
+            // Si el cliente ya manda el archivo cifrado, storageUtils debería solo guardar.
+            // Si el servidor cifra, el cliente debe mandar la 'rawFileKey' en el DTO (base64).
+
+            Map<String, String> storageResult = storageUtils.saveEncryptedPackage(
+                    request.getFile().getInputStream(),
+                    username,
+                    logicalPath
+            );
+
             storagePathCancel = storageResult.get("storagePath");
+
+            // 6. Creación de la entidad File
             FileEntity newFile = new FileEntity();
-            newFile.setFileName(fileName);
-            newFile.setFileType(file.getContentType());
-            newFile.setFileSize(file.getSize());
+            newFile.setFileName(request.getFileName());
+            newFile.setFileType(request.getFile().getContentType());
+            newFile.setFileSize(request.getFile().getSize());
             newFile.setOwner(owner);
             newFile.setParent(parent);
             newFile.setFolderPath(logicalPath);
-            newFile.setStoragePath(storagePathCancel);
-            newFile.setSalt(storageResult.get("salt"));
+            newFile.setStoragePath(storageResult.get("storagePath"));
             newFile.setChecksum(storageResult.get("checksum"));
+            FileEntity savedFile = fileRepository.save(newFile);
 
-            return fileMapper.toDto(fileRepository.save(newFile));
+            // 2. GUARDAR LA LLAVE (Sobre Digital): Crucial para Zero-Knowledge
+            FileKeyEntity fileKey = new FileKeyEntity();
+            fileKey.setFile(savedFile);
+            fileKey.setUser(owner);
+            fileKey.setEncryptedKey(request.getEncryptedFileKey()); // Esta es la AES cifrada con RSA del cliente
+            fileKeyRepository.save(fileKey);
+
+            return fileMapper.toDto(savedFile);
+
         } catch (Exception e) {
-            // Si hay un error de red (Aborted) o de escritura, borramos el archivo físico si se creó
             if (storagePathCancel != null) {
                 try { storageUtils.deletePhysicalFile(storagePathCancel); } catch (IOException ignored) {}
             }
-            throw e; // Relanzamos para que actúe @Transactional
+            throw e;
         }
     }
 
-    // REGLA 1: Crear carpeta manual permite coexistencia
+    public String getEncryptedFileKey(Long fileId, String username) throws InstanceNotFoundException {
+        UserEntity user = userRepository.findByUsername(username);
+        return fileKeyRepository.findByFileIdAndUserId(fileId, user.getId())
+                .map(FileKeyEntity::getEncryptedKey)
+                .orElseThrow(() -> new InstanceNotFoundException("No tienes acceso a la llave de este archivo"));
+    }
 
 
     public FileDto ensureFolderSync(String username, String folderName, Long parentId){
@@ -285,12 +313,20 @@ public class FileService {
         return fileMapper.toDto(entity);
     }
 
-    public InputStream getFileDownloadStream(Long id, String username, String password) throws Exception {
+    public InputStream getFileDownloadStream(Long id, String username) throws Exception {
         FileEntity entity = findOrThrow(id, username);
-        if ("application/x-directory".equals(entity.getFileType())) throw new InternalStorageException("No es descargable");
-        if (!storageUtils.exists(entity.getStoragePath())) throw new InternalStorageException("Archivo físico no encontrado");
 
-        return storageUtils.getDecryptedStream(entity.getStoragePath(), password, entity.getSalt());
+        if ("application/x-directory".equals(entity.getFileType())) {
+            throw new InternalStorageException("No es descargable");
+        }
+
+        // Verificamos que el archivo físico existe
+        if (!storageUtils.exists(entity.getStoragePath())) {
+            throw new InternalStorageException("Archivo físico no encontrado en el servidor");
+        }
+
+        // Retornamos el chorro de bytes directamente desde el repositorio (sin Cipher)
+        return storageUtils.getRawStream(entity.getStoragePath());
     }
 
     public Map<String, Object> getUserStats(String username) {

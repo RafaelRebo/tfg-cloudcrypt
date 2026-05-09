@@ -1,17 +1,28 @@
 const PreviewService = {
     async getPreviewData(file, password) {
+        // 1. Obtener el archivo cifrado
         const res = await API.download(file.id, password);
         if (!res.ok) throw new Error("No se pudo obtener el archivo");
+        const encryptedBlob = await res.blob();
 
-        const blob = await res.blob();
+        // 2. Obtener el sobre digital
+        const keyRes = await fetch(`/api/files/${file.id}/key`, {
+            headers: API.getAuthHeader()
+        });
+        if (!keyRes.ok) throw new Error("No tienes permiso para ver la llave");
+        const { encryptedFileKey } = await keyRes.json();
+
+        // 3. Descifrar la llave y el archivo
+        const aesKey = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+        const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKey);
+
         const mime = file.fileType.toLowerCase();
-        const fileName = file.fileName.toLowerCase();
 
-        // Creamos el Blob seguro con su MIME original
-        const safeBlob = new Blob([blob], { type: mime });
-        const url = URL.createObjectURL(safeBlob);
+        // --- CORRECCIÓN CRÍTICA: Crear el Blob con su tipo MIME original ---
+        // Esto soluciona que los PDFs se vean en binario
+        const decryptedBlob = new Blob([decryptedBuffer], { type: mime });
+        const url = URL.createObjectURL(decryptedBlob);
 
-        // --- GRUPO 1: MULTIMEDIA DIRECTA ---
         if (mime.startsWith('image/') || mime.startsWith('video/') || mime.startsWith('audio/')) {
             let type = 'image';
             if (mime.startsWith('video/')) type = 'video';
@@ -19,29 +30,23 @@ const PreviewService = {
             return { type, url };
         }
 
-        // --- GRUPO 2: DOCUMENTOS E ESTÁNDAR ---
         if (mime === 'application/pdf') return { type: 'pdf', url };
 
-        // --- GRUPO 3: TEXTO, CÓDIGO Y CONFIGURACIÓN ---
-        // Añadimos detecciones por extensión para archivos que a veces vienen como octet-stream
+        // --- CORRECCIÓN TXT: Detección por extensión y MIME ---
+        const fileName = file.fileName.toLowerCase();
         const isText = mime.startsWith('text/') ||
                        mime.includes('json') ||
-                       mime.includes('javascript') ||
-                       mime.includes('xml') ||
-                       fileName.endsWith('.py') ||
-                       fileName.endsWith('.java') ||
-                       fileName.endsWith('.cpp') ||
-                       fileName.endsWith('.sh') ||
-                       fileName.endsWith('.md') ||
-                       fileName.endsWith('.log');
+                       fileName.endsWith('.txt') ||
+                       fileName.endsWith('.log') ||
+                       fileName.endsWith('.md');
 
         if (isText) {
-            const text = await blob.text();
+            // Usamos FileReader para asegurar la lectura correcta del texto
+            const text = await decryptedBlob.text();
             return { type: 'text', content: text };
         }
 
-        // --- GRUPO 5: ARCHIVOS COMPRIMIDOS ---
-        if (mime.includes('zip') || mime.includes('rar') || mime.includes('tar') || mime.includes('gzip')) {
+        if (mime.includes('zip') || mime.includes('rar')) {
             return { type: 'archive', url };
         }
 

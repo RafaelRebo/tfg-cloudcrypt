@@ -84,15 +84,39 @@ const UploadService = {
     },
 
     // 3. Actualizamos la firma para recibir el signal
+    // Dentro de uploadSingle en UploadService.js
     async uploadSingle(file, parentId, fileName, onProgress, context, totalBatchSize, signal) {
-        const formData = new FormData();
-        formData.append("file", file);
-        formData.append("password", context.password);
-        formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
-        formData.append("fileName", fileName);
-        formData.append("totalBatchSize", totalBatchSize);
+            // 1. Verificar si la llave pública existe en RAM
+            if (!window.userPublicKey) {
+                throw new Error("Identidad criptográfica no cargada. Por favor, re-inicia sesión.");
+            }
 
-        // 4. Lo pasamos finalmente a la función de la API
-        return API.uploadSingle(formData, onProgress, signal);
-    }
+            // 2. Generar llave AES aleatoria para este archivo
+            const fileKey = await window.crypto.subtle.generateKey(
+                { name: "AES-GCM", length: 256 },
+                true,
+                ["encrypt", "decrypt"]
+            );
+
+            // 3. Cifrar el archivo localmente (devuelve un Blob con IV + datos)
+            const encryptedBlob = await CryptoService.encryptFile(file, fileKey);
+
+            // 4. Exportar la llave AES a formato 'raw' (bytes) para poder envolverla con RSA
+            const rawAesKey = await window.crypto.subtle.exportKey("raw", fileKey);
+
+            // 5. Envolver (Wrap) la llave AES con la Pública RSA del usuario
+            // USAMOS window.userPublicKey que es donde AuthService la guarda
+            const encryptedFileKey = await CryptoService.wrapKey(rawAesKey, window.userPublicKey);
+
+            // 6. Preparar el FormData para enviar al servidor
+            const formData = new FormData();
+            formData.append("file", encryptedBlob);
+            formData.append("fileName", fileName);
+            formData.append("parentId", (parentId && !isNaN(parentId)) ? parentId : "");
+            formData.append("totalBatchSize", totalBatchSize);
+            formData.append("encryptedFileKey", encryptedFileKey);
+
+            // 7. Lanzar la petición XHR
+            return API.uploadSingle(formData, onProgress, signal);
+        }
 };

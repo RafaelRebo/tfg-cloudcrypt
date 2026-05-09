@@ -1,6 +1,7 @@
 package com.example.controller;
 
 import com.example.dto.FileDto;
+import com.example.dto.FileUploadRequestDto;
 import com.example.service.FileService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -15,6 +16,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -28,21 +30,29 @@ public class FileController {
         this.fileService = fileService;
     }
 
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFile(
             Authentication auth,
-            @RequestParam("file") MultipartFile file,
-            @RequestParam("password") String password,
-            @RequestParam(value = "parentId", required = false) Long parentId,
-            @RequestParam(value = "fileName", required = false) String fileName,
-            @RequestParam("totalBatchSize") Long totalBatchSize) { // <--- NUEVO PARÁMETRO
+            @ModelAttribute FileUploadRequestDto requestDto) { // @ModelAttribute para mapear Multipart + campos
 
         try {
-            // Pasamos el totalBatchSize al service
-            FileDto savedFile = fileService.uploadFile(file, auth.getName(), password, parentId, fileName, totalBatchSize);
+            FileDto savedFile = fileService.uploadFile(requestDto, auth.getName());
             return ResponseEntity.ok(savedFile);
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/{id}/key")
+    public ResponseEntity<?> getFileKey(@PathVariable Long id, Authentication auth) {
+        try {
+            // Delegamos al service para buscar en la tabla file_keys
+            String encryptedKey = fileService.getEncryptedFileKey(id, auth.getName());
+            Map<String, String> response = new HashMap<>();
+            response.put("encryptedFileKey", encryptedKey);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("No tienes acceso a este archivo");
         }
     }
 
@@ -109,20 +119,20 @@ public class FileController {
         }
     }
 
-    @GetMapping("/download/{id}")
-    public ResponseEntity<Resource> downloadFile(
-            Authentication auth,
-            @PathVariable Long id,
-            @RequestHeader("X-File-Password") String password) {
+    // En FileController.java
 
+    @GetMapping("/download/{id}")
+    public ResponseEntity<Resource> downloadFile(Authentication auth, @PathVariable Long id) {
         try {
             FileDto fileDto = fileService.getFileById(id, auth.getName());
-            InputStream stream = fileService.getFileDownloadStream(id, auth.getName(), password);
+
+            // Ya no se requiere password ni X-File-Password header
+            InputStream stream = fileService.getFileDownloadStream(id, auth.getName());
             InputStreamResource resource = new InputStreamResource(stream);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + fileDto.getFileName() + "\"")
-                    .contentType(MediaType.parseMediaType(fileDto.getFileType()))
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(resource);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();

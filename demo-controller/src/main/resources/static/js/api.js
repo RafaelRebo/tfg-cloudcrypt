@@ -195,11 +195,11 @@ const API = {
         return res.text();
     },
 
-    async getUserPublicKey(username) {
-        const res = await fetch(`/api/keys/public/${username}`, {
-            headers: this.getAuthHeader()
-        });
-        if (!res.ok) return null;
-        return res.text();
-    }
+   async getUserPublicKey(username) {
+       const res = await fetch(`/api/keys/public/${username}`, {
+           headers: this.getAuthHeader()
+       });
+       if (!res.ok) return null;
+       return res.json();
+   },
 };

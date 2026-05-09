@@ -1,5 +1,6 @@
 const AuthService = {
     // En AuthService.js -> login
+    // En AuthService.js
     async login(username, password) {
         const res = await API.login(username, password);
         if (res.ok) {
@@ -9,14 +10,38 @@ const AuthService = {
             sessionStorage.setItem('fileKey', password);
 
             try {
+                // 1. Recuperar Clave Privada (Ya lo hacías)
                 const encryptedPrivKey = await API.getMyPrivateKey();
-                // Solo intentamos descifrar si el servidor realmente nos devolvió algo
-                if (encryptedPrivKey && encryptedPrivKey.trim() !== "" && !encryptedPrivKey.includes("No tienes llaves")) {
-                    const privateKeyObject = await CryptoService.decryptPrivateKey(encryptedPrivKey, password);
-                    window.userPrivateKey = privateKeyObject;
+                if (encryptedPrivKey) {
+                    window.userPrivateKey = await CryptoService.decryptPrivateKey(encryptedPrivKey, password);
+                }
+
+                // 2. NUEVO: Recuperar Clave Pública y convertirla en objeto CryptoKey
+                // Busca esta parte en AuthService.js y cámbiala:
+                const pubKeyData = await API.getUserPublicKey(username);
+                if (pubKeyData) {
+                    let jwk;
+                    try {
+                        // El servidor devuelve un Map con el campo "publicKey" que es un String JSON
+                        jwk = (typeof pubKeyData.publicKey === 'string')
+                              ? JSON.parse(pubKeyData.publicKey)
+                              : pubKeyData.publicKey;
+                    } catch (e) {
+                        console.error("Error al parsear JWK:", e);
+                        return true;
+                    }
+
+                    // IMPORTANTE: Guardamos el objeto CryptoKey real en la variable global
+                    window.userPublicKey = await window.crypto.subtle.importKey(
+                        "jwk",
+                        jwk,
+                        { name: "RSA-OAEP", hash: "SHA-256" },
+                        true,
+                        ["encrypt"]
+                    );
                 }
             } catch (e) {
-                console.warn("El usuario aún no tiene llaves o hubo un error al recuperarlas");
+                console.error("Error al reconstruir identidad criptográfica:", e);
             }
             return true;
         }
@@ -24,16 +49,21 @@ const AuthService = {
     },
 
     async setupUserCrypto(username, password) {
-        // Generar par de llaves nuevo
+        // 1. Generar par de llaves nuevo
         const keyPair = await CryptoService.generateUserKeyPair();
 
-        // Exportar pública a String (JWK)
+        // 2. Exportar pública a String (JWK)
         const pubKeyStr = await CryptoService.exportPublicKey(keyPair.publicKey);
 
-        // Encriptar privada con la password master
+        // 3. Encriptar privada con la password master
         const privKeyEnc = await CryptoService.encryptPrivateKey(keyPair.privateKey, password);
 
-        // Registrar en el servidor
+        // --- NUEVO: Cargar las llaves en RAM inmediatamente ---
+        window.userPublicKey = keyPair.publicKey;
+        window.userPrivateKey = keyPair.privateKey;
+        // -----------------------------------------------------
+
+        // 4. Registrar en el servidor
         return await API.registerUserKeys(pubKeyStr, privKeyEnc);
     },
     logout() {

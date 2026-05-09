@@ -35,11 +35,20 @@ const appInstance = createApp({
             draggingId: null,
         }
     },
-    mounted() {
+    async mounted() {
         const session = AuthService.getSavedSession();
         if (session) {
             this.username = session.username;
             this.isLoggedIn = true;
+
+            // Si no hay llaves en RAM, las recuperamos silenciosamente
+            if (!window.userPublicKey || !window.userPrivateKey) {
+                try {
+                    await AuthService.login(session.username, session.password);
+                } catch (e) {
+                    console.error("No se pudieron precargar las llaves");
+                }
+            }
             this.refreshAppData();
         }
         window.addEventListener('keydown', this.handleGlobalKeydown);
@@ -118,7 +127,12 @@ const appInstance = createApp({
                     this.password = '';
                     this.loginError = false;
                     this.isLoggedIn = true;
-                    this.refreshAppData();
+                    if (!window.userPublicKey) {
+                            await AuthService.setupUserCrypto(this.username, secureKey);
+                            // Volvemos a llamar al login para cargar las llaves recién creadas
+                            await AuthService.login(this.username, secureKey);
+                        }
+                        this.refreshAppData();
                 } else {
                     this.loginError = true;
                     this.showError("Usuario o contraseña incorrectos");
@@ -134,12 +148,11 @@ const appInstance = createApp({
                 this.status = "Generando identidad segura...";
                 const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
 
-                // 1. Crear el usuario en la BD (tabla 'users')
+                // 1. Crear el usuario en la BD
                 const res = await API.register(this.username, masterKey);
                 if (!res.ok) throw new Error("Fallo al crear usuario");
 
-                // 2. Login rápido para obtener el Token JWT (pero sin intentar bajar llaves aún)
-                // Usamos API.login directamente para no disparar la lógica de recuperar llaves de AuthService
+                // 2. Login para obtener el Token JWT
                 const loginRes = await API.login(this.username, masterKey);
                 if (!loginRes.ok) throw new Error("Fallo al autenticar tras registro");
 
@@ -147,13 +160,16 @@ const appInstance = createApp({
                 localStorage.setItem('jwtToken', loginData.token);
                 localStorage.setItem('username', loginData.username);
 
-                // 3. AHORA generamos y registramos las llaves (tabla 'user_keys')
-                // Como ya tenemos el Token en el localStorage, registerUserKeys funcionará
+                // IMPORTANTE: Guardar la llave de sesión para que esté disponible sin re-loguear
+                sessionStorage.setItem('fileKey', masterKey);
+
+                // 3. Generar, cargar en RAM y registrar llaves
                 const cryptoRes = await AuthService.setupUserCrypto(this.username, masterKey);
 
                 if (cryptoRes.ok) {
                     this.showInfo("Registro e identidad completados.");
                     this.isLoggedIn = true;
+                    this.password = ''; // Limpiar contraseña por seguridad
                     await this.refreshAppData();
                 } else {
                     throw new Error("Fallo al registrar llaves criptográficas");
@@ -167,6 +183,11 @@ const appInstance = createApp({
         logout() {
             AuthService.logout();
             this.isLoggedIn = false;
+
+            // LIMPIEZA CRÍTICA:
+            window.userPrivateKey = null;
+            window.userPublicKey = null;
+
             Object.assign(this.$data, this.$options.data());
         },
         onDragOver() {

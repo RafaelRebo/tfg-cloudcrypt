@@ -15,6 +15,74 @@ const CryptoService = {
         );
     },
 
+    async wrapKey(rawAesKey, publicKey) {
+        // publicKey debe ser un objeto CryptoKey. Si lo tienes como String/JWK,
+        // primero impórtalo con window.crypto.subtle.importKey
+        const encryptedKeyBuffer = await window.crypto.subtle.encrypt(
+            { name: "RSA-OAEP" },
+            publicKey,
+            rawAesKey
+        );
+        return btoa(String.fromCharCode.apply(null, new Uint8Array(encryptedKeyBuffer)));
+    },
+
+    /**
+     * FASE 2: Abre el sobre digital usando la Clave Privada RSA.
+     * Recupera la llave AES original para poder descifrar el archivo.
+     */
+    async unwrapKey(encryptedAesKeyBase64, privateKey) {
+        const encryptedBuffer = new Uint8Array(atob(encryptedAesKeyBase64).split("").map(c => c.charCodeAt(0)));
+
+        const decryptedKeyBuffer = await window.crypto.subtle.decrypt(
+            { name: "RSA-OAEP" },
+            privateKey,
+            encryptedBuffer
+        );
+
+        // Importamos los bytes resultantes como una llave AES válida para GCM
+        return await window.crypto.subtle.importKey(
+            "raw",
+            decryptedKeyBuffer,
+            { name: "AES-GCM", length: 256 },
+            true,
+            ["encrypt", "decrypt"]
+        );
+    },
+
+    async encryptFile(file, aesKey) {
+        const iv = window.crypto.getRandomValues(new Uint8Array(12));
+        const encodedFile = await file.arrayBuffer();
+
+        const encryptedContent = await window.crypto.subtle.encrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            encodedFile
+        );
+
+        // Combinamos IV + Contenido para que el servidor lo guarde todo junto
+        const combined = new Uint8Array(iv.length + encryptedContent.byteLength);
+        combined.set(iv);
+        combined.set(new Uint8Array(encryptedContent), iv.length);
+
+        return new Blob([combined], { type: file.type });
+    },
+
+    async decryptFile(encryptedBlob, aesKey) {
+        const arrayBuffer = await encryptedBlob.arrayBuffer();
+
+        // Extraemos el IV (los primeros 12 bytes) y los datos cifrados (el resto)
+        const iv = arrayBuffer.slice(0, 12);
+        const data = arrayBuffer.slice(12);
+
+        const decryptedContent = await window.crypto.subtle.decrypt(
+            { name: "AES-GCM", iv: iv },
+            aesKey,
+            data
+        );
+
+        return decryptedContent;
+    },
+
     /**
      * Derives a symmetric key from the user's password to encrypt/decrypt the private RSA key.
      * Uses PBKDF2 with SHA-256.
@@ -103,5 +171,16 @@ const CryptoService = {
     async exportPublicKey(publicKey) {
         const jwk = await window.crypto.subtle.exportKey("jwk", publicKey);
         return JSON.stringify(jwk);
+    },
+
+    // En CryptoService.js
+    async importExternalPublicKey(jwkString) {
+        return await window.crypto.subtle.importKey(
+            "jwk",
+            JSON.parse(jwkString),
+            { name: "RSA-OAEP", hash: "SHA-256" },
+            true,
+            ["encrypt"]
+        );
     }
 };

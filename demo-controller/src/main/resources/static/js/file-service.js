@@ -1,23 +1,30 @@
 const FileService = {
+    // En FileService.js
     async downloadFile(fileId, fileName, password, context) {
-        context.status = "Descifrando y preparando descarga...";
+        context.status = "Descargando y descifrando...";
         try {
+            // 1. Bajar archivo y llave
             const res = await API.download(fileId, password);
-            if (!res.ok) throw new Error("Error en la descarga");
+            const keyRes = await fetch(`/api/files/${fileId}/key`, { headers: API.getAuthHeader() });
 
-            const blob = await res.blob();
-            const url = window.URL.createObjectURL(blob);
+            const encryptedBlob = await res.blob();
+            const { encryptedFileKey } = await keyRes.json();
+
+            // 2. Descifrar
+            const aesKey = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+            const decryptedBlob = await CryptoService.decryptFile(encryptedBlob, aesKey);
+
+            // 3. Ofrecer al navegador
+            const url = window.URL.createObjectURL(decryptedBlob);
             const a = document.createElement('a');
             a.href = url;
             a.download = fileName;
             document.body.appendChild(a);
             a.click();
             window.URL.revokeObjectURL(url);
-            a.remove();
             context.status = "Descarga completada.";
         } catch (err) {
-            context.showError("Error en la descarga: " + err.message);
-            context.status = "Error en la descarga.";
+            context.showError("Error al descifrar el archivo.");
         }
     },
 

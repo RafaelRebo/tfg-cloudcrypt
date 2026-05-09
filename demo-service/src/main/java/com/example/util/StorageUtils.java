@@ -24,32 +24,41 @@ public class StorageUtils {
         this.cryptoUtils = cryptoUtils;
     }
 
-    public Map<String, String> encryptAndSave(InputStream is, String username, String folderPath, String rawPassword) throws Exception {
-        // Preparar el algoritmo de Hash
+    /**
+     * Guarda el archivo cifrado usando una clave AES única proporcionada.
+     * Ya no depende de la contraseña del usuario.
+     */
+    public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws Exception {
+        // 1. Calcular Checksum mientras guardamos (para integridad del paquete cifrado)
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        // Envolver el stream original: cada byte leído pasará por el MessageDigest
         DigestInputStream dis = new DigestInputStream(is, md);
 
-        byte[] salt = cryptoUtils.generateRandomSalt();
-        String saltBase64 = Base64.getEncoder().encodeToString(salt);
-
+        // 2. Definir rutas
         String physicalFolder = username + "/" + folderPath.replaceAll("^/|/$", "");
         String storageName = UUID.randomUUID().toString();
-        String finalStoragePath = physicalFolder + "/" + storageName;
 
-        Cipher cipher = cryptoUtils.getReadyCipher(Cipher.ENCRYPT_MODE, rawPassword, salt);
-
-        // Guardamos usando el DigestInputStream
-        storageRepository.save(dis, physicalFolder, storageName, cipher);
-
-        // Una vez que el stream se ha agotado (guardado), extraemos el hash calculado
-        String checksum = bytesToHex(md.digest());
+        // 3. GUARDADO DIRECTO: El Cipher es null porque el archivo YA viene cifrado del navegador
+        storageRepository.save(dis, physicalFolder, storageName, null);
 
         Map<String, String> results = new HashMap<>();
-        results.put("storagePath", finalStoragePath);
-        results.put("salt", saltBase64);
-        results.put("checksum", checksum); // Retornamos el checksum calculado en una sola pasada
+        results.put("storagePath", physicalFolder + "/" + storageName);
+        results.put("checksum", bytesToHex(md.digest()));
         return results;
+    }
+    /**
+     * Carga el stream descifrado usando la clave AES del archivo.
+     */
+    public InputStream getRawStream(String storagePath) throws IOException {
+        return storageRepository.loadStream(storagePath);
+    }
+
+    // Métodos auxiliares se mantienen igual
+    public void deletePhysicalFile(String storagePath) throws IOException {
+        storageRepository.delete(storagePath);
+    }
+
+    public boolean exists(String storagePath) {
+        return storageRepository.exists(storagePath);
     }
 
     private String bytesToHex(byte[] hash) {
@@ -60,20 +69,5 @@ public class StorageUtils {
             hexString.append(hex);
         }
         return hexString.toString();
-    }
-
-
-    public InputStream getDecryptedStream(String storagePath, String rawPassword, String saltBase64) throws Exception {
-        byte[] salt = Base64.getDecoder().decode(saltBase64);
-        Cipher decryptCipher = cryptoUtils.getReadyCipher(Cipher.DECRYPT_MODE, rawPassword, salt);
-        return storageRepository.loadDecryptedStream(storagePath, decryptCipher);
-    }
-
-    public void deletePhysicalFile(String storagePath) throws IOException {
-        storageRepository.delete(storagePath);
-    }
-
-    public boolean exists(String storagePath) {
-        return storageRepository.exists(storagePath);
     }
 }

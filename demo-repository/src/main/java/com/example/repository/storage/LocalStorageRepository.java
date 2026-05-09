@@ -42,9 +42,16 @@ public class LocalStorageRepository implements IStorageRepository {
 
         Path targetFile = targetFolder.resolve(filename);
 
-        try (OutputStream os = Files.newOutputStream(targetFile);
-             CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
-            input.transferTo(cos);
+        try (OutputStream os = Files.newOutputStream(targetFile)) {
+            if (cipher != null) {
+                // FLUJO CON CIFRADO EN SERVIDOR (Carpetas o legacy)
+                try (CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
+                    input.transferTo(cos);
+                }
+            } else {
+                // FLUJO ZERO-KNOWLEDGE (El archivo ya viene cifrado del cliente)
+                input.transferTo(os);
+            }
         }
     }
 
@@ -71,9 +78,9 @@ public class LocalStorageRepository implements IStorageRepository {
     }
 
     @Override
-    public InputStream loadDecryptedStream(String relativePath, Cipher cipher) throws IOException {
-        InputStream is = Files.newInputStream(this.root.resolve(relativePath));
-        return new CipherInputStream(is, cipher);
+    public InputStream loadStream(String relativePath) throws IOException {
+        // Retornamos el chorro de bytes (cifrados) directamente del disco
+        return Files.newInputStream(this.root.resolve(relativePath));
     }
 
     @Override
