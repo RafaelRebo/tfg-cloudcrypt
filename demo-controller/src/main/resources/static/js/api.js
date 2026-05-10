@@ -202,4 +202,13 @@ const API = {
        if (!res.ok) return null;
        return res.json();
    },
+
+   // Buscar usuarios por nombre (para el buscador del modal)
+   async searchUsers(query) {
+       const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+           headers: this.getAuthHeader()
+       });
+       if (!res.ok) return [];
+       return res.json();
+   },
 };

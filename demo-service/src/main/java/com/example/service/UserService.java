@@ -10,6 +10,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Service
 public class UserService {
     private final UserRepository userRepository;
@@ -39,5 +42,14 @@ public class UserService {
             return userMapper.toDto(user);
         }
         else throw new InvalidCredentialsException("Las credenciales son incorrectas o el usuario no existe");
+    }
+
+    public List<String> searchOtherUsers(String query, String currentUsername) {
+        return userRepository.findByUsernameContainingIgnoreCase(query)
+                .stream()
+                .map(UserEntity::getUsername)
+                .filter(name -> !name.equals(currentUsername))
+                .limit(10) // Limitamos para no saturar el modal
+                .collect(Collectors.toList());
     }
 }

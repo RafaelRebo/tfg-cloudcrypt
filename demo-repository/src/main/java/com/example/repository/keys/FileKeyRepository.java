@@ -9,9 +9,12 @@ import java.util.Optional;
 @Repository
 public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
-    // Para que un usuario pueda recuperar su llave de un archivo concreto
-    Optional<FileKeyEntity> findByFileIdAndUserId(Long fileId, Long userId);
+    // NUEVO: Buscar llave por ID de archivo y NOMBRE de usuario
+    Optional<FileKeyEntity> findByFileIdAndUser_Username(Long fileId, String username);
 
-    // Para comprobar si alguien tiene acceso (si hay llave, hay acceso)
-    boolean existsByFileIdAndUserId(Long fileId, Long userId);
+    // NUEVO: Comprobar existencia por nombre de usuario
+    boolean existsByFileIdAndUser_Username(Long fileId, String username);
+
+    // El que ya tenías (mantenlo si quieres, pero usaremos el de arriba)
+    Optional<FileKeyEntity> findByFileIdAndUserId(Long fileId, Long userId);
 }

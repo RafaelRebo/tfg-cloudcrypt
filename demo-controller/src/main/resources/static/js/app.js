@@ -33,6 +33,16 @@ const appInstance = createApp({
             clickThreshold: 300,
             selectionTimer: null,
             draggingId: null,
+            shareModal: {
+                active: false,
+                fileId: null,
+                fileName: '',
+                isFolder: false,
+                searchQuery: '',
+                searchResults: [], // Para la lista desplegable
+                selectedUsers: [],
+                isProcessing: false
+            },
         }
     },
     async mounted() {
@@ -562,6 +572,7 @@ const appInstance = createApp({
                 'audio': 'Música',
                 'video': 'Vídeos',
                 'document': 'Documentos',
+                'shared': 'Compartidos conmigo',
                 'trash': 'Papelera'
             };
             return labels[cat] || cat;
@@ -836,6 +847,116 @@ const appInstance = createApp({
             } catch (e) {
                 console.error("Error al mover:", e);
             }
+        },
+        openShareModal(f) {
+            // Primero reseteamos el objeto para asegurar que Vue detecte el cambio de estado
+            this.shareModal.searchResults = [];
+            this.shareModal.selectedUsers = [];
+            this.shareModal.searchQuery = '';
+            this.shareModal.isProcessing = false;
+
+            // Ahora asignamos los valores del archivo
+            this.shareModal.fileId = f.id;
+            this.shareModal.fileName = f.fileName;
+            this.shareModal.isFolder = f.fileType === 'application/x-directory';
+            this.shareModal.active = true;
+        },
+        closeShareModal() {
+            this.shareModal.active = false;
+        },
+        addUserToShare() {
+            const user = this.shareModal.searchQuery.trim();
+            if (user && user !== this.username && !this.shareModal.selectedUsers.includes(user)) {
+                this.shareModal.selectedUsers.push(user);
+                this.shareModal.searchQuery = '';
+            }
+        },
+        removeUserFromShare(user) {
+            this.shareModal.selectedUsers = this.shareModal.selectedUsers.filter(u => u !== user);
+        },
+
+        async executeShare() {
+            this.shareModal.isProcessing = true;
+            try {
+                // 1. Si es carpeta, necesitamos la lista de todos los archivos internos
+                let filesToShare = [];
+                if (this.shareModal.isFolder) {
+                    const res = await fetch(`/api/files/folder-content-recursive/${this.shareModal.fileId}`, {
+                        headers: API.getAuthHeader()
+                    });
+                    filesToShare = await res.json(); // Lista de FileDtos
+                } else {
+                    filesToShare = [{ id: this.shareModal.fileId }];
+                }
+
+                // 2. Procesar cada archivo
+                for (const file of filesToShare) {
+                    // Saltamos si es una carpeta (las carpetas no tienen llave AES)
+                    if (file.fileType === 'application/x-directory') continue;
+
+                    // Obtener nuestra llave AES cifrada
+                    const keyRes = await fetch(`/api/files/${file.id}/key`, { headers: API.getAuthHeader() });
+                    const { encryptedFileKey } = await keyRes.json();
+
+                    // Descifrar AES con nuestra Privada
+                    const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+                    const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKeyObj);
+
+                    // Cifrar para cada destinatario
+                    const shareRequests = [];
+                    for (const targetUser of this.shareModal.selectedUsers) {
+                        const userData = await API.getUserPublicKey(targetUser);
+                        const targetPubKey = await CryptoService.importExternalPublicKey(userData.publicKey);
+                        const wrappedKey = await CryptoService.wrapKey(rawAesKey, targetPubKey);
+
+                        shareRequests.push({ targetUsername: targetUser, encryptedKey: wrappedKey });
+                    }
+
+                    // Enviar al server para este archivo concreto
+                    await fetch(`/api/files/${file.id}/share`, {
+                        method: 'POST',
+                        headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify(shareRequests)
+                    });
+                }
+
+                this.showInfo("¡Todo compartido correctamente!");
+                this.closeShareModal();
+            } catch (e) {
+                this.showError("Error al compartir: " + e.message);
+            } finally {
+                this.shareModal.isProcessing = false;
+            }
+        },
+        async onUserSearchInput() {
+            const query = this.shareModal.searchQuery.trim();
+
+            // Cambiamos a 1 para que con una sola letra ya busque
+            if (query.length < 1) {
+                this.shareModal.searchResults = [];
+                return;
+            }
+
+            try {
+                // Llamada a la API
+                const results = await API.searchUsers(query);
+
+                // Filtramos para no mostrarnos a nosotros mismos y no mostrar
+                // a alguien que ya hayamos seleccionado en los chips
+                this.shareModal.searchResults = results.filter(u =>
+                    u !== this.username && !this.shareModal.selectedUsers.includes(u)
+                );
+            } catch (e) {
+                console.error("Error buscando usuarios:", e);
+            }
+        },
+
+        selectUser(user) {
+            if (!this.shareModal.selectedUsers.includes(user)) {
+                this.shareModal.selectedUsers.push(user);
+            }
+            this.shareModal.searchQuery = '';
+            this.shareModal.searchResults = [];
         },
     },
     watch: {

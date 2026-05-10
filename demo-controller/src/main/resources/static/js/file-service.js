@@ -71,6 +71,8 @@ const FileService = {
         if (currentCategory === 'trash') {
             // En la papelera solo mostramos lo que tiene fecha de borrado
             return allUserFiles.filter(f => f.deletedAt !== null);
+        } else if (currentCategory === 'shared') {
+            return allUserFiles;
         } else {
             // En "Mis Archivos" o categorías, NUNCA mostrar lo que tenga fecha de borrado
             return allUserFiles.filter(f => f.deletedAt === null);

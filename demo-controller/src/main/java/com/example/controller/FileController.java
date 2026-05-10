@@ -2,6 +2,7 @@ package com.example.controller;
 
 import com.example.dto.FileDto;
 import com.example.dto.FileUploadRequestDto;
+import com.example.dto.ShareRequestDto;
 import com.example.service.FileService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -95,6 +96,30 @@ public class FileController {
         return ResponseEntity.ok(result);
     }
 
+    @PostMapping("/{id}/share")
+    public ResponseEntity<?> shareFile(
+            @PathVariable Long id,
+            @RequestBody List<ShareRequestDto> shareRequests,
+            Authentication auth) {
+        try {
+            fileService.shareFile(id, shareRequests, auth.getName());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @GetMapping("/folder-content-recursive/{id}")
+    public ResponseEntity<?> getRecursiveContent(@PathVariable Long id, Authentication auth) {
+        try {
+            // Llamamos al nuevo método del servicio que busca todos los hijos
+            List<FileDto> content = fileService.getRecursiveFilesForSharing(id, auth.getName());
+            return ResponseEntity.ok(content);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+        }
+    }
+
     @GetMapping
     public ResponseEntity<?> listFiles(
             Authentication auth,
@@ -135,6 +160,7 @@ public class FileController {
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(resource);
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
     }

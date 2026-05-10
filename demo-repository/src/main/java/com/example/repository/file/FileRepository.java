@@ -65,6 +65,15 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             @Param("path") String path
     );
 
+    // --- NUEVO: Para compartir carpetas recursivamente ---
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%')) " +
+            "AND f.deletedAt IS NULL")
+    List<FileEntity> findAllByOwnerAndRecursivePathList(
+            @Param("username") String username,
+            @Param("parentFullPath") String parentFullPath
+    );
+
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
 
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
@@ -94,4 +103,14 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             "      ELSE CONCAT(p.folderPath, '/', p.fileName) END " +
             ")")
     Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
+
+    // En FileRepository.java
+    @Query("SELECT f FROM FileEntity f JOIN f.fileKeys fk WHERE fk.user.username = :username AND f.owner.username <> :username AND f.deletedAt IS NULL")
+    Page<FileEntity> findSharedWithMe(@Param("username") String username, Pageable pageable);
+
+    @Query("SELECT f FROM FileEntity f " +
+            "LEFT JOIN f.fileKeys fk " +
+            "WHERE f.id = :fileId " +
+            "AND (f.owner.username = :username OR fk.user.username = :username)")
+    Optional<FileEntity> findByIdAndHasAccess(@Param("fileId") Long fileId, @Param("username") String username);
 }

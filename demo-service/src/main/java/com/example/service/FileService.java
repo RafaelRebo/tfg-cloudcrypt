@@ -2,6 +2,7 @@ package com.example.service;
 
 import com.example.dto.FileDto;
 import com.example.dto.FileUploadRequestDto;
+import com.example.dto.ShareRequestDto;
 import com.example.dto.UserDto;
 import com.example.exceptions.InputValidationException;
 import com.example.exceptions.InstanceNotFoundException;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class FileService {
@@ -151,11 +153,57 @@ public class FileService {
         }
     }
 
+    // En FileService.java
     public String getEncryptedFileKey(Long fileId, String username) throws InstanceNotFoundException {
-        UserEntity user = userRepository.findByUsername(username);
-        return fileKeyRepository.findByFileIdAndUserId(fileId, user.getId())
+        // Buscamos la llave asociada a ese archivo Y a ese usuario específico
+        return fileKeyRepository.findByFileIdAndUser_Username(fileId, username)
                 .map(FileKeyEntity::getEncryptedKey)
                 .orElseThrow(() -> new InstanceNotFoundException("No tienes acceso a la llave de este archivo"));
+    }
+
+    @Transactional
+    public void shareFile(Long fileId, List<ShareRequestDto> requests, String ownerUsername) throws Exception {
+        FileEntity file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+
+        // Seguridad: Solo el dueño puede compartir
+        if (!file.getOwner().getUsername().equals(ownerUsername)) {
+            throw new Exception("No tienes permisos para compartir este archivo");
+        }
+
+        for (ShareRequestDto req : requests) {
+            UserEntity targetUser = userRepository.findByUsername(req.getTargetUsername());
+            if (targetUser == null) continue;
+
+            // Si ya está compartido con él, actualizamos la llave o ignoramos
+            FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUserId(fileId, targetUser.getId())
+                    .orElse(new FileKeyEntity());
+
+            fileKey.setFile(file);
+            fileKey.setUser(targetUser);
+            fileKey.setEncryptedKey(req.getEncryptedKey());
+
+            fileKeyRepository.save(fileKey);
+        }
+    }
+
+    // En FileService.java
+
+    public List<FileDto> getRecursiveFilesForSharing(Long folderId, String username) throws Exception {
+        FileEntity folder = fileRepository.findByIdAndOwner_Username(folderId, username)
+                .orElseThrow(() -> new Exception("Carpeta no encontrada"));
+
+        // Determinamos la ruta completa de la carpeta seleccionada para buscar sus hijos
+        String fullPath = folder.getFolderPath().equals("/")
+                ? "/" + folder.getFileName()
+                : folder.getFolderPath() + "/" + folder.getFileName();
+
+        // Obtenemos la lista plana de todos los descendientes (ficheros y subcarpetas)
+        List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath);
+
+        return descendants.stream()
+                .map(fileMapper::toDto)
+                .collect(Collectors.toList());
     }
 
 
@@ -273,6 +321,10 @@ public class FileService {
         if ("trash".equals(category) && parentId == null) {
             return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
         }
+        // Dentro de getFilesByFolder...
+        if ("shared".equals(category)) {
+            return fileRepository.findSharedWithMe(username, pageable).map(fileMapper::toDto);
+        }
 
         // 2. Si estamos DENTRO de una carpeta (parentId NO es null)
         if (parentId != null) {
@@ -370,8 +422,9 @@ public class FileService {
 
     // --- Métodos Privados de Soporte ---
 
+    // Sustituye el método findOrThrow al final de FileService.java
     private FileEntity findOrThrow(Long id, String username) throws InstanceNotFoundException {
-        return fileRepository.findByIdAndOwner_Username(id, username)
+        return fileRepository.findByIdAndHasAccess(id, username)
                 .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
     }
 

@@ -6,9 +6,11 @@ import com.example.service.UserService;
 import com.example.config.JwtUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -52,5 +54,13 @@ public class UserController {
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error en el servidor");
         }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<String>> searchUsers(@RequestParam String q, Authentication auth) {
+        // Retornamos solo los nombres de usuario que coincidan con la búsqueda
+        // y que no sean el usuario actual
+        List<String> usernames = userService.searchOtherUsers(q, auth.getName());
+        return ResponseEntity.ok(usernames);
     }
 }
