@@ -343,32 +343,40 @@ public class FileService {
                 .map(fileMapper::toDto);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteFile(Long id, String username) throws Exception {
-        // 1. Buscamos el archivo usando el método permisivo (dueño o invitado)
-        FileEntity entity = fileRepository.findByIdAndHasAccess(id, username)
-                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
+        // 1. Intentamos buscar como dueño primero
+        Optional<FileEntity> entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
-        // 2. Comprobamos si el usuario actual es el dueño
-        boolean isOwner = entity.getOwner().getUsername().equals(username);
-
-        if (isOwner) {
-            // --- COMPORTAMIENTO PARA EL DUEÑO ---
-            // Si es el dueño, sigue el flujo normal (borrado lógico o físico)
+        if (entityOpt.isPresent()) {
+            // --- CAMINO DEL DUEÑO ---
+            FileEntity entity = entityOpt.get();
             if (entity.getDeletedAt() == null) {
                 processLogicalDelete(entity);
             } else {
                 processPhysicalDelete(entity);
             }
-        } else {
-            // --- COMPORTAMIENTO PARA EL INVITADO ---
-            // Si no es el dueño, simplemente eliminamos su llave de acceso
-            // Esto hará que el archivo desaparezca de su pestaña "Compartidos"
-            fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+            return; // Fin del proceso para dueños
+        }
 
-            // Si es una carpeta, deberíamos hacer esto mismo para todos sus hijos recursivamente
-            if ("application/x-directory".equals(entity.getFileType())) {
-                removeGuestAccessRecursively(entity, username);
+        // 2. Si no es dueño, buscamos si tiene acceso (Invitado)
+        FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
+
+        // --- CAMBIO PARA INVITADO: BORRADO DIRECTO DE LLAVES ---
+        // Borramos la llave del elemento principal
+        fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+
+        // Si es carpeta, borramos recursivamente las llaves de todos los descendientes para este invitado
+        if ("application/x-directory".equals(sharedEntity.getFileType())) {
+            String subPath = pathUtils.join(sharedEntity.getFolderPath(), sharedEntity.getFileName());
+
+            // Obtenemos todos los descendientes basándonos en la propiedad del dueño real
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                    sharedEntity.getOwner().getUsername(), subPath, sharedEntity.getId());
+
+            for (FileEntity child : descendants) {
+                fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
             }
         }
     }
@@ -446,7 +454,19 @@ public class FileService {
     }
 
     private void processLogicalDelete(FileEntity entity) {
-        applyRecursiveAction(entity, fileRepository::markAsDeleted);
+        // Marcamos el elemento actual
+        fileRepository.markAsDeleted(entity.getId());
+
+        // Si es carpeta, buscamos todos los hijos por su ruta lógica y los marcamos
+        if ("application/x-directory".equals(entity.getFileType())) {
+            String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
+            List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePathList(
+                    entity.getOwner().getUsername(), subPath, entity.getId());
+
+            for (FileEntity child : children) {
+                fileRepository.markAsDeleted(child.getId());
+            }
+        }
     }
 
 

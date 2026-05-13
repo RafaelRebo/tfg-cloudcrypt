@@ -39,10 +39,15 @@ const FileService = {
 
     async deleteFile(file, context) {
         const isTrashed = !!file.deletedAt;
-        let proceed = true;
+        const isShared = context.currentCategory === 'shared';
+        let proceed = false;
 
         if (isTrashed) {
             proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente?`);
+        } else if (isShared) {
+            proceed = await context.askConfirmation(`¿Deseas quitar tu acceso a "${file.fileName}"? No podrás volver a verlo a menos que te lo compartan de nuevo.`);
+        } else {
+            proceed = await context.askConfirmation(`¿Mover "${file.fileName}" a la papelera?`);
         }
 
         if (!proceed) return;
@@ -50,11 +55,13 @@ const FileService = {
         try {
             const res = await API.deleteFile(file.id);
             if (res.ok) {
-                context.showInfo(isTrashed ? "Eliminado definitivamente" : "Movido a la papelera");
+                context.showInfo(isShared ? "Acceso revocado" : (isTrashed ? "Eliminado" : "Papelera"));
                 await context.refreshAppData();
+            } else {
+                throw new Error();
             }
         } catch (error) {
-            context.showError("Error al eliminar");
+            context.showError("No se pudo eliminar el elemento.");
         }
     },
 

@@ -113,13 +113,16 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             "AND f.deletedAt IS NULL " +
             "AND (" +
             "  (:parentId IS NULL AND NOT EXISTS (" +
-            "    SELECT 1 FROM FileKeyEntity fk2 WHERE fk2.file.id = f.parent.id AND fk2.user.username = :username" +
+            "    SELECT 1 FROM FileKeyEntity fk2 " +
+            "    WHERE fk2.file.id = f.parent.id " +
+            "    AND fk2.user.username = :username" +
             "  )) " +
             "  OR (f.parent.id = :parentId)" +
             ")")
     Page<FileEntity> findSharedWithMe(@Param("username") String username, @Param("parentId") Long parentId, Pageable pageable);
 
-    @Query("SELECT f FROM FileEntity f " +
+    // En FileRepository.java
+    @Query("SELECT DISTINCT f FROM FileEntity f " +
             "LEFT JOIN f.fileKeys fk " +
             "WHERE f.id = :fileId " +
             "AND (f.owner.username = :username OR fk.user.username = :username)")
