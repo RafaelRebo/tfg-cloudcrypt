@@ -69,13 +69,11 @@ const API = {
         });
     },
 
-    async download(fileId, password) {
+    // En API.js
+    async download(fileId) {
         return fetch(`/api/files/download/${fileId}`, {
             method: 'GET',
-            headers: {
-                ...this.getAuthHeader(),
-                'X-File-Password': password
-            }
+            headers: this.getAuthHeader()
         });
     },
 

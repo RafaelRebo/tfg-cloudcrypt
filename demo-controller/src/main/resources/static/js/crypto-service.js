@@ -70,17 +70,24 @@ const CryptoService = {
     async decryptFile(encryptedBlob, aesKey) {
         const arrayBuffer = await encryptedBlob.arrayBuffer();
 
-        // Extraemos el IV (los primeros 12 bytes) y los datos cifrados (el resto)
+        // Verificación de integridad: el archivo DEBE tener al menos el IV (12 bytes)
+        if (arrayBuffer.byteLength < 12) {
+            throw new Error("El archivo está corrupto o no tiene formato de cifrado válido.");
+        }
+
+        // Extraemos el IV (los primeros 12 bytes) y los datos cifrados
         const iv = arrayBuffer.slice(0, 12);
         const data = arrayBuffer.slice(12);
 
-        const decryptedContent = await window.crypto.subtle.decrypt(
-            { name: "AES-GCM", iv: iv },
-            aesKey,
-            data
-        );
-
-        return decryptedContent;
+        try {
+            return await window.crypto.subtle.decrypt(
+                { name: "AES-GCM", iv: new Uint8Array(iv) },
+                aesKey,
+                data
+            );
+        } catch (e) {
+            throw new Error("Error técnico al descifrar: La llave AES es incorrecta.");
+        }
     },
 
     /**

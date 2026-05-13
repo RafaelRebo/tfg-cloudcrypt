@@ -1,32 +1,41 @@
 const FileService = {
     // En FileService.js
-    async downloadFile(fileId, fileName, password, context) {
-        context.status = "Descargando y descifrando...";
-        try {
-            // 1. Bajar archivo y llave
-            const res = await API.download(fileId, password);
-            const keyRes = await fetch(`/api/files/${fileId}/key`, { headers: API.getAuthHeader() });
+   // Sustituye el método downloadFile en FileService.js
+   async downloadFile(fileId, fileName, _, context) { // Quitamos el parámetro password
+       context.status = "Descargando y descifrando...";
+       try {
+           // 1. Descargamos el archivo cifrado (Bytes brutos)
+           const res = await API.download(fileId);
+           if (!res.ok) throw new Error("Acceso denegado al archivo");
+           const encryptedBlob = await res.blob();
 
-            const encryptedBlob = await res.blob();
-            const { encryptedFileKey } = await keyRes.json();
+           // 2. Pedimos el 'Sobre Digital' (la llave AES cifrada para nosotros)
+           const keyRes = await fetch(`/api/files/${fileId}/key`, { headers: API.getAuthHeader() });
+           if (!keyRes.ok) throw new Error("No tienes permiso para obtener la llave");
+           const { encryptedFileKey } = await keyRes.json();
 
-            // 2. Descifrar
-            const aesKey = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
-            const decryptedBlob = await CryptoService.decryptFile(encryptedBlob, aesKey);
+           // 3. Desciframos la llave AES usando nuestra Llave Privada RSA
+           const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
 
-            // 3. Ofrecer al navegador
-            const url = window.URL.createObjectURL(decryptedBlob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
-            context.status = "Descarga completada.";
-        } catch (err) {
-            context.showError("Error al descifrar el archivo.");
-        }
-    },
+           // 4. Desciframos el contenido del archivo con la AES recuperada
+           const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
+
+           // 5. Ofrecer la descarga al navegador
+           const url = window.URL.createObjectURL(new Blob([decryptedBuffer]));
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = fileName;
+           document.body.appendChild(a);
+           a.click();
+           window.URL.revokeObjectURL(url);
+
+           context.status = "Descarga completada.";
+           context.showInfo("Archivo descargado y descifrado correctamente.");
+       } catch (err) {
+           console.error(err);
+           context.showError("Error crítico: " + err.message);
+       }
+   },
 
     async deleteFile(file, context) {
         const isTrashed = !!file.deletedAt;

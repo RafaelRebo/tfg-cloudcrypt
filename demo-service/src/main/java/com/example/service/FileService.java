@@ -345,11 +345,31 @@ public class FileService {
 
     @Transactional
     public void deleteFile(Long id, String username) throws Exception {
-        FileEntity entity = findOrThrow(id, username);
-        if (entity.getDeletedAt() == null) {
-            processLogicalDelete(entity);
+        // 1. Buscamos el archivo usando el método permisivo (dueño o invitado)
+        FileEntity entity = fileRepository.findByIdAndHasAccess(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
+
+        // 2. Comprobamos si el usuario actual es el dueño
+        boolean isOwner = entity.getOwner().getUsername().equals(username);
+
+        if (isOwner) {
+            // --- COMPORTAMIENTO PARA EL DUEÑO ---
+            // Si es el dueño, sigue el flujo normal (borrado lógico o físico)
+            if (entity.getDeletedAt() == null) {
+                processLogicalDelete(entity);
+            } else {
+                processPhysicalDelete(entity);
+            }
         } else {
-            processPhysicalDelete(entity);
+            // --- COMPORTAMIENTO PARA EL INVITADO ---
+            // Si no es el dueño, simplemente eliminamos su llave de acceso
+            // Esto hará que el archivo desaparezca de su pestaña "Compartidos"
+            fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+
+            // Si es una carpeta, deberíamos hacer esto mismo para todos sus hijos recursivamente
+            if ("application/x-directory".equals(entity.getFileType())) {
+                removeGuestAccessRecursively(entity, username);
+            }
         }
     }
 
@@ -429,37 +449,60 @@ public class FileService {
         applyRecursiveAction(entity, fileRepository::markAsDeleted);
     }
 
+
     @Transactional(rollbackFor = Exception.class)
     private void processPhysicalDelete(FileEntity entity) {
-        // 1. Si es una carpeta, borramos primero recursivamente el contenido de los hijos
-        if ("application/x-directory".equals(entity.getFileType())) {
-            for (FileEntity child : entity.getChildren()) {
-                processPhysicalDelete(child);
+        // 1. Borramos los archivos físicos del disco (solo si es un archivo real, no carpeta)
+        // Usamos el método recursivo con entity que ya tienes para limpiar el almacenamiento físico
+        applyRecursiveActionWithEntity(entity, e -> {
+            if (e.getStoragePath() != null && !"application/x-directory".equals(e.getFileType())) {
+                try {
+                    storageUtils.deletePhysicalFile(e.getStoragePath());
+                } catch (IOException ignored) {
+                    // Si el archivo ya no estaba en disco, ignoramos para no bloquear el borrado en BD
+                }
             }
-        }
+        });
 
-        // 2. Borramos el archivo físico del disco si no es una carpeta
-        if (entity.getStoragePath() != null) {
-            try {
-                storageUtils.deletePhysicalFile(entity.getStoragePath());
-            } catch (IOException e) {
-                // Log de error pero continuamos para no bloquear la limpieza
-            }
-        }
-
-        // 3. Al final, JPA borrará el registro de la tabla gracias a la cascada
+        // 2. Borramos de la base de datos
+        // JPA se encargará de borrar todos los hijos de la tabla gracias al Cascade
         fileRepository.delete(entity);
+        fileRepository.flush(); // Forzamos para que el error salte aquí si hay conflicto
+    }
+
+    private void removeGuestAccessRecursively(FileEntity folder, String username) {
+        String subPath = pathUtils.join(folder.getFolderPath(), folder.getFileName());
+        List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                folder.getOwner().getUsername(),
+                subPath,
+                folder.getId()
+        );
+
+        for (FileEntity child : descendants) {
+            fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
+        }
     }
 
     private void applyRecursiveAction(FileEntity entity, java.util.function.Consumer<Long> action) {
+        if (entity == null) return;
+
+        // Ejecutar acción en el padre
         action.accept(entity.getId());
+
+        // Si es carpeta, ejecutar en los hijos
         if ("application/x-directory".equals(entity.getFileType())) {
             String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
-            try (java.util.stream.Stream<FileEntity> childStream =
-                         fileRepository.findAllByOwnerAndRecursivePath(entity.getOwner().getUsername(), subPath)) {
-                childStream.forEach(child -> {
+            // Usamos una lista para evitar problemas con el Stream abierto durante la persistencia
+            List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePathList(
+                    entity.getOwner().getUsername(),
+                    subPath,
+                    entity.getId()
+            );
+
+            for (FileEntity child : children) {
+                if (!child.getId().equals(entity.getId())) { // Evitar procesar al padre dos veces
                     action.accept(child.getId());
-                });
+                }
             }
         }
     }

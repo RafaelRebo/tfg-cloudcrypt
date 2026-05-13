@@ -180,6 +180,7 @@ public class FileController {
             fileService.deleteFile(id, auth.getName());
             return ResponseEntity.ok().build();
         } catch (Exception e) {
+            e.printStackTrace();
             return ResponseEntity.internalServerError().build();
         }
     }

@@ -2,7 +2,9 @@ package com.example.repository.keys;
 
 import com.example.model.FileKeyEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -17,4 +19,8 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
     // El que ya tenías (mantenlo si quieres, pero usaremos el de arriba)
     Optional<FileKeyEntity> findByFileIdAndUserId(Long fileId, Long userId);
+
+    @Modifying
+    @Transactional
+    void deleteByFileIdAndUser_Username(Long fileId, String username);
 }
