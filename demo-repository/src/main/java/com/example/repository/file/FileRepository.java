@@ -67,11 +67,12 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     // --- NUEVO: Para compartir carpetas recursivamente ---
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
-            "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%')) " +
+            "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%') OR f.id = :folderId) " +
             "AND f.deletedAt IS NULL")
     List<FileEntity> findAllByOwnerAndRecursivePathList(
             @Param("username") String username,
-            @Param("parentFullPath") String parentFullPath
+            @Param("parentFullPath") String parentFullPath,
+            @Param("folderId") Long folderId
     );
 
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
@@ -105,8 +106,18 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
 
     // En FileRepository.java
-    @Query("SELECT f FROM FileEntity f JOIN f.fileKeys fk WHERE fk.user.username = :username AND f.owner.username <> :username AND f.deletedAt IS NULL")
-    Page<FileEntity> findSharedWithMe(@Param("username") String username, Pageable pageable);
+    @Query("SELECT DISTINCT f FROM FileEntity f " +
+            "JOIN f.fileKeys fk " +
+            "WHERE fk.user.username = :username " +
+            "AND f.owner.username <> :username " +
+            "AND f.deletedAt IS NULL " +
+            "AND (" +
+            "  (:parentId IS NULL AND NOT EXISTS (" +
+            "    SELECT 1 FROM FileKeyEntity fk2 WHERE fk2.file.id = f.parent.id AND fk2.user.username = :username" +
+            "  )) " +
+            "  OR (f.parent.id = :parentId)" +
+            ")")
+    Page<FileEntity> findSharedWithMe(@Param("username") String username, @Param("parentId") Long parentId, Pageable pageable);
 
     @Query("SELECT f FROM FileEntity f " +
             "LEFT JOIN f.fileKeys fk " +

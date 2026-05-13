@@ -591,11 +591,12 @@ const appInstance = createApp({
 
         enterFolder(f) {
             this.currentFolderId = f.id;
-            this.currentFolder = FileService.normalizePath(f.folderPath + '/' + f.fileName);
 
-            // Si f.deletedAt existe, nos aseguramos de que la categoría siga siendo trash
-            if (f.deletedAt) {
-                this.currentCategory = 'trash';
+            // Si el archivo está marcado como compartido o estamos en la pestaña shared
+            if (this.currentCategory === 'shared') {
+                this.currentFolder = f.fileName; // Solo para el breadcrumb
+            } else {
+                this.currentFolder = FileService.normalizePath(f.folderPath + '/' + f.fileName);
             }
 
             this.refreshAppData();
@@ -878,52 +879,49 @@ const appInstance = createApp({
         async executeShare() {
             this.shareModal.isProcessing = true;
             try {
-                // 1. Si es carpeta, necesitamos la lista de todos los archivos internos
-                let filesToShare = [];
+                let itemsToShare = [];
                 if (this.shareModal.isFolder) {
                     const res = await fetch(`/api/files/folder-content-recursive/${this.shareModal.fileId}`, {
                         headers: API.getAuthHeader()
                     });
-                    filesToShare = await res.json(); // Lista de FileDtos
+                    itemsToShare = await res.json();
                 } else {
-                    filesToShare = [{ id: this.shareModal.fileId }];
+                    itemsToShare = [{ id: this.shareModal.fileId, fileType: 'archivo' }];
                 }
 
-                // 2. Procesar cada archivo
-                for (const file of filesToShare) {
-                    // Saltamos si es una carpeta (las carpetas no tienen llave AES)
-                    if (file.fileType === 'application/x-directory') continue;
-
-                    // Obtener nuestra llave AES cifrada
-                    const keyRes = await fetch(`/api/files/${file.id}/key`, { headers: API.getAuthHeader() });
-                    const { encryptedFileKey } = await keyRes.json();
-
-                    // Descifrar AES con nuestra Privada
-                    const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
-                    const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKeyObj);
-
-                    // Cifrar para cada destinatario
+                for (const item of itemsToShare) {
                     const shareRequests = [];
-                    for (const targetUser of this.shareModal.selectedUsers) {
-                        const userData = await API.getUserPublicKey(targetUser);
-                        const targetPubKey = await CryptoService.importExternalPublicKey(userData.publicKey);
-                        const wrappedKey = await CryptoService.wrapKey(rawAesKey, targetPubKey);
 
-                        shareRequests.push({ targetUsername: targetUser, encryptedKey: wrappedKey });
+                    if (item.fileType === 'application/x-directory') {
+                        // PARA CARPETAS: Enviamos una clave vacía solo para crear el registro de acceso
+                        for (const targetUser of this.shareModal.selectedUsers) {
+                            shareRequests.push({ targetUsername: targetUser, encryptedKey: "FOLDER_PERMISSION" });
+                        }
+                    } else {
+                        // PARA ARCHIVOS: Lógica AES + RSA que ya tenemos
+                        const keyRes = await fetch(`/api/files/${item.id}/key`, { headers: API.getAuthHeader() });
+                        const { encryptedFileKey } = await keyRes.json();
+                        const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+                        const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKeyObj);
+
+                        for (const targetUser of this.shareModal.selectedUsers) {
+                            const userData = await API.getUserPublicKey(targetUser);
+                            const targetPubKey = await CryptoService.importExternalPublicKey(userData.publicKey);
+                            const wrappedKey = await CryptoService.wrapKey(rawAesKey, targetPubKey);
+                            shareRequests.push({ targetUsername: targetUser, encryptedKey: wrappedKey });
+                        }
                     }
 
-                    // Enviar al server para este archivo concreto
-                    await fetch(`/api/files/${file.id}/share`, {
+                    await fetch(`/api/files/${item.id}/share`, {
                         method: 'POST',
                         headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
                         body: JSON.stringify(shareRequests)
                     });
                 }
-
-                this.showInfo("¡Todo compartido correctamente!");
+                this.showInfo("Estructura compartida correctamente");
                 this.closeShareModal();
             } catch (e) {
-                this.showError("Error al compartir: " + e.message);
+                this.showError("Fallo en jerarquía: " + e.message);
             } finally {
                 this.shareModal.isProcessing = false;
             }

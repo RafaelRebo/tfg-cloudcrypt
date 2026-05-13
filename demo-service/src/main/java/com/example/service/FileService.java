@@ -193,17 +193,14 @@ public class FileService {
         FileEntity folder = fileRepository.findByIdAndOwner_Username(folderId, username)
                 .orElseThrow(() -> new Exception("Carpeta no encontrada"));
 
-        // Determinamos la ruta completa de la carpeta seleccionada para buscar sus hijos
         String fullPath = folder.getFolderPath().equals("/")
                 ? "/" + folder.getFileName()
                 : folder.getFolderPath() + "/" + folder.getFileName();
 
-        // Obtenemos la lista plana de todos los descendientes (ficheros y subcarpetas)
-        List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath);
+        // Pasamos el ID para incluir la carpeta base en el paquete de compartición
+        List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath, folderId);
 
-        return descendants.stream()
-                .map(fileMapper::toDto)
-                .collect(Collectors.toList());
+        return descendants.stream().map(fileMapper::toDto).collect(Collectors.toList());
     }
 
 
@@ -323,7 +320,7 @@ public class FileService {
         }
         // Dentro de getFilesByFolder...
         if ("shared".equals(category)) {
-            return fileRepository.findSharedWithMe(username, pageable).map(fileMapper::toDto);
+            return fileRepository.findSharedWithMe(username, parentId, pageable).map(fileMapper::toDto);
         }
 
         // 2. Si estamos DENTRO de una carpeta (parentId NO es null)
