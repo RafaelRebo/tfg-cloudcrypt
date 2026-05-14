@@ -24,4 +24,10 @@ public class FileKeyEntity {
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String encryptedKey; // La clave AES cifrada con la RSA Pública del usuario (Base64)
+
+    @Column(name = "is_starred", nullable = false, columnDefinition = "boolean default false")
+    private boolean starred = false;
+
+    public boolean isStarred() { return starred; }
+    public void setStarred(boolean starred) { this.starred = starred; }
 }

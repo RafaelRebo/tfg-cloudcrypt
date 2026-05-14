@@ -111,6 +111,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Optional<FileEntity> findByIdAndHasAccess(@Param("fileId") Long fileId, @Param("username") String username);
 
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
-    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username AND f.starred = true AND f.deletedAt IS NULL")
+    @Query("SELECT f FROM FileEntity f JOIN f.fileKeys fk WHERE fk.user.username = :username AND fk.starred = true AND f.deletedAt IS NULL")
     Page<FileEntity> findStarred(@Param("username") String username, Pageable pageable);
 }

@@ -285,11 +285,19 @@ public class FileService {
         }
     }
 
+    // Reemplaza por completo este método en tu FileService.java
     @Transactional
     public FileDto toggleStar(Long id, String username) throws InstanceNotFoundException {
-        FileEntity file = findOrThrow(id, username); // Ya valida acceso
-        file.setStarred(!file.isStarred());
-        return fileMapper.toDto(fileRepository.save(file));
+        FileEntity file = findOrThrow(id, username); // Valida acceso general
+
+        // Buscamos la llave específica asignada al usuario para este archivo
+        FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Puntero de acceso no encontrado"));
+
+        fileKey.setStarred(!fileKey.isStarred());
+        fileKeyRepository.save(fileKey);
+
+        return fileMapper.toDto(file);
     }
 
     private void updateChildrenPaths(FileEntity folder, String newFolderPath) {

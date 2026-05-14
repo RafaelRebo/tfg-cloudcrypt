@@ -1,6 +1,9 @@
 package com.example.repository.keys;
 
+import com.example.model.FileEntity;
 import com.example.model.FileKeyEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -28,4 +31,11 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
     @Query("SELECT fk.user.username FROM FileKeyEntity fk WHERE fk.file.id = :fileId")
     List<String> findUsernamesByFileId(@Param("fileId") Long fileId);
+
+    // Dentro de FileKeyRepository.java añade estos métodos
+    @Query("SELECT fk.starred FROM FileKeyEntity fk WHERE fk.file.id = :fileId AND fk.user.username = :username")
+    Optional<Boolean> isFileStarredByUser(@Param("fileId") Long fileId, @Param("username") String username);
+
+    @Query("SELECT fk.file FROM FileKeyEntity fk WHERE fk.user.username = :username AND fk.starred = true AND fk.file.deletedAt IS NULL")
+    Page<FileEntity> findStarredFilesByUser(@Param("username") String username, Pageable pageable);
 }
