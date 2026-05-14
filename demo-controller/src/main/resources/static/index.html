@@ -146,6 +146,7 @@
                 </div>
                 <div class="file-list-header">
                     <div class="col-name">Nombre</div>
+                    <div class="col-owner">Propietario</div>
                     <div class="col-size">Tamaño</div>
                     <div class="col-actions">Acciones</div>
                 </div>
@@ -164,8 +165,29 @@
                          @drop.prevent="onFileDrop(f, $event)"
                          @click.prevent="handleFileClick(f, $event)">
                         <div class="col-name">
-                            <span class="icon">{{ f.fileType === 'application/x-directory' ? '📁' : getFileIcon(f.fileType) }}</span>
+                            <div class="icon-wrapper">
+                                <span class="icon">{{ f.fileType === 'application/x-directory' ? '📁' : getFileIcon(f.fileType) }}</span>
+
+                                <!-- Simplificamos la lógica: si el servidor dice que está compartido, mostramos badge -->
+                                <!-- También comprobamos si el dueño no soy yo por si acaso -->
+                                <div v-if="f.shared || f.ownerUsername !== username"
+                                     class="shared-badge"
+                                     style="display: flex !important;"> <!-- Forzamos visibilidad para pruebas -->
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
+                                        <circle cx="9" cy="7" r="4"></circle>
+                                        <path d="M22 21v-2a4 4 0 0 0-3-3.87"></path>
+                                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                    </svg>
+                                </div>
+                            </div>
                             <span v-html="highlight(f.fileName)"></span>
+                        </div>
+
+                        <div class="col-owner">
+                            <span :class="f.ownerUsername === username ? 'owner-me' : 'owner-other'">
+                                {{ f.ownerUsername === username ? 'Yo' : f.ownerUsername }}
+                            </span>
                         </div>
                         <div class="col-size">{{ (f.fileSize / 1024).toFixed(1) }} KB</div>
                         <div class="col-actions" @click.stop>
@@ -341,7 +363,7 @@
             <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
                 <button @click="closeShareModal" class="btn-modal btn-cancel">Cancelar</button>
                 <button @click="executeShare"
-                        :disabled="shareModal.selectedUsers.length === 0 || shareModal.isProcessing"
+                        :disabled="shareModal.isProcessing"
                         class="btn-modal btn-confirm">
                     {{ shareModal.isProcessing ? 'Procesando...' : 'Compartir' }}
                 </button>

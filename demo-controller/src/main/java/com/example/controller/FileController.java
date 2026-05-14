@@ -207,4 +207,28 @@ public class FileController {
         Page<FileDto> results = fileService.searchFiles(auth.getName(), query, pageable);
         return ResponseEntity.ok(results);
     }
+
+    @GetMapping("/{id}/shared-users")
+    public ResponseEntity<?> getSharedUsers(@PathVariable Long id, Authentication auth) {
+        try {
+            List<String> sharedWith = fileService.getSharedUsernames(id, auth.getName());
+            return ResponseEntity.ok(sharedWith);
+        } catch (Exception e) {
+            // Si no es el dueño, devolvemos 403 Forbidden o 404
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage());
+        }
+    }
+
+    @DeleteMapping("/{id}/share/revoke")
+    public ResponseEntity<?> revokeAccess(
+            @PathVariable Long id,
+            @RequestParam String target,
+            Authentication auth) {
+        try {
+            fileService.revokeShareAccess(id, target, auth.getName());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

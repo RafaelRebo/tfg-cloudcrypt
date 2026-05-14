@@ -3,6 +3,7 @@ package com.example.repository.file;
 import com.example.model.FileEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -13,11 +14,14 @@ import java.util.stream.Stream;
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
 
     // --- BÚSQUEDAS BÁSICAS ---
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Optional<FileEntity> findByIdAndOwner_Username(Long id, String username);
 
     // --- NAVEGACIÓN POR JERARQUÍA (ID) ---
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Page<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Page<FileEntity> findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(String username, Pageable pageable);
 
     // --- NAVEGACIÓN POR RUTA (STRING) - Necesario para Breadcrumbs y compatibilidad ---
@@ -56,6 +60,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileTypeNotAndDeletedAtIsNull(String username, String fileName, String folderPath, String fileTypeNot);
 
     // Para navegar dentro de carpetas borradas
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Page<FileEntity> findByOwner_UsernameAndParentId(String username, Long parentId, Pageable pageable);
     // --- RECURSIVIDAD Y CATEGORÍAS ---
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
@@ -77,6 +82,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
 
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NULL " +
             "AND f.fileType LIKE :mimePattern " +
@@ -93,6 +99,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                   Pageable pageable);
 
     // --- PAPELERA ---
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NOT NULL " +
             "AND NOT EXISTS ( " +
@@ -106,6 +113,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
 
     // En FileRepository.java
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT DISTINCT f FROM FileEntity f " +
             "JOIN f.fileKeys fk " +
             "WHERE fk.user.username = :username " +
@@ -122,6 +130,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findSharedWithMe(@Param("username") String username, @Param("parentId") Long parentId, Pageable pageable);
 
     // En FileRepository.java
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT DISTINCT f FROM FileEntity f " +
             "LEFT JOIN f.fileKeys fk " +
             "WHERE f.id = :fileId " +

@@ -18,5 +18,7 @@ public class FileDto {
     private String checksum;
     private LocalDateTime deletedAt;
     private String salt;
+    private String ownerUsername;
+    private boolean isShared;
 }
 

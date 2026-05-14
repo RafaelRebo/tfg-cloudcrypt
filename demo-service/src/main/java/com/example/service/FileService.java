@@ -166,16 +166,24 @@ public class FileService {
         FileEntity file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
 
-        // Seguridad: Solo el dueño puede compartir
-        if (!file.getOwner().getUsername().equals(ownerUsername)) {
-            throw new Exception("No tienes permisos para compartir este archivo");
+        // 1. Asegurarnos de que el dueño tiene su propia llave (esto evita que el conteo sea < 2)
+        boolean ownerHasKey = file.getFileKeys().stream()
+                .anyMatch(k -> k.getUser().getUsername().equals(ownerUsername));
+
+        if (!ownerHasKey) {
+            FileKeyEntity ownerKey = new FileKeyEntity();
+            ownerKey.setFile(file);
+            ownerKey.setUser(file.getOwner());
+            // Si es carpeta, marcador; si es archivo, esto no debería pasar si se subió bien
+            ownerKey.setEncryptedKey("FOLDER_PERMISSION");
+            fileKeyRepository.save(ownerKey);
         }
 
+        // 2. Procesar las llaves para los invitados
         for (ShareRequestDto req : requests) {
             UserEntity targetUser = userRepository.findByUsername(req.getTargetUsername());
             if (targetUser == null) continue;
 
-            // Si ya está compartido con él, actualizamos la llave o ignoramos
             FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUserId(fileId, targetUser.getId())
                     .orElse(new FileKeyEntity());
 
@@ -185,6 +193,9 @@ public class FileService {
 
             fileKeyRepository.save(fileKey);
         }
+
+        fileKeyRepository.flush();
+        entityManager.refresh(file);
     }
 
     // En FileService.java
@@ -377,6 +388,44 @@ public class FileService {
 
             for (FileEntity child : descendants) {
                 fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
+            }
+        }
+    }
+
+    public List<String> getSharedUsernames(Long fileId, String requesterUsername) throws Exception {
+        // 1. Validamos que el archivo existe y que el solicitante es el DUEÑO
+        // Usamos findByIdAndOwner_Username para garantizar que un invitado no pueda ver la lista de otros invitados
+        FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, requesterUsername)
+                .orElseThrow(() -> new Exception("No tienes permisos para ver los colaboradores de este archivo"));
+
+        // 2. Obtenemos todos los nombres de usuario que tienen una llave para este archivo
+        List<String> usernames = fileKeyRepository.findUsernamesByFileId(fileId);
+
+        // 3. Filtramos al dueño de la lista para devolver solo a los "invitados"
+        return usernames.stream()
+                .filter(name -> !name.equals(requesterUsername))
+                .collect(Collectors.toList());
+    }
+
+    @Transactional
+    public void revokeShareAccess(Long fileId, String targetUsername, String ownerUsername) throws Exception {
+        // 1. Validamos que el archivo existe y que quien lo pide es el DUEÑO real
+        FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
+                .orElseThrow(() -> new Exception("No tienes permisos para modificar los accesos de este archivo"));
+
+        // 2. Borramos la llave del invitado para el archivo/carpeta principal
+        fileKeyRepository.deleteByFileIdAndUser_Username(fileId, targetUsername);
+
+        // 3. Si es una carpeta, aplicamos la revocación recursiva a todos los descendientes
+        if ("application/x-directory".equals(file.getFileType())) {
+            String subPath = pathUtils.join(file.getFolderPath(), file.getFileName());
+
+            // Obtenemos todos los descendientes del dueño
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                    ownerUsername, subPath, fileId);
+
+            for (FileEntity child : descendants) {
+                fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), targetUsername);
             }
         }
     }

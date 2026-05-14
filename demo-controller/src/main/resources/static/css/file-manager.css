@@ -71,23 +71,6 @@
     border-radius: 10px;
 }
 
-.file-row, .file-list-header {
-    display: grid;
-    grid-template-columns: 1fr 120px 120px;
-    padding: 8px 16px; /* Bajamos de 16px a 8px para reducir altura */
-    align-items: center;
-    border-bottom: 1px solid var(--border-color);
-}
-
-.file-list-header {
-    font-weight: 600;
-    text-transform: uppercase;
-    font-size: 0.75rem;
-    letter-spacing: 0.05em;
-    padding-bottom: 12px;
-    margin-top: 5px;
-}
-
 .file-row {
     display: grid;
     grid-template-columns: 1fr 120px 120px;
@@ -100,6 +83,101 @@
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
+}
+
+.file-row, .file-list-header {
+    display: flex !important; /* Forzamos flex para anular cualquier grid previo */
+    align-items: center;
+    padding: 0.8rem 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+    gap: 0; /* El espacio lo controlamos con el flex-basis */
+}
+
+.file-list-header {
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    padding-bottom: 12px;
+    margin-top: 5px;
+}
+
+.col-name {
+    flex: 0 0 45%; /* 45% del ancho total */
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    overflow: hidden;
+}
+
+.col-owner {
+    flex: 0 0 20%; /* 20% del ancho total */
+    text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-size {
+    flex: 0 0 15%; /* 15% del ancho total */
+    text-align: right;
+    color: var(--text-muted);
+}
+
+.col-actions {
+    flex: 0 0 20%; /* 20% del ancho total */
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Contenedor de iconos más grande */
+.icon-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    flex-shrink: 0; /* Impide que el icono se aplaste */
+    font-size: 1.5rem;
+    overflow: visible !important; /* IMPORTANTE: para que el badge sobresalga */
+}
+
+/* Badge compartido más grande y visible */
+.shared-badge {
+    position: absolute;
+    bottom: -2px;
+    right: -4px;
+    background: #3b82f6;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid #0b0f1a;
+    z-index: 10; /* Asegura que esté encima de todo */
+}
+
+.shared-badge svg {
+    display: block;
+    width: 70%;  /* Reducimos un poco el tamaño interno para que respire */
+    height: 70%;
+}
+
+.owner-other {
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+.owner-me {
+    color: var(--text-muted);
+}
+
+.icon-wrapper .icon {
+    font-size: 1.2rem;
+    margin-right: 8px;
 }
 
 .file-row:hover {

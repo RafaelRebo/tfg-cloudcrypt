@@ -849,17 +849,28 @@ const appInstance = createApp({
                 console.error("Error al mover:", e);
             }
         },
-        openShareModal(f) {
-            // Primero reseteamos el objeto para asegurar que Vue detecte el cambio de estado
-            this.shareModal.searchResults = [];
-            this.shareModal.selectedUsers = [];
-            this.shareModal.searchQuery = '';
-            this.shareModal.isProcessing = false;
-
-            // Ahora asignamos los valores del archivo
+        async openShareModal(f) {
+            // Reset de seguridad
             this.shareModal.fileId = f.id;
             this.shareModal.fileName = f.fileName;
             this.shareModal.isFolder = f.fileType === 'application/x-directory';
+            this.shareModal.selectedUsers = [];
+            this.shareModal.searchQuery = '';
+
+            try {
+                // Consultar quién tiene acceso actualmente
+                const res = await fetch(`/api/files/${f.id}/shared-users`, {
+                    headers: API.getAuthHeader()
+                });
+
+                if (res.ok) {
+                    // Esto cargará los chips de los usuarios con los que ya compartiste
+                    this.shareModal.selectedUsers = await res.json();
+                }
+            } catch (e) {
+                console.error("Error al recuperar usuarios compartidos:", e);
+            }
+
             this.shareModal.active = true;
         },
         closeShareModal() {
@@ -878,50 +889,82 @@ const appInstance = createApp({
 
         async executeShare() {
             this.shareModal.isProcessing = true;
-            try {
-                let itemsToShare = [];
-                if (this.shareModal.isFolder) {
-                    const res = await fetch(`/api/files/folder-content-recursive/${this.shareModal.fileId}`, {
+                try {
+                    // 1. Obtener lista actual para comparar
+                    const currentRes = await fetch(`/api/files/${this.shareModal.fileId}/shared-users`, {
                         headers: API.getAuthHeader()
                     });
-                    itemsToShare = await res.json();
-                } else {
-                    itemsToShare = [{ id: this.shareModal.fileId, fileType: 'archivo' }];
-                }
+                    const originalUsers = await currentRes.json();
 
-                for (const item of itemsToShare) {
-                    const shareRequests = [];
+                    // 2. Identificar a quién quitar y a quién añadir
+                    const usersToRemove = originalUsers.filter(u => !this.shareModal.selectedUsers.includes(u));
+                    const usersToAdd = this.shareModal.selectedUsers.filter(u => !originalUsers.includes(u));
 
-                    if (item.fileType === 'application/x-directory') {
-                        // PARA CARPETAS: Enviamos una clave vacía solo para crear el registro de acceso
-                        for (const targetUser of this.shareModal.selectedUsers) {
-                            shareRequests.push({ targetUsername: targetUser, encryptedKey: "FOLDER_PERMISSION" });
-                        }
-                    } else {
-                        // PARA ARCHIVOS: Lógica AES + RSA que ya tenemos
-                        const keyRes = await fetch(`/api/files/${item.id}/key`, { headers: API.getAuthHeader() });
-                        const { encryptedFileKey } = await keyRes.json();
-                        const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
-                        const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKeyObj);
-
-                        for (const targetUser of this.shareModal.selectedUsers) {
-                            const userData = await API.getUserPublicKey(targetUser);
-                            const targetPubKey = await CryptoService.importExternalPublicKey(userData.publicKey);
-                            const wrappedKey = await CryptoService.wrapKey(rawAesKey, targetPubKey);
-                            shareRequests.push({ targetUsername: targetUser, encryptedKey: wrappedKey });
-                        }
+                    // --- A. REVOCACIONES (Esto ahora funcionará aunque borres a todos) ---
+                    for (const username of usersToRemove) {
+                        await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${username}`, {
+                            method: 'DELETE',
+                            headers: API.getAuthHeader()
+                        });
                     }
 
-                    await fetch(`/api/files/${item.id}/share`, {
-                        method: 'POST',
-                        headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
-                        body: JSON.stringify(shareRequests)
-                    });
+                // --- B. PROCESAR NUEVAS COMPARTICIONES (Cifrado RSA+AES) ---
+                if (usersToAdd.length > 0) {
+                    let itemsToShare = [];
+
+                    // Si es carpeta, traemos toda la jerarquía para cifrar llaves de cada hijo
+                    if (this.shareModal.isFolder) {
+                        const res = await fetch(`/api/files/folder-content-recursive/${this.shareModal.fileId}`, {
+                            headers: API.getAuthHeader()
+                        });
+                        itemsToShare = await res.json();
+                    } else {
+                        itemsToShare = [{ id: this.shareModal.fileId, fileType: 'archivo' }];
+                    }
+
+                    for (const item of itemsToShare) {
+                        const shareRequests = [];
+
+                        if (item.fileType === 'application/x-directory') {
+                            // PARA CARPETAS NUEVAS: Enviamos marcador
+                            for (const targetUser of usersToAdd) {
+                                shareRequests.push({ targetUsername: targetUser, encryptedKey: "FOLDER_PERMISSION" });
+                            }
+                        } else {
+                            // PARA ARCHIVOS NUEVOS: Recuperamos nuestra AES, la desciframos y la re-ciframos para los nuevos
+                            const keyRes = await fetch(`/api/files/${item.id}/key`, { headers: API.getAuthHeader() });
+                            const { encryptedFileKey } = await keyRes.json();
+                            const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+                            const rawAesKey = await window.crypto.subtle.exportKey("raw", aesKeyObj);
+
+                            for (const targetUser of usersToAdd) {
+                                const userData = await API.getUserPublicKey(targetUser);
+                                if (!userData) continue;
+                                const targetPubKey = await CryptoService.importExternalPublicKey(userData.publicKey);
+                                const wrappedKey = await CryptoService.wrapKey(rawAesKey, targetPubKey);
+                                shareRequests.push({ targetUsername: targetUser, encryptedKey: wrappedKey });
+                            }
+                        }
+
+                        // Enviar el paquete de llaves al servidor
+                        if (shareRequests.length > 0) {
+                            await fetch(`/api/files/${item.id}/share`, {
+                                method: 'POST',
+                                headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
+                                body: JSON.stringify(shareRequests)
+                            });
+                        }
+                    }
                 }
-                this.showInfo("Estructura compartida correctamente");
+
+                this.showInfo(usersToAdd.length === 0 && usersToRemove.length > 0
+                            ? "Acceso revocado a todos los usuarios"
+                            : "Permisos actualizados correctamente");
                 this.closeShareModal();
+                await this.refreshAppData(); // Refrescar para ver cambios si los hubiera
             } catch (e) {
-                this.showError("Fallo en jerarquía: " + e.message);
+                console.error(e);
+                this.showError("Error al actualizar la compartición: " + e.message);
             } finally {
                 this.shareModal.isProcessing = false;
             }
