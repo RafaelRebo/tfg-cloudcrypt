@@ -43,6 +43,9 @@ const appInstance = createApp({
                 selectedUsers: [],
                 isProcessing: false
             },
+            navigationHistory: [],
+            historyIndex: 0,
+            isHistoryMoving: false,
         }
     },
     async mounted() {
@@ -84,13 +87,12 @@ const appInstance = createApp({
         },
     },
     methods: {
-        // --- Core Data ---
-        // En app.js -> methods
+        // Reemplaza el bloque del historial dentro de tu refreshAppData() por este:
         async refreshAppData() {
             this.currentPage = 0;
             this.hasMore = true;
             this.status = "Actualizando...";
-            this.selectedIds = []; // <--- IMPORTANTE: Limpiar selección al refrescar
+            this.selectedIds = [];
 
             try {
                 const res = await API.getFiles(
@@ -99,15 +101,66 @@ const appInstance = createApp({
                     0
                 );
 
-                // Forzamos la limpieza del array antes de asignar los nuevos datos
                 this.allUserFiles = [];
                 this.allUserFiles = res.content;
-
                 this.hasMore = !res.last;
                 this.stats = await API.getStats(this.username);
                 this.status = "";
+
+                // --- GESTIÓN DE HISTORIAL CORREGIDA (SIN DUPLICADOS) ---
+                if (!this.isHistoryMoving && this.currentCategory === 'all') {
+                    const currentPosition = {
+                        folder: this.currentFolder,
+                        folderId: this.currentFolderId
+                    };
+
+                    // Si es el primer elemento del ciclo de vida, lo metemos directamente
+                    if (this.navigationHistory.length == 0) {
+                        this.navigationHistory.push(currentPosition);
+                        this.historyIndex = 0;
+                    } else {
+                        // Si ya hay historial, truncamos los estados "futuros" por si veníamos de dar atrás
+                        this.navigationHistory = this.navigationHistory.slice(0, this.historyIndex + 1);
+
+                        // Comparamos estrictamente con el último elemento real del historial
+                        const lastState = this.navigationHistory[this.navigationHistory.length - 1];
+
+                        if (lastState.folderId !== currentPosition.folderId || lastState.folder !== currentPosition.folder) {
+                            this.navigationHistory.push(currentPosition);
+                            this.historyIndex = this.navigationHistory.length - 1;
+                        }
+                    }
+                }
             } catch (e) {
                 this.showError("Error al actualizar la vista");
+            }
+        },
+
+        navigateBack() {
+            if (this.historyIndex > 0) {
+                this.isHistoryMoving = true;
+                this.historyIndex--;
+                const previousState = this.navigationHistory[this.historyIndex];
+
+                this.currentCategory = 'all';
+                this.currentFolder = previousState.folder;
+                this.currentFolderId = previousState.folderId;
+
+                this.refreshAppData().then(() => { this.isHistoryMoving = false; });
+            }
+        },
+
+        navigateForward() {
+            if (this.historyIndex < this.navigationHistory.length - 1) {
+                this.isHistoryMoving = true;
+                this.historyIndex++;
+                const nextState = this.navigationHistory[this.historyIndex];
+
+                this.currentCategory = 'all';
+                this.currentFolder = nextState.folder;
+                this.currentFolderId = nextState.folderId;
+
+                this.refreshAppData().then(() => { this.isHistoryMoving = false; });
             }
         },
         handleInfiniteScroll() {
@@ -1035,6 +1088,61 @@ const appInstance = createApp({
             }
             this.shareModal.searchQuery = '';
             this.shareModal.searchResults = [];
+        },
+        onCrumbDragOver(event) {
+            // Añadimos feedback visual al pasar el ratón por encima del texto de la ruta
+            event.currentTarget.classList.add('drag-target');
+        },
+
+        onCrumbDragLeave(event) {
+            // Quitamos el feedback visual si el usuario saca el ratón sin soltar
+            event.currentTarget.classList.remove('drag-target');
+        },
+
+        async onCrumbDrop(targetPath, targetFolderId, event) {
+            event.currentTarget.classList.remove('drag-target');
+
+            try {
+                // Recuperamos los IDs empaquetados en el 'dragstart' de las filas
+                const idsToMove = JSON.parse(event.dataTransfer.getData("text/plain"));
+                if (!idsToMove || idsToMove.length === 0) return;
+
+                this.status = "Relocalizando elementos...";
+
+                // Si tu backend funciona por ID de carpeta (targetFolderId), lo ideal es buscar el ID del path.
+                // Pero si tu API.moveFiles acepta la ruta lógica o necesitas mapearlo, usamos tu API existente.
+                // Como tu API.moveFiles actual (en tu controller) usa targetParentId:
+
+                let targetId = targetFolderId;
+
+                // Si el targetFolderId es null (como pasa en los segmentos intermedios de los breadcrumbs de tu código),
+                // buscamos si esa carpeta existe en nuestra lista actual para obtener su ID, o si es la raíz '/' enviamos null.
+                if (targetPath === '/') {
+                    targetId = null;
+                } else if (!targetId) {
+                    // Buscamos de forma preventiva si el directorio destino coincide con alguno que conozcamos
+                    // (Esto es por si tu FileService requiere estrictamente el ID del padre)
+                    const foundFolder = this.allUserFiles.find(f =>
+                        f.fileType === 'application/x-directory' &&
+                        (f.folderPath === targetPath || (f.folderPath + '/' + f.fileName).replace(/\/+/g, '/') === targetPath)
+                    );
+                    if (foundFolder) targetId = foundFolder.id;
+                }
+
+                // Llamamos a tu función para mover los archivos de nivel
+                const res = await API.moveFiles(idsToMove, targetId);
+                if (res.ok) {
+                    this.showInfo("Elementos relocalizados con éxito.");
+                    await this.refreshAppData(); // Refrescamos la vista para ver los cambios
+                } else {
+                    this.showError("No se pudieron mover los elementos a ese nivel.");
+                }
+            } catch (e) {
+                console.error("Error al soltar en breadcrumbs:", e);
+                this.showError("Operación de arrastre no válida.");
+            } finally {
+                this.status = "";
+            }
         },
     },
     watch: {

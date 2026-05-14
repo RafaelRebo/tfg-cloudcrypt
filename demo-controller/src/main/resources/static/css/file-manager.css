@@ -88,7 +88,7 @@
 .file-row, .file-list-header {
     display: flex !important; /* Forzamos flex para anular cualquier grid previo */
     align-items: center;
-    padding: 0.8rem 1.5rem;
+    padding: 0.4rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
     gap: 0; /* El espacio lo controlamos con el flex-basis */
 }
@@ -121,7 +121,6 @@
 .col-size {
     flex: 0 0 15%; /* 15% del ancho total */
     text-align: right;
-    color: var(--text-muted);
 }
 
 .col-actions {
@@ -281,7 +280,7 @@
     background: transparent;
     border: none;
     color: var(--text-muted);
-    padding: 8px;
+    padding: 6px;
     cursor: pointer;
     border-radius: 6px;
     transition: all 0.2s;

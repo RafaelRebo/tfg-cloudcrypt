@@ -149,3 +149,98 @@
     background: #b91c1c; /* Un rojo un poco más oscuro al pasar el ratón */
     transform: translateY(-1px);
 }
+
+/* --- COMPONENTES DE HISTORIAL Y BREADCRUMBS --- */
+
+.header-navigation-zone {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    overflow: hidden; /* Control total del ancho */
+    flex: 1;
+}
+
+.history-navigation-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(30, 41, 59, 0.5);
+    padding: 4px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    flex-shrink: 0; /* Impide que los botones se aplasten */
+}
+
+.history-btn {
+    padding: 6px !important;
+    border-radius: 6px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted) !important;
+    transition: all 0.2s ease;
+}
+
+.history-btn:hover:not(:disabled) {
+    color: var(--accent-blue) !important;
+    background: rgba(59, 130, 246, 0.1) !important;
+}
+
+.history-btn:disabled {
+    color: #334155 !important;
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
+/* REDUCCIÓN DE TAMAÑO EN BREADCRUMBS */
+.breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.82rem; /* Letra más pequeña y compacta */
+    color: var(--text-main);
+    overflow-x: auto; /* Permite scroll horizontal si la ruta es kilométrica */
+    white-space: nowrap;
+    padding-bottom: 2px;
+}
+
+.breadcrumbs::-webkit-scrollbar {
+    height: 3px; /* Scroll discreto e invisible casi */
+}
+
+.crumb-item {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: color 0.15s ease;
+}
+
+.crumb-item:hover {
+    color: var(--accent-blue);
+}
+
+.crumb-wrapper:last-child .crumb-item {
+    color: #ffffff; /* El directorio actual resalta más */
+    font-weight: 600;
+    cursor: default;
+}
+
+.crumb-separator {
+    display: flex;
+    align-items: center;
+    color: #475569;
+    margin: 0 2px;
+}
+
+/* --- FEEDBACK VISUAL PARA BREADCRUMBS RECEPTORES --- */
+.breadcrumbs .crumb-item.drag-target {
+    background: rgba(59, 130, 246, 0.2) !important;
+    outline: 2px dashed var(--accent-blue) !important;
+    outline-offset: -2px;
+    color: #ffffff !important;
+    transform: scale(1.02);
+    transition: all 0.15s ease;
+}

@@ -86,23 +86,47 @@
 
         <main class="content">
             <header class="top-header">
-                <div class="breadcrumbs">
-                    <div class="crumb-item" @click="goToFolder('/', null)">
-                        <span class="crumb-icon">{{ currentCategory === 'trash' ? '🗑️' : '🏠' }}</span>
-                        <span class="crumb-text">
-                            {{ formatCategory(currentCategory) }}
-                        </span>
+                <div class="header-navigation-zone">
+                    <div class="history-navigation-buttons">
+                        <button class="btn-icon history-btn"
+                                @click="navigateBack"
+                                :disabled="historyIndex <= 0"
+                                title="Atrás">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                        </button>
+                        <button class="btn-icon history-btn"
+                                @click="navigateForward"
+                                :disabled="historyIndex >= navigationHistory.length - 1"
+                                title="Adelante">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                        </button>
                     </div>
-                    <template v-if="currentCategory === 'all' || currentCategory === 'trash'">
-                        <div v-for="(seg, index) in pathSegments" :key="seg.path" class="crumb-wrapper">
-                            <span class="crumb-separator">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+
+                    <div class="breadcrumbs">
+                        <div class="crumb-item"
+                             @click="goToFolder('/', null)"
+                             @dragover.prevent="onCrumbDragOver($event)"
+                             @dragleave="onCrumbDragLeave($event)"
+                             @drop.prevent="onCrumbDrop('/', null, $event)">
+                            <span class="crumb-icon">{{ currentCategory === 'trash' ? '🗑️' : '🏠' }}</span>
+                            <span class="crumb-text">
+                                {{ formatCategory(currentCategory) }}
                             </span>
-                            <div class="crumb-item" @click="goToFolder(seg.path)">
-                                <span class="crumb-text">{{ seg.name }}</span>
-                            </div>
                         </div>
-                    </template>
+                        <template v-if="currentCategory === 'all' || currentCategory === 'trash'">
+                            <div v-for="(seg, index) in pathSegments" :key="seg.path" class="crumb-wrapper">
+                                <span class="crumb-separator">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                                </span>
+                                <div class="crumb-item"
+                                     @click="goToFolder(seg.path)"
+                                     @dragover.prevent="onCrumbDragOver($event)"
+                                     @dragleave="onCrumbDragLeave($event)"
+                                     @drop.prevent="onCrumbDrop(seg.path, null, $event)"> <span class="crumb-text">{{ seg.name }}</span>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
                 </div>
 
                 <div class="user-profile-zone">
@@ -111,9 +135,7 @@
                             {{ username }} <span class="arrow">▾</span>
                         </button>
                         <div class="dropdown-content dropdown-right">
-                            <a href="#" @click.prevent="logout" class="drop-item text-danger">
-                                🚪 Cerrar Sesión
-                            </a>
+                            <a href="#" @click.prevent="logout" class="drop-item text-danger">🚪 Cerrar Sesión</a>
                         </div>
                     </div>
                 </div>
@@ -191,7 +213,7 @@
                             </span>
                         </div>
                         <div class="col-size">{{ (f.fileSize / 1024).toFixed(1) }} KB</div>
-                        <div class="col-actions" @click.stop>
+                        <div class="col-actions" @mousedown.stop @click.stop>
                             <button v-if="currentCategory === 'trash' && isTrashRoot(f)" @click="handleRestore(f)" class="btn-icon" title="Restaurar">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
                             </button>
