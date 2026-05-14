@@ -56,6 +56,18 @@
     color: white;
 }
 
+.side-nav a, .drop-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+}
+.side-nav a svg, .drop-item svg {
+    flex-shrink: 0;
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 0 !important; /* Reseteamos márgenes antiguos inválidos */
+}
+
 .top-header {
     height: 64px;
     display: flex;

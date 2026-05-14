@@ -622,7 +622,7 @@ const appInstance = createApp({
             const labels = {
                 'all': 'Mis archivos',
                 'image': 'Imágenes',
-                'audio': 'Música',
+                'audio': 'Audio',
                 'video': 'Vídeos',
                 'document': 'Documentos',
                 'shared': 'Compartidos conmigo',
@@ -669,7 +669,7 @@ const appInstance = createApp({
             }
             this.refreshAppData();
         },
-        getFileIcon(mime) { return FileService.getFileIcon(mime); },
+        getFileIcon(mime) { return FileService.getFileIconSvg(mime); },
         formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; },
         startDragSelect(e) {
             if (e.button !== 0 || e.target.closest('.file-row') || e.target.closest('button')) return;

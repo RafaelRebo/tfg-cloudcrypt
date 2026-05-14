@@ -46,15 +46,18 @@
                     </button>
                     <div class="dropdown-content">
                         <a href="#" class="drop-item" @click.prevent="openNewFolderModal">
-                            <span>📁 Nueva carpeta</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-plus-icon lucide-folder-plus"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+                            <span>  Nueva carpeta</span>
                         </a>
                         <div class="dropdown-divider"></div>
                         <label class="drop-item">
-                            <span>📄 Subir archivo</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-file-plus-icon lucide-file-plus"><path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M9 15h6"/><path d="M12 18v-6"/></svg>
+                            <span>  Subir archivo</span>
                             <input type="file" ref="fileInput" @change="onUpload" multiple hidden>
                         </label>
                         <label class="drop-item">
-                            <span>📁 Subir carpeta</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-folder-up-icon lucide-folder-up"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><path d="M12 10v6"/><path d="m9 13 3-3 3 3"/></svg>
+                            <span>  Subir carpeta</span>
                             <input type="file" ref="folderInput" webkitdirectory directory @change="uploadFolder" hidden>
                         </label>
                     </div>
@@ -62,14 +65,55 @@
             </div>
 
             <nav class="side-nav">
-                <a href="#" @click.prevent="setCategory('all')" :class="{active: currentCategory === 'all'}">🏠 Mis Archivos</a>
-                <a href="#" @click.prevent="setCategory('image')" :class="{active: currentCategory === 'image'}">🖼️ Fotos</a>
-                <a href="#" @click.prevent="setCategory('audio')" :class="{active: currentCategory === 'audio'}">🎵 Música</a>
-                <a href="#" @click.prevent="setCategory('video')" :class="{active: currentCategory === 'video'}">🎬 Vídeos</a>
-                <a href="#" @click.prevent="setCategory('document')" :class="{active: currentCategory === 'document'}">📄 Documentos</a>
-                <a href="#" @click.prevent="setCategory('starred')" :class="{active: currentCategory === 'starred'}">⭐ Destacados</a>
-                <a href="#" @click.prevent="setCategory('shared')" :class="{active: currentCategory === 'shared'}">🤝 Compartidos</a>
-                <a href="#" @click.prevent="setCategory('trash')" :class="{active: currentCategory === 'trash'}" class="text-danger">🗑️ Papelera</a>
+                <a href="#" @click.prevent="setCategory('all')" :class="{active: currentCategory === 'all'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-house-icon lucide-house"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/><path d="M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                    <span>Mis Archivos</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('image')" :class="{active: currentCategory === 'image'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-icon lucide-image"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+                    <span>Imágenes</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('audio')" :class="{active: currentCategory === 'audio'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-music-icon lucide-music"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+                    <span>Audio</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('video')" :class="{active: currentCategory === 'video'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                    </svg>
+                    <span>Vídeos</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('document')" :class="{active: currentCategory === 'document'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                    </svg>
+                    <span>Documentos</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('starred')" :class="{active: currentCategory === 'starred'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                    <span>Destacados</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('shared')" :class="{active: currentCategory === 'shared'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+                    </svg>
+                    <span>Compartidos</span>
+                </a>
+
+                <a href="#" @click.prevent="setCategory('trash')" :class="{active: currentCategory === 'trash'}" class="text-danger">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 10px;">
+                        <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    <span>Papelera</span>
+                </a>
             </nav>
 
             <div class="storage-card">
@@ -189,7 +233,10 @@
                          @click.prevent="handleFileClick(f, $event)">
                         <div class="col-name">
                             <div class="icon-wrapper">
-                                <span class="icon">{{ f.fileType === 'application/x-directory' ? '📁' : getFileIcon(f.fileType) }}</span>
+                                <span class="icon">
+                                <svg v-if="f.fileType === 'application/x-directory'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="3"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+                                <span v-else v-html="getFileIcon(f.fileType)"></span>
+                            </span>
 
                                 <!-- Simplificamos la lógica: si el servidor dice que está compartido, mostramos badge -->
                                 <!-- También comprobamos si el dueño no soy yo por si acaso -->
@@ -222,12 +269,16 @@
                                     @click="openShareModal(f)"
                                     class="btn-icon"
                                     title="Compartir">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                             </button>
 
                             <button v-if="currentCategory !== 'trash' && f.fileType !== 'application/x-directory'" @click="handleDownload(f.id, f.fileName)" class="btn-icon" title="Descargar">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M12 3v12M8 11l4 4 4-4"/>
+                                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
+                                </svg>
                             </button>
+
                             <button @click="handleToggleStar(f)" class="btn-icon" :title="f.starred ? 'Quitar de destacados' : 'Destacar'">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
                                      :fill="f.starred ? '#fbbf24' : 'none'"
@@ -236,6 +287,7 @@
                                     <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
                                 </svg>
                             </button>
+
                             <button @click="handleDelete(f)"
                                     class="btn-icon btn-delete"
                                     v-if="currentCategory !== 'shared' || currentFolderId === null"
@@ -243,7 +295,6 @@
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                             </button>
                         </div>
-                    </div>
 
                     <div v-if="displayFiles.length === 0" class="empty-state">
                         <p v-if="isSearching">🔍 No se han encontrado resultados para "{{ searchQuery }}"</p>
@@ -256,6 +307,7 @@
                         <p>Suelta tus archivos para subirlos a {{ currentFolder }}</p>
                     </div>
                 </div>
+            </div>
             </div>
         </main>
     </div>
