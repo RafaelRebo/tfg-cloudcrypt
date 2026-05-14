@@ -123,12 +123,17 @@ public class FileController {
     @GetMapping
     public ResponseEntity<?> listFiles(
             Authentication auth,
-            @RequestParam(value = "folderId", required = false) Long folderId, // Cambiado de 'folder' a 'folderId'
+            @RequestParam(value = "folderId", required = false) Long folderId,
             @RequestParam(value = "category", defaultValue = "all") String category,
             @PageableDefault(size = 20, sort = "fileName") Pageable pageable) {
-
-        Page<FileDto> page = fileService.getFilesByFolder(auth.getName(), folderId, category, pageable);
-        return ResponseEntity.ok(page);
+        try {
+            Page<FileDto> page = fileService.getFilesByFolder(auth.getName(), folderId, category, pageable);
+            return ResponseEntity.ok(page);
+        } catch (Exception e) {
+            // Loguea el error para debug
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("Error interno: " + e.getMessage());
+        }
     }
 
     @PostMapping("/move")
@@ -206,6 +211,15 @@ public class FileController {
 
         Page<FileDto> results = fileService.searchFiles(auth.getName(), query, pageable);
         return ResponseEntity.ok(results);
+    }
+
+    @PostMapping("/{id}/star")
+    public ResponseEntity<?> toggleStar(@PathVariable Long id, Authentication auth) {
+        try {
+            return ResponseEntity.ok(fileService.toggleStar(id, auth.getName()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @GetMapping("/{id}/shared-users")

@@ -11,13 +11,8 @@ public class FileMapper {
 
         String ownerName = (entity.getOwner() != null) ? entity.getOwner().getUsername() : "Desconocido";
 
-        // CAMBIO: Verificamos tamaño con un nulo-safe
-        // En FileMapper.java
-// Asegúrate de que estamos contando correctamente todas las llaves
-        // En FileMapper.java (Lógica más permisiva)
         boolean isShared = false;
         if (entity.getFileKeys() != null) {
-            // Si hay alguna llave cuyo usuario NO sea el dueño, está compartido.
             isShared = entity.getFileKeys().stream()
                     .anyMatch(k -> !k.getUser().getUsername().equals(ownerName));
         }
@@ -32,7 +27,9 @@ public class FileMapper {
                 entity.getDeletedAt(),
                 entity.getSalt(),
                 ownerName,
-                isShared
+                isShared,
+                entity.isStarred(),
+                entity.getParent() != null ? entity.getParent().getId() : null
         );
     }
 }

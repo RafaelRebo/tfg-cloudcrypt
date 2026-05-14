@@ -17,15 +17,10 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Optional<FileEntity> findByIdAndOwner_Username(Long id, String username);
 
-    // --- NAVEGACIÓN POR JERARQUÍA (ID) ---
-    @EntityGraph(attributePaths = {"fileKeys", "owner"})
-    Page<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId, Pageable pageable);
-
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Page<FileEntity> findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(String username, Pageable pageable);
 
     // --- NAVEGACIÓN POR RUTA (STRING) - Necesario para Breadcrumbs y compatibilidad ---
-    Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNull(String username, String folderPath, Pageable pageable);
 
     // --- GESTIÓN DE DUPLICADOS ---
     // Buscar por ID de padre (Ficheros)
@@ -37,27 +32,9 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     // Buscar por Objeto Parent y Tipo (Para FolderService.ensureExists)
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(String username, String fileName, FileEntity parent);
 
-    // Buscar por String de ruta y Tipo (Para lógica antigua de carpetas)
-    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
-
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
 
-    // Obtener todos para borrado masivo (Overwrite)
-    List<FileEntity> findAllByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
-
-    List<FileEntity> findAllByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
-
-    // Reemplazo de findAllByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull para FileService
-    List<FileEntity> findAllByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(String username, String fileName, String folderPath);
-
-    // --- VALIDACIÓN DE EXISTENCIA ---
-    boolean existsByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
-
-    boolean existsByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
-
     boolean existsByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(String username, String fileName, String folderPath);
-
-    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndFileTypeNotAndDeletedAtIsNull(String username, String fileName, String folderPath, String fileTypeNot);
 
     // Para navegar dentro de carpetas borradas
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
@@ -79,8 +56,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             @Param("parentFullPath") String parentFullPath,
             @Param("folderId") Long folderId
     );
-
-    Page<FileEntity> findByOwner_UsernameAndFolderPathAndDeletedAtIsNotNull(String username, String folderPath, Pageable pageable);
 
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
@@ -112,7 +87,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             ")")
     Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
 
-    // En FileRepository.java
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT DISTINCT f FROM FileEntity f " +
             "JOIN f.fileKeys fk " +
@@ -129,11 +103,14 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             ")")
     Page<FileEntity> findSharedWithMe(@Param("username") String username, @Param("parentId") Long parentId, Pageable pageable);
 
-    // En FileRepository.java
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT DISTINCT f FROM FileEntity f " +
             "LEFT JOIN f.fileKeys fk " +
             "WHERE f.id = :fileId " +
             "AND (f.owner.username = :username OR fk.user.username = :username)")
     Optional<FileEntity> findByIdAndHasAccess(@Param("fileId") Long fileId, @Param("username") String username);
+
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username AND f.starred = true AND f.deletedAt IS NULL")
+    Page<FileEntity> findStarred(@Param("username") String username, Pageable pageable);
 }

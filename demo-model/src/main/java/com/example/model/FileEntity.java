@@ -59,4 +59,9 @@ public class FileEntity {
 
     @OneToMany(mappedBy = "file", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private List<FileKeyEntity> fileKeys = new ArrayList<>();
+
+    @Column(name = "is_starred")
+    private boolean starred = false;
+
+    public boolean isStarred() { return starred; }
 }

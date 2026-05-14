@@ -285,6 +285,13 @@ public class FileService {
         }
     }
 
+    @Transactional
+    public FileDto toggleStar(Long id, String username) throws InstanceNotFoundException {
+        FileEntity file = findOrThrow(id, username); // Ya valida acceso
+        file.setStarred(!file.isStarred());
+        return fileMapper.toDto(fileRepository.save(file));
+    }
+
     private void updateChildrenPaths(FileEntity folder, String newFolderPath) {
         for (FileEntity child : folder.getChildren()) {
             child.setFolderPath(newFolderPath);
@@ -332,6 +339,10 @@ public class FileService {
         // Dentro de getFilesByFolder...
         if ("shared".equals(category)) {
             return fileRepository.findSharedWithMe(username, parentId, pageable).map(fileMapper::toDto);
+        }
+
+        if ("starred".equals(category)) {
+            return fileRepository.findStarred(username, pageable).map(fileMapper::toDto);
         }
 
         // 2. Si estamos DENTRO de una carpeta (parentId NO es null)
@@ -409,18 +420,14 @@ public class FileService {
 
     @Transactional
     public void revokeShareAccess(Long fileId, String targetUsername, String ownerUsername) throws Exception {
-        // 1. Validamos que el archivo existe y que quien lo pide es el DUEÑO real
         FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
                 .orElseThrow(() -> new Exception("No tienes permisos para modificar los accesos de este archivo"));
 
-        // 2. Borramos la llave del invitado para el archivo/carpeta principal
+        // Ejecuta el borrado controlado por query
         fileKeyRepository.deleteByFileIdAndUser_Username(fileId, targetUsername);
 
-        // 3. Si es una carpeta, aplicamos la revocación recursiva a todos los descendientes
         if ("application/x-directory".equals(file.getFileType())) {
             String subPath = pathUtils.join(file.getFolderPath(), file.getFileName());
-
-            // Obtenemos todos los descendientes del dueño
             List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
                     ownerUsername, subPath, fileId);
 
@@ -428,6 +435,10 @@ public class FileService {
                 fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), targetUsername);
             }
         }
+
+        // Sincronización absoluta de los estados de persistencia
+        fileKeyRepository.flush();
+        entityManager.clear(); // <--- Vacía la caché de primer nivel por completo para obligar a re-leer la BD
     }
 
     @Transactional

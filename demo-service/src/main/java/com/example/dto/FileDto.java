@@ -20,5 +20,7 @@ public class FileDto {
     private String salt;
     private String ownerUsername;
     private boolean isShared;
+    private boolean isStarred;
+    private Long parentId;
 }
 

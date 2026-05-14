@@ -823,7 +823,29 @@ const appInstance = createApp({
         },
 
         openFileOrFolder(f) {
-            this.selectedIds = []; // Limpiamos al entrar
+            // Caso especial: Estamos en la sección de destacados
+            if (this.currentCategory === 'starred') {
+                if (f.fileType === 'application/x-directory') {
+                    // REGLA: Si clico en una carpeta destacada, QUIERO ENTRAR EN ELLA
+                    // Por tanto, su ID pasa a ser el currentFolderId
+                    this.currentCategory = 'all';
+                    this.currentFolderId = f.id;
+                    this.currentFolder = f.folderPath === '/' ? `/${f.fileName}` : `${f.folderPath}/${f.fileName}`;
+                    this.refreshAppData();
+                } else {
+                    // REGLA: Si clico en un archivo destacado (a/b.png),
+                    // QUIERO IR A LA CARPETA "a" para ver b.png resaltado
+                    this.currentCategory = 'all';
+                    this.currentFolderId = f.parentId; // Usamos el nuevo campo del DTO
+                    this.currentFolder = f.folderPath;
+                    // Opcional: podrías marcar f.id como seleccionado para que el usuario vea cuál es
+                    this.selectedIds = [f.id];
+                    this.refreshAppData();
+                }
+                return;
+            }
+
+            // Comportamiento normal en "Mis Archivos"
             if (f.fileType === 'application/x-directory') {
                 this.enterFolder(f);
             } else {
@@ -901,8 +923,12 @@ const appInstance = createApp({
                     const usersToAdd = this.shareModal.selectedUsers.filter(u => !originalUsers.includes(u));
 
                     // --- A. REVOCACIONES (Esto ahora funcionará aunque borres a todos) ---
-                    for (const username of usersToRemove) {
-                        await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${username}`, {
+                    // --- A. REVOCACIONES CORREGIDAS EN APP.JS ---
+                    for (const userToken of usersToRemove) {
+                        // Nos aseguramos de enviar el nombre de usuario limpio, no un ID numérico o un objeto roto
+                        const targetName = typeof userToken === 'object' ? userToken.username : userToken;
+
+                        await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${encodeURIComponent(targetName)}`, {
                             method: 'DELETE',
                             headers: API.getAuthHeader()
                         });
@@ -989,6 +1015,17 @@ const appInstance = createApp({
                 );
             } catch (e) {
                 console.error("Error buscando usuarios:", e);
+            }
+        },
+        async handleToggleStar(f) {
+            try {
+                await API.toggleStar(f.id);
+                f.starred = !f.starred; // Actualización optimista en UI
+                if (this.currentCategory === 'starred' && !f.starred) {
+                    this.refreshAppData(); // Si estamos en la pestaña favoritos y quitamos uno, refrescar lista
+                }
+            } catch (e) {
+                this.showError("Error al destacar");
             }
         },
 

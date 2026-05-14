@@ -161,6 +161,14 @@ const API = {
         return res.json();
     },
 
+    async toggleStar(fileId) {
+        return fetch(`/api/files/${fileId}/star`, {
+            method: 'POST',
+            headers: this.getAuthHeader()
+        });
+    },
+
+
     // --- INFRAESTRUCTURA DE CLAVES (PKI) ---
 
     /**
