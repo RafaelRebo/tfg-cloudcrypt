@@ -28,17 +28,32 @@ public class TrashService {
         this.folderService = folderService;
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void deleteFile(Long id, String username) throws Exception {
+        // 1. Intentamos buscar como dueño
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
         if (entityOpt.isPresent()) {
             FileEntity entity = entityOpt.get();
             if (entity.getDeletedAt() == null) processLogicalDelete(entity);
             else processPhysicalDelete(entity);
-        } else {
-            // Caso Invitado: Solo borra su acceso
-            fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+            return;
+        }
+
+        FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
+
+        fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+
+        if ("application/x-directory".equals(sharedEntity.getFileType())) {
+            String subPath = pathUtils.join(sharedEntity.getFolderPath(), sharedEntity.getFileName());
+
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                    sharedEntity.getOwner().getUsername(), subPath, sharedEntity.getId());
+
+            for (FileEntity child : descendants) {
+                fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
+            }
         }
     }
 
@@ -59,7 +74,8 @@ public class TrashService {
         fileRepository.markAsDeleted(entity.getId());
         if ("application/x-directory".equals(entity.getFileType())) {
             String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
-            List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePathList(entity.getOwner().getUsername(), subPath, entity.getId());
+            List<FileEntity> children = fileRepository.findAllByOwnerAndRecursivePathList(
+                    entity.getOwner().getUsername(), subPath, entity.getId());
             children.forEach(c -> fileRepository.markAsDeleted(c.getId()));
         }
     }

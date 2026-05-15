@@ -46,6 +46,7 @@ const appInstance = createApp({
             navigationHistory: [],
             historyIndex: 0,
             isHistoryMoving: false,
+            folderIdMap: new Map(),
         }
     },
     async mounted() {
@@ -635,6 +636,8 @@ const appInstance = createApp({
             this.currentCategory = cat;
             this.currentFolder = '/';
             this.currentFolderId = null;
+            this.folderIdMap.clear(); // <--- Limpiar el mapa al cambiar de sección
+            this.folderIdMap.set('/', null);
             this.trashRootPath = null;
             this.searchQuery = '';
             this.isSearching = false;
@@ -645,12 +648,19 @@ const appInstance = createApp({
         enterFolder(f) {
             this.currentFolderId = f.id;
 
-            // Si el archivo está marcado como compartido o estamos en la pestaña shared
+            // Calculamos la nueva ruta lógica
+            let newPath;
             if (this.currentCategory === 'shared') {
-                this.currentFolder = f.fileName; // Solo para el breadcrumb
+                // En compartidos, vamos acumulando el path sobre el actual
+                newPath = this.currentFolder === '/' ? '/' + f.fileName : this.currentFolder + '/' + f.fileName;
             } else {
-                this.currentFolder = FileService.normalizePath(f.folderPath + '/' + f.fileName);
+                // En mis archivos, el servidor ya nos da el folderPath base
+                newPath = FileService.normalizePath(f.folderPath + '/' + f.fileName);
             }
+
+            this.currentFolder = newPath;
+            // Guardamos el ID asociado a este path para que el breadcrumb sepa a dónde volver
+            this.folderIdMap.set(newPath, f.id);
 
             this.refreshAppData();
         },
@@ -659,14 +669,15 @@ const appInstance = createApp({
         },
         goBack() { this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/'; this.refreshAppData(); },
         goToFolder(path, id = null) {
-            if (path === '/') {
-                this.currentFolder = '/';
-                this.currentFolderId = null;
-                // No cambiamos currentCategory para que si estás en trash, vuelvas a la raíz de trash
+            this.currentFolder = path;
+
+            // Si no nos pasan el ID (desde el clic del breadcrumb), lo buscamos en nuestro mapa
+            if (id === null) {
+                this.currentFolderId = this.folderIdMap.get(path) || null;
             } else {
-                this.currentFolder = path;
                 this.currentFolderId = id;
             }
+
             this.refreshAppData();
         },
         getFileIcon(mime) { return FileService.getFileIconSvg(mime); },
