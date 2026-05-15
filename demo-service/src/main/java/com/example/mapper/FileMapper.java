@@ -1,6 +1,6 @@
 package com.example.mapper;
 
-import com.example.dto.FileDto;
+import com.example.dto.file.FileDto;
 import com.example.model.FileEntity;
 import com.example.model.FileKeyEntity;
 import org.springframework.security.core.context.SecurityContextHolder;

@@ -75,17 +75,16 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
             entity.setDeletedAt(now);
 
             if ("application/x-directory".equals(entity.getFileType())) {
-                String folderPathForChildren = (entity.getFolderPath().endsWith("/") ?
-                        entity.getFolderPath() : entity.getFolderPath() + "/")
-                        + entity.getFileName();
+                String folderFullPath = buildFullPath(entity);
 
                 entityManager.createQuery(
                                 "UPDATE FileEntity f SET f.deletedAt = :now " +
-                                        "WHERE f.owner = :owner AND (f.folderPath = :path OR f.folderPath LIKE :subPath)")
+                                        "WHERE f.owner = :owner " +
+                                        "AND (f.folderPath = :exactPath OR f.folderPath LIKE :likePath)")
                         .setParameter("now", now)
                         .setParameter("owner", entity.getOwner())
-                        .setParameter("path", folderPathForChildren)
-                        .setParameter("subPath", folderPathForChildren + "/%")
+                        .setParameter("exactPath", folderFullPath)
+                        .setParameter("likePath", folderFullPath + "/%")
                         .executeUpdate();
             }
         }
@@ -99,20 +98,28 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
             entity.setDeletedAt(null);
 
             if ("application/x-directory".equals(entity.getFileType())) {
-                // Generamos la ruta que deben tener los hijos
-                String folderPathForChildren = (entity.getFolderPath().endsWith("/") ?
-                        entity.getFolderPath() : entity.getFolderPath() + "/")
-                        + entity.getFileName();
+                String folderFullPath = buildFullPath(entity);
 
                 entityManager.createQuery(
                                 "UPDATE FileEntity f SET f.deletedAt = NULL " +
-                                        "WHERE f.owner = :owner AND (f.folderPath = :path OR f.folderPath LIKE :subPath)")
+                                        "WHERE f.owner = :owner " +
+                                        "AND (f.folderPath = :exactPath OR f.folderPath LIKE :likePath)")
                         .setParameter("owner", entity.getOwner())
-                        .setParameter("path", folderPathForChildren)
-                        .setParameter("subPath", folderPathForChildren + "/%")
+                        .setParameter("exactPath", folderFullPath)
+                        .setParameter("likePath", folderFullPath + "/%")
                         .executeUpdate();
             }
         }
+    }
+
+    private String buildFullPath(FileEntity entity) {
+        String path = entity.getFolderPath();
+        String name = entity.getFileName();
+
+        if ("/".equals(path)) {
+            return "/" + name;
+        }
+        return path + "/" + name;
     }
 
     @Override

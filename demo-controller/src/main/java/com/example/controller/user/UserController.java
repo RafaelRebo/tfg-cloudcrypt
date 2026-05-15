@@ -1,8 +1,8 @@
-package com.example.controller;
+package com.example.controller.user;
 
-import com.example.dto.UserDto;
+import com.example.dto.user.UserDto;
 import com.example.exceptions.InvalidCredentialsException;
-import com.example.service.UserService;
+import com.example.service.user.UserService;
 import com.example.config.JwtUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

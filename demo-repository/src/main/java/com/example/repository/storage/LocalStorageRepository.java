@@ -34,24 +34,15 @@ public class LocalStorageRepository implements IStorageRepository {
     }
 
     @Override
-    public void save(InputStream input, String folder, String filename, Cipher cipher) throws IOException {
+    public void save(InputStream input, String folder, String filename) throws IOException {
         Path targetFolder = this.root.resolve(folder);
         if (!Files.exists(targetFolder)) {
             Files.createDirectories(targetFolder);
         }
-
         Path targetFile = targetFolder.resolve(filename);
 
         try (OutputStream os = Files.newOutputStream(targetFile)) {
-            if (cipher != null) {
-                // FLUJO CON CIFRADO EN SERVIDOR (Carpetas o legacy)
-                try (CipherOutputStream cos = new CipherOutputStream(os, cipher)) {
-                    input.transferTo(cos);
-                }
-            } else {
-                // FLUJO ZERO-KNOWLEDGE (El archivo ya viene cifrado del cliente)
-                input.transferTo(os);
-            }
+            input.transferTo(os);
         }
     }
 

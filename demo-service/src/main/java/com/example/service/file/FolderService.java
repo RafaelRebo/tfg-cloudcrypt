@@ -1,8 +1,10 @@
-package com.example.service;
+package com.example.service.file;
 
 import com.example.model.FileEntity;
+import com.example.model.FileKeyEntity;
 import com.example.model.UserEntity;
 import com.example.repository.file.FileRepository;
+import com.example.repository.keys.FileKeyRepository;
 import com.example.repository.user.UserRepository;
 import com.example.util.PathUtils;
 import org.springframework.stereotype.Service;
@@ -17,13 +19,14 @@ import java.util.concurrent.locks.ReentrantLock;
 public class FolderService {
 
     private final FileRepository fileRepository;
+    private final FileKeyRepository fileKeyRepository;
     private final UserRepository userRepository;
     private final PathUtils pathUtils;
 
-    private final ConcurrentHashMap<String, ReentrantLock> userLocks = new ConcurrentHashMap<>();
-
-    public FolderService(FileRepository fileRepository, UserRepository userRepository, PathUtils pathUtils) {
+    public FolderService(FileRepository fileRepository, FileKeyRepository fileKeyRepository,
+                         UserRepository userRepository, PathUtils pathUtils) {
         this.fileRepository = fileRepository;
+        this.fileKeyRepository = fileKeyRepository;
         this.userRepository = userRepository;
         this.pathUtils = pathUtils;
     }
@@ -33,19 +36,31 @@ public class FolderService {
     public FileEntity ensureExists(String username, String folderName, FileEntity parent) {
         UserEntity owner = userRepository.findByUsername(username);
 
-        // IMPORTANTE: Buscamos si existe la carpeta dentro de ESE padre específico
         return fileRepository.findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(username, folderName, parent)
                 .orElseGet(() -> {
+
                     FileEntity newFolder = new FileEntity();
                     newFolder.setFileName(folderName);
                     newFolder.setFileType("application/x-directory");
                     newFolder.setOwner(owner);
                     newFolder.setParent(parent);
                     newFolder.setFileSize(0L);
-                    // El folderPath lo construimos solo para el breadcrumb
-                    String path = (parent == null) ? "/" : (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
+
+                    String path = (parent == null) ? "/" :
+                            (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
                     newFolder.setFolderPath(path);
-                    return fileRepository.save(newFolder);
+
+                    FileEntity savedFolder = fileRepository.save(newFolder);
+
+
+                    FileKeyEntity folderKey = new FileKeyEntity();
+                    folderKey.setFile(savedFolder);
+                    folderKey.setUser(owner);
+                    folderKey.setEncryptedKey("FOLDER_PERMISSION");
+                    folderKey.setStarred(false);
+                    fileKeyRepository.save(folderKey);
+
+                    return savedFolder;
                 });
     }
 

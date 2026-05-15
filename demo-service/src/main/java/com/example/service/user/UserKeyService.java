@@ -1,6 +1,6 @@
-package com.example.service;
+package com.example.service.user;
 
-import com.example.dto.KeyRequestDto;
+import com.example.dto.user.KeyRequestDto;
 import com.example.model.UserEntity;
 import com.example.model.UserKeyEntity;
 import com.example.repository.keys.UserKeyRepository;

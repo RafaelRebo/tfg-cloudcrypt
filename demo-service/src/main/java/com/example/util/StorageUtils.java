@@ -29,20 +29,27 @@ public class StorageUtils {
      * Ya no depende de la contraseña del usuario.
      */
     public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws Exception {
-        // 1. Calcular Checksum mientras guardamos (para integridad del paquete cifrado)
+        // 1. Preparar el cálculo de integridad (SHA-256)
         MessageDigest md = MessageDigest.getInstance("SHA-256");
-        DigestInputStream dis = new DigestInputStream(is, md);
 
-        // 2. Definir rutas
-        String physicalFolder = username + "/" + folderPath.replaceAll("^/|/$", "");
+        // 2. Definir estructura de almacenamiento físico
+        // Limpiamos la ruta para evitar problemas de dobles slashes o caracteres prohibidos
+        String sanitizedFolder = folderPath.replaceAll("^/|/$", "");
+        String physicalFolder = username + "/" + sanitizedFolder;
         String storageName = UUID.randomUUID().toString();
 
-        // 3. GUARDADO DIRECTO: El Cipher es null porque el archivo YA viene cifrado del navegador
-        storageRepository.save(dis, physicalFolder, storageName, null);
+        // 3. FLUJO DE TRANSFERENCIA:
+        // DigestInputStream actúa como un "peaje": el archivo pasa a través de él,
+        // se calcula el hash al vuelo y se entrega al storageRepository.
+        try (DigestInputStream dis = new DigestInputStream(is, md)) {
+            storageRepository.save(dis, physicalFolder, storageName);
+        }
 
+        // 4. Generar respuesta con metadatos del archivo físico
         Map<String, String> results = new HashMap<>();
         results.put("storagePath", physicalFolder + "/" + storageName);
-        results.put("checksum", bytesToHex(md.digest()));
+        results.put("checksum", bytesToHex(md.digest())); // md.digest() ya tiene el hash calculado
+
         return results;
     }
     /**

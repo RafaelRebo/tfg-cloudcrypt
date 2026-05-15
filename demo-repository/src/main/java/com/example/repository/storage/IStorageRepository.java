@@ -4,11 +4,11 @@ import javax.crypto.Cipher;
 import java.io.IOException;
 import java.io.InputStream;
 
-// En IStorageRepository.java
+
 public interface IStorageRepository {
-    void save(InputStream input, String folder, String filename, Cipher cipher) throws IOException;
+    // Eliminamos el parámetro Cipher. Solo pedimos lo esencial para guardar.
+    void save(InputStream input, String folder, String filename) throws IOException;
     void delete(String storagePath) throws IOException;
-    // CAMBIO: Ya no pedimos Cipher aquí
     InputStream loadStream(String relativePath) throws IOException;
     boolean exists(String storagePath);
 }

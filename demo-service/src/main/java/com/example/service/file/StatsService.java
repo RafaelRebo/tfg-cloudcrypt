@@ -1,4 +1,4 @@
-package com.example.service;
+package com.example.service.file;
 
 import com.example.config.StorageConfig;
 import com.example.repository.file.FileRepository;

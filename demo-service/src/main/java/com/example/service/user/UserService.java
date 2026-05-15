@@ -1,12 +1,11 @@
-package com.example.service;
+package com.example.service.user;
 
-import com.example.dto.UserDto;
+import com.example.dto.user.UserDto;
 import com.example.exceptions.InvalidCredentialsException;
 import com.example.exceptions.UserAlreadyExistsException;
 import com.example.mapper.UserMapper;
 import com.example.model.UserEntity;
 import com.example.repository.user.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 

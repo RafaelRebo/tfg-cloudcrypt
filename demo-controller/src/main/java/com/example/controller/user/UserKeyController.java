@@ -1,7 +1,7 @@
-package com.example.controller;
+package com.example.controller.user;
 
-import com.example.dto.KeyRequestDto;
-import com.example.service.UserKeyService;
+import com.example.dto.user.KeyRequestDto;
+import com.example.service.user.UserKeyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;

@@ -34,20 +34,11 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
 
-    boolean existsByOwner_UsernameAndFileNameAndFolderPathAndDeletedAtIsNull(String username, String fileName, String folderPath);
-
     // Para navegar dentro de carpetas borradas
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Page<FileEntity> findByOwner_UsernameAndParentId(String username, Long parentId, Pageable pageable);
-    // --- RECURSIVIDAD Y CATEGORÍAS ---
-    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
-            "AND (f.folderPath = :path OR f.folderPath LIKE CONCAT(:path, '/%'))")
-    Stream<FileEntity> findAllByOwnerAndRecursivePath(
-            @Param("username") String username,
-            @Param("path") String path
-    );
 
-    // --- NUEVO: Para compartir carpetas recursivamente ---
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%') OR f.id = :folderId) " +
             "AND f.deletedAt IS NULL")
@@ -66,6 +57,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                     @Param("mimePattern") String mimePattern,
                                     Pageable pageable);
 
+    @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.fileName LIKE CONCAT('%', :query, '%') " +
             "AND f.deletedAt IS NULL")
