@@ -40,6 +40,7 @@ const API = {
             const xhr = new XMLHttpRequest();
             xhr.open("POST", "/api/files/upload", true);
 
+            // Abortar si el usuario lo pide
             if (signal) {
                 signal.addEventListener('abort', () => {
                     xhr.abort();
@@ -47,24 +48,34 @@ const API = {
                 });
             }
 
+            // Cabeceras de seguridad
             const auth = this.getAuthHeader();
             if (auth.Authorization) {
                 xhr.setRequestHeader('Authorization', auth.Authorization);
             }
 
+            // REUPERAMOS LA BARRA DE CARGA
             xhr.upload.onprogress = (e) => {
-                if (e.lengthComputable) onProgress(e.loaded);
+                if (e.lengthComputable) {
+                    onProgress(e.loaded); // Enviamos los bytes subidos al Service
+                }
             };
 
             xhr.onload = () => {
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    try { resolve(JSON.parse(xhr.response)); } catch(e) { resolve(xhr.response); }
+                    try {
+                        resolve(JSON.parse(xhr.response));
+                    } catch(e) {
+                        resolve(xhr.response);
+                    }
                 } else {
                     reject(new Error(xhr.responseText || `Error ${xhr.status}`));
                 }
             };
 
             xhr.onerror = () => reject(new Error("Error de red"));
+
+            // Enviamos el FormData que contiene el encryptedBlob
             xhr.send(formData);
         });
     },

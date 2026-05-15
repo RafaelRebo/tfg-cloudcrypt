@@ -1,6 +1,4 @@
 const AuthService = {
-    // En AuthService.js -> login
-    // En AuthService.js
     async login(username, password) {
         const res = await API.login(username, password);
         if (res.ok) {
@@ -10,38 +8,17 @@ const AuthService = {
             sessionStorage.setItem('fileKey', password);
 
             try {
-                // 1. Recuperar Clave Privada (Ya lo hacías)
                 const encryptedPrivKey = await API.getMyPrivateKey();
                 if (encryptedPrivKey) {
-                    window.userPrivateKey = await CryptoService.decryptPrivateKey(encryptedPrivKey, password);
-                }
+                    const privateKeyObj = await CryptoService.decryptPrivateKey(encryptedPrivKey, password);
 
-                // 2. NUEVO: Recuperar Clave Pública y convertirla en objeto CryptoKey
-                // Busca esta parte en AuthService.js y cámbiala:
-                const pubKeyData = await API.getUserPublicKey(username);
-                if (pubKeyData) {
-                    let jwk;
-                    try {
-                        // El servidor devuelve un Map con el campo "publicKey" que es un String JSON
-                        jwk = (typeof pubKeyData.publicKey === 'string')
-                              ? JSON.parse(pubKeyData.publicKey)
-                              : pubKeyData.publicKey;
-                    } catch (e) {
-                        console.error("Error al parsear JWK:", e);
-                        return true;
-                    }
+                    const pubKeyData = await API.getUserPublicKey(username);
+                    const publicKeyObj = await CryptoService.importExternalPublicKey(pubKeyData.publicKey);
 
-                    // IMPORTANTE: Guardamos el objeto CryptoKey real en la variable global
-                    window.userPublicKey = await window.crypto.subtle.importKey(
-                        "jwk",
-                        jwk,
-                        { name: "RSA-OAEP", hash: "SHA-256" },
-                        true,
-                        ["encrypt"]
-                    );
+                    await CryptoService.setKeys(publicKeyObj, privateKeyObj);
                 }
             } catch (e) {
-                console.error("Error al reconstruir identidad criptográfica:", e);
+                console.error("Error al inicializar identidad en el Worker:", e);
             }
             return true;
         }
@@ -49,21 +26,18 @@ const AuthService = {
     },
 
     async setupUserCrypto(username, password) {
-        // 1. Generar par de llaves nuevo
+        // Generar par de llaves usando el Worker
         const keyPair = await CryptoService.generateUserKeyPair();
 
-        // 2. Exportar pública a String (JWK)
+        // Exportar pública para el servidor
         const pubKeyStr = await CryptoService.exportPublicKey(keyPair.publicKey);
 
-        // 3. Encriptar privada con la password master
+        // Encriptar privada para el servidor usando el Worker
         const privKeyEnc = await CryptoService.encryptPrivateKey(keyPair.privateKey, password);
 
-        // --- NUEVO: Cargar las llaves en RAM inmediatamente ---
-        window.userPublicKey = keyPair.publicKey;
-        window.userPrivateKey = keyPair.privateKey;
-        // -----------------------------------------------------
+        // Cargar inmediatamente en el Worker para esta sesión
+        await CryptoService.setKeys(keyPair.publicKey, keyPair.privateKey);
 
-        // 4. Registrar en el servidor
         return await API.registerUserKeys(pubKeyStr, privKeyEnc);
     },
     logout() {
@@ -91,5 +65,67 @@ const AuthService = {
 
         // Retornamos el hash en Hexadecimal
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+};
+
+const AppAuthMethods = {
+    async handleLogin() {
+        try {
+            const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
+            // AuthService.login ya se encarga de:
+            // 1. Validar user/pass
+            // 2. Bajar la privada cifrada
+            // 3. Descifrarla con secureKey y meterla en el Worker
+            const success = await AuthService.login(this.username, secureKey);
+
+            if (success) {
+                sessionStorage.setItem('fileKey', secureKey);
+                this.password = '';
+                this.loginError = false;
+                this.isLoggedIn = true;
+                await this.refreshAppData();
+            } else {
+                this.loginError = true;
+                this.showError("Usuario o contraseña incorrectos");
+            }
+        } catch (e) {
+            this.showError("Error al inicializar sesión segura");
+        }
+    },
+
+    async handleRegister() {
+        try {
+            this.status = "Generando identidad única...";
+            const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
+
+            // 1. Crear usuario
+            const res = await API.register(this.username, masterKey);
+            if (!res.ok) throw new Error("El usuario ya existe");
+
+            // 2. Autenticar para obtener Token
+            const loginRes = await API.login(this.username, masterKey);
+            const loginData = await loginRes.json();
+            localStorage.setItem('jwtToken', loginData.token);
+            localStorage.setItem('username', loginData.username);
+            sessionStorage.setItem('fileKey', masterKey);
+
+            // 3. GENERAR LLAVES POR ÚNICA VEZ (Aquí es donde debe ir)
+            await AuthService.setupUserCrypto(this.username, masterKey);
+
+            this.showInfo("¡Cuenta e identidad creadas con éxito!");
+            this.isLoggedIn = true;
+            this.password = '';
+            await this.refreshAppData();
+        } catch (e) {
+            this.showError(e.message);
+        } finally { this.status = ""; }
+    },
+
+    logout() {
+        AuthService.logout();
+        this.isLoggedIn = false;
+        window.userPrivateKey = null;
+        window.userPublicKey = null;
+        Object.assign(this.$data, this.$options.data());
     }
 };

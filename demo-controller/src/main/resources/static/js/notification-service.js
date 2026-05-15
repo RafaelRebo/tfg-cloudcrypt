@@ -19,24 +19,26 @@ const NotificationService = {
 
     // --- NUEVO: Crea y actualiza la notificación de subida ---
     updateUploadProgress(context) {
-        // Buscamos si ya existe la notificación de subida
         let uploadToast = context.notifications.find(n => n.isUpload);
 
-        // Si no existe y hay progreso, la creamos (Persistente, sin auto-dismiss)
+        // CAMBIO: Permitimos que se cree desde el 1% para cubrir la fase de cifrado
         if (!uploadToast && context.uploadProgress > 0 && context.uploadProgress < 100) {
             uploadToast = {
-                id: 'upload-process', // ID fijo
-                isUpload: true, // Marca especial
-                type: 'upload', // Clase CSS
+                id: 'upload-process',
+                isUpload: true,
+                type: 'upload',
                 leaving: false
             };
-            // Usamos unshift para que aparezca arriba/primero si quieres
             context.notifications.push(uploadToast);
         }
 
-        // Si la subida ha terminado (o se ha abortado), la eliminamos inmediatamente
-        if (context.uploadProgress === 0 || context.uploadProgress === 100) {
-            this.animateOut('upload-process', context.notifications, true); // true = sin delay
+        if (context.uploadProgress >= 100) {
+            // Damos un segundo para que el usuario vea el "100%" antes de borrar
+            setTimeout(() => this.animateOut('upload-process', context.notifications, true), 1000);
+        }
+
+        if (context.uploadProgress === 0) {
+            this.animateOut('upload-process', context.notifications, true);
         }
     },
 
@@ -49,5 +51,30 @@ const NotificationService = {
                 if (index > -1) notifications.splice(index, 1);
             }, immediate ? 0 : 500); // Borrado inmediato o con animación
         }
+    }
+};
+
+const AppNotificationMethods = {
+    showInfo(msg) {
+        NotificationService.create(msg, this.notifications, 'info');
+    },
+
+    showError(msg) {
+        NotificationService.create(msg, this.notifications, 'error');
+    },
+
+    removeNotification(id) {
+        NotificationService.animateOut(id, this.notifications);
+    },
+
+    askConfirmation(msg) {
+        return new Promise((resolve) => {
+            this.confirmModal = {
+                active: true,
+                message: msg,
+                onConfirm: () => { this.confirmModal.active = false; resolve(true); },
+                onCancel: () => { this.confirmModal.active = false; resolve(false); }
+            };
+        });
     }
 };

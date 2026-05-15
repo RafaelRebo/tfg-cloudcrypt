@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class ShareRequestDto {
+    private Long fileId;
     private String targetUsername;
     private String encryptedKey; // La AES del archivo cifrada con la pública del destinatario
 }

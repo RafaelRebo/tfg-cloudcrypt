@@ -1,39 +1,29 @@
 const FileService = {
-    // En FileService.js
-   // Sustituye el método downloadFile en FileService.js
-   async downloadFile(fileId, fileName, _, context) { // Quitamos el parámetro password
+   async downloadFile(fileId, fileName, _, context) {
        context.status = "Descargando y descifrando...";
        try {
-           // 1. Descargamos el archivo cifrado (Bytes brutos)
            const res = await API.download(fileId);
-           if (!res.ok) throw new Error("Acceso denegado al archivo");
+           if (!res.ok) throw new Error("Acceso denegado");
            const encryptedBlob = await res.blob();
 
-           // 2. Pedimos el 'Sobre Digital' (la llave AES cifrada para nosotros)
            const keyRes = await fetch(`/api/files/${fileId}/key`, { headers: API.getAuthHeader() });
-           if (!keyRes.ok) throw new Error("No tienes permiso para obtener la llave");
            const { encryptedFileKey } = await keyRes.json();
 
-           // 3. Desciframos la llave AES usando nuestra Llave Privada RSA
-           const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
-
-           // 4. Desciframos el contenido del archivo con la AES recuperada
+           // EL WORKER se encarga de usar la llave privada interna
+           const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
            const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
 
-           // 5. Ofrecer la descarga al navegador
            const url = window.URL.createObjectURL(new Blob([decryptedBuffer]));
            const a = document.createElement('a');
            a.href = url;
            a.download = fileName;
-           document.body.appendChild(a);
            a.click();
            window.URL.revokeObjectURL(url);
 
-           context.status = "Descarga completada.";
-           context.showInfo("Archivo descargado y descifrado correctamente.");
+           context.status = "";
+           context.showInfo("Archivo descargado correctamente.");
        } catch (err) {
-           console.error(err);
-           context.showError("Error crítico: " + err.message);
+           context.showError("Error al descifrar: " + err.message);
        }
    },
 
@@ -85,14 +75,32 @@ const FileService = {
     // En file-service.js
     getDisplayFiles(allUserFiles, currentFolder, currentCategory) {
         if (currentCategory === 'trash') {
-            // En la papelera solo mostramos lo que tiene fecha de borrado
-            return allUserFiles.filter(f => f.deletedAt !== null);
-        } else if (currentCategory === 'shared') {
-            return allUserFiles;
-        } else {
-            // En "Mis Archivos" o categorías, NUNCA mostrar lo que tenga fecha de borrado
-            return allUserFiles.filter(f => f.deletedAt === null);
+            // 1. Obtenemos todos los elementos borrados
+            const deletedItems = allUserFiles.filter(f => f.deletedAt !== null);
+
+            // 2. Si estamos en la raíz de la papelera ('/')
+            if (currentFolder === '/') {
+                // Solo mostramos los elementos que NO tienen a su padre también borrado.
+                // Esto identifica al "elemento raíz" que el usuario eliminó originalmente.
+                return deletedItems.filter(item => {
+                    const parentIsAlsoDeleted = deletedItems.some(potentialParent =>
+                        potentialParent.id === item.parentId
+                    );
+                    return !parentIsAlsoDeleted;
+                });
+            }
+
+            // 3. Si estamos dentro de una carpeta en la papelera
+            // (Tu API ya debería estar filtrando por folderId, pero por seguridad filtramos aquí)
+            return deletedItems;
         }
+
+        if (currentCategory === 'shared') {
+            return allUserFiles;
+        }
+
+        // Vista normal (Mis Archivos / Categorías): Ocultar siempre lo borrado
+        return allUserFiles.filter(f => f.deletedAt === null);
     },
 
     getPathSegments(currentFolder, currentCategory, trashRootPath) {
@@ -173,4 +181,315 @@ const FileService = {
         </svg>`;
     }
 
+};
+
+const AppFileMethods = {
+    async handleCreateFolder(name, parentId) {
+        try {
+            const sessionKey = sessionStorage.getItem('fileKey');
+            const res = await API.createFolder(name, parentId, sessionKey);
+
+            if (res.ok) {
+                this.showInfo(`Carpeta "${name}" creada.`);
+                await this.refreshAppData();
+            } else {
+                const errorText = await res.text();
+                this.showError(errorText);
+            }
+        } catch (e) {
+            this.showError("Error al crear carpeta");
+        }
+    },
+
+    async handlePreview(f) {
+        if (this.clickTimer) clearTimeout(this.clickTimer);
+        if (this.selectedIds.length <= 1) {
+            this.closePreview();
+            this.status = "Descifrando...";
+            try {
+                const sessionKey = sessionStorage.getItem('fileKey');
+                const data = await PreviewService.getPreviewData(f, sessionKey);
+                this.preview = { active: true, id: f.id, name: f.fileName, mime: f.fileType, ...data };
+                this.status = "Vista previa cargada.";
+            } catch (e) {
+                this.showError("No se pudo descifrar el archivo.");
+            }
+        }
+    },
+
+    closePreview() {
+        if (this.preview.url) URL.revokeObjectURL(this.preview.url);
+        this.preview.active = false;
+        this.preview.url = null;
+        this.preview.content = '';
+    },
+
+    async handleDownload(id, name) {
+        const sessionKey = sessionStorage.getItem('fileKey');
+        await FileService.downloadFile(id, name, sessionKey, this);
+    },
+
+    async handleRestore(f) {
+        await FileService.restoreFile(f, this);
+    },
+
+    async handleDelete(f) {
+        await FileService.deleteFile(f, this);
+    },
+
+    async handleSearch() {
+        if (this.searchTimeout) clearTimeout(this.searchTimeout);
+
+        if (!this.searchQuery.trim()) {
+            this.isSearching = false;
+            this.refreshAppData();
+            return;
+        }
+
+        this.searchTimeout = setTimeout(async () => {
+            this.isSearching = true;
+            this.status = "Buscando...";
+            try {
+                const res = await API.searchFiles(this.searchQuery, 0);
+                this.allUserFiles = res.content;
+                this.hasMore = !res.last;
+                this.status = "";
+            } catch (e) {
+                this.showError("Error en la búsqueda");
+                this.isSearching = false;
+            }
+        }, 400);
+    },
+
+    highlight(text) {
+        if (!this.searchQuery || !this.isSearching) return text;
+
+        // 1. Escapar HTML para evitar XSS (Nivel Pro TFG)
+        const div = document.createElement('div');
+        div.textContent = text;
+        const safeText = div.innerHTML;
+
+        // 2. Aplicar el resaltado sobre el texto ya seguro
+        const regex = new RegExp(`(${this.searchQuery})`, 'gi');
+        return safeText.replace(regex, '<span class="highlight">$1</span>');
+    },
+
+    async deleteSelected() {
+        const count = this.selectedIds.length;
+        const isTrash = this.currentCategory === 'trash';
+        const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos?` : `¿Mover ${count} elementos a la papelera?`;
+
+        if (await this.askConfirmation(msg)) {
+            try {
+                await Promise.all(this.selectedIds.map(id => API.deleteFile(id)));
+                this.showInfo(`${count} elementos procesados correctamente`);
+                this.selectedIds = [];
+                await this.refreshAppData();
+            } catch (e) {
+                this.showError("Hubo un error al eliminar algunos archivos");
+                await this.refreshAppData();
+            }
+        }
+    },
+
+    async downloadSelected() {
+        this.status = "Iniciando descarga múltiple...";
+        // IMPORTANTE: Recuperamos la llave de sesión real
+        const sessionKey = sessionStorage.getItem('fileKey');
+
+        for (const id of this.selectedIds) {
+            const file = this.allUserFiles.find(f => f.id === id);
+            if (file && file.fileType !== 'application/x-directory') {
+                // Pasamos sessionKey, NO this.password (que está vacío)
+                await FileService.downloadFile(id, file.fileName, sessionKey, this);
+                await new Promise(r => setTimeout(r, 600));
+            }
+        }
+        this.status = "";
+    },
+
+    formatCategory(cat) {
+        return UIService.formatCategory(cat);
+    },
+
+    getFileIcon(mime) {
+        return FileService.getFileIconSvg(mime);
+    },
+
+    formatSize(b) {
+        return UIService.formatSize(b);
+    }
+};
+
+const AppShareMethods = {
+    async openShareModal(f) {
+        this.shareModal.fileId = f.id;
+        this.shareModal.fileName = f.fileName;
+        this.shareModal.isFolder = f.fileType === 'application/x-directory';
+        this.shareModal.selectedUsers = [];
+        this.shareModal.searchQuery = '';
+
+        try {
+            const res = await fetch(`/api/files/${f.id}/shared-users`, {
+                headers: API.getAuthHeader()
+            });
+
+            if (res.ok) {
+                this.shareModal.selectedUsers = await res.json();
+            }
+        } catch (e) {
+            console.error("Error al recuperar usuarios compartidos:", e);
+        }
+
+        this.shareModal.active = true;
+    },
+
+    closeShareModal() {
+        this.shareModal.active = false;
+    },
+
+    addUserToShare() {
+        const user = this.shareModal.searchQuery.trim();
+        if (user && user !== this.username && !this.shareModal.selectedUsers.includes(user)) {
+            this.shareModal.selectedUsers.push(user);
+            this.shareModal.searchQuery = '';
+        }
+    },
+
+    removeUserFromShare(user) {
+        this.shareModal.selectedUsers = this.shareModal.selectedUsers.filter(u => u !== user);
+    },
+
+    async executeShare() {
+        this.shareModal.isProcessing = true;
+        try {
+            const currentRes = await fetch(`/api/files/${this.shareModal.fileId}/shared-users`, { headers: API.getAuthHeader() });
+            const originalUsers = await currentRes.json();
+
+            const usersToRemove = originalUsers.filter(u => !this.shareModal.selectedUsers.includes(u));
+            const usersToAdd = this.shareModal.selectedUsers.filter(u => !originalUsers.includes(u));
+
+            // Revocaciones
+            for (const userToken of usersToRemove) {
+                const targetName = typeof userToken === 'object' ? userToken.username : userToken;
+                await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${encodeURIComponent(targetName)}`, {
+                    method: 'DELETE',
+                    headers: API.getAuthHeader()
+                });
+            }
+
+            if (usersToAdd.length > 0) {
+                let itemsToShare = [];
+                if (this.shareModal.isFolder) {
+                    const res = await fetch(`/api/files/folder-content-recursive/${this.shareModal.fileId}`, { headers: API.getAuthHeader() });
+                    itemsToShare = await res.json();
+                } else {
+                    itemsToShare = [{ id: this.shareModal.fileId, fileType: 'archivo' }];
+                }
+
+                const recipientKeys = {};
+                for (const user of usersToAdd) {
+                    const data = await API.getUserPublicKey(user);
+                    if (data) recipientKeys[user] = data.publicKey;
+                }
+
+                // --- AQUÍ ESTÁ EL CAMBIO: EL BATCH ---
+                const batchRequests = [];
+                const CONCURRENCY_LIMIT = 8;
+                const queue = [...itemsToShare];
+
+                const processQueue = async () => {
+                    while (queue.length > 0) {
+                        const item = queue.shift();
+
+                        if (item.fileType === 'application/x-directory') {
+                            for (const targetUser of usersToAdd) {
+                                batchRequests.push({
+                                    fileId: item.id,
+                                    targetUsername: targetUser,
+                                    encryptedKey: "FOLDER_PERMISSION"
+                                });
+                            }
+                        }
+                        else {
+                            const keyRes = await fetch(`/api/files/${item.id}/key`, { headers: API.getAuthHeader() });
+                            const { encryptedFileKey } = await keyRes.json();
+
+                            for (const targetUser of usersToAdd) {
+                                const pubKeyJwk = recipientKeys[targetUser];
+                                if (!pubKeyJwk) continue;
+
+                                const wrappedKey = await CryptoService.reWrapKeyForUser(encryptedFileKey, pubKeyJwk);
+
+                                batchRequests.push({
+                                    fileId: item.id,
+                                    targetUsername: targetUser,
+                                    encryptedKey: wrappedKey
+                                });
+                            }
+                        }
+                    }
+                };
+
+                const workers = Array(Math.min(CONCURRENCY_LIMIT, queue.length)).fill(null).map(() => processQueue());
+                await Promise.all(workers);
+
+                // --- ENVÍO ÚNICO ---
+                if (batchRequests.length > 0) {
+                    this.status = "Enviando lote al servidor...";
+                    await fetch('/api/files/share/batch', {
+                        method: 'POST',
+                        headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
+                        body: JSON.stringify(batchRequests)
+                    });
+                }
+            }
+
+            this.showInfo("Permisos actualizados correctamente");
+            this.closeShareModal();
+            await this.refreshAppData();
+        } catch (e) {
+            console.error(e);
+            this.showError("Error al compartir: " + e.message);
+        } finally {
+            this.shareModal.isProcessing = false;
+        }
+    },
+
+    async onUserSearchInput() {
+        const query = this.shareModal.searchQuery.trim();
+        if (query.length < 1) {
+            this.shareModal.searchResults = [];
+            return;
+        }
+
+        try {
+            const results = await API.searchUsers(query);
+            this.shareModal.searchResults = results.filter(u =>
+                u !== this.username && !this.shareModal.selectedUsers.includes(u)
+            );
+        } catch (e) {
+            console.error("Error buscando usuarios:", e);
+        }
+    },
+
+    async handleToggleStar(f) {
+        try {
+            await API.toggleStar(f.id);
+            f.starred = !f.starred;
+            if (this.currentCategory === 'starred' && !f.starred) {
+                this.refreshAppData();
+            }
+        } catch (e) {
+            this.showError("Error al destacar");
+        }
+    },
+
+    selectUser(user) {
+        if (!this.shareModal.selectedUsers.includes(user)) {
+            this.shareModal.selectedUsers.push(user);
+        }
+        this.shareModal.searchQuery = '';
+        this.shareModal.searchResults = [];
+    }
 };

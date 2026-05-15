@@ -13,7 +13,7 @@ const PreviewService = {
         const { encryptedFileKey } = await keyRes.json();
 
         // 3. Descifrar la llave y el archivo
-        const aesKey = await CryptoService.unwrapKey(encryptedFileKey, window.userPrivateKey);
+        const aesKey = await CryptoService.unwrapKey(encryptedFileKey);
         const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKey);
 
         const mime = file.fileType.toLowerCase();

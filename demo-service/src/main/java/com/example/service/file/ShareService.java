@@ -1,6 +1,7 @@
 package com.example.service.file;
 
 import com.example.dto.file.ShareRequestDto;
+import com.example.exceptions.InstanceNotFoundException;
 import com.example.model.*;
 import com.example.repository.file.FileRepository;
 import com.example.repository.keys.FileKeyRepository;
@@ -47,6 +48,29 @@ public class ShareService {
         }
         fileKeyRepository.flush();
         entityManager.refresh(file);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public void shareBatch(List<ShareRequestDto> requests, String ownerUsername) throws Exception {
+        for (ShareRequestDto req : requests) {
+            // Validamos que el archivo existe
+            FileEntity file = fileRepository.findById(req.getFileId())
+                    .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+
+            // Buscamos al destinatario
+            UserEntity targetUser = userRepository.findByUsername(req.getTargetUsername());
+            if (targetUser == null) continue;
+
+            // Creamos o actualizamos la entrada en la tabla de llaves
+            FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(req.getFileId(), req.getTargetUsername())
+                    .orElse(new FileKeyEntity());
+
+            fileKey.setFile(file);
+            fileKey.setUser(targetUser);
+            fileKey.setEncryptedKey(req.getEncryptedKey());
+
+            fileKeyRepository.save(fileKey);
+        }
     }
 
     @Transactional

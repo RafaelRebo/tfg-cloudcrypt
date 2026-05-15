@@ -30,6 +30,16 @@ public class ShareController {
         } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
     }
 
+    @PostMapping("/share/batch")
+    public ResponseEntity<?> shareFilesBatch(Authentication auth, @RequestBody List<ShareRequestDto> requests) {
+        try {
+            shareService.shareBatch(requests, auth.getName());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @GetMapping("/{id}/key")
     public ResponseEntity<?> getFileKey(@PathVariable Long id, Authentication auth) {
         try {
