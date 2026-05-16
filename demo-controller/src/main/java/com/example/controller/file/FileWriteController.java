@@ -1,6 +1,7 @@
 package com.example.controller.file;
 
 import com.example.dto.file.FileUploadRequestDto;
+import com.example.exceptions.InputValidationException;
 import com.example.service.file.FileWriteService;
 import org.springframework.http.*;
 import org.springframework.security.core.Authentication;
@@ -44,6 +45,20 @@ public class FileWriteController {
             return ResponseEntity.ok(fileWriteService.toggleStar(id, auth.getName()));
         } catch (Exception e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    @PostMapping("/{id}/rename")
+    public ResponseEntity<?> renameFile(Authentication auth,
+            @PathVariable Long id,
+            @RequestParam("name") String newName) {
+        try {
+            fileWriteService.renameFile(id, newName, auth.getName());
+            return ResponseEntity.ok().build();
+        } catch (InputValidationException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
     }
 }

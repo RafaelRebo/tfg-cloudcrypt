@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class FileWriteService {
@@ -104,6 +105,58 @@ public class FileWriteService {
             entity.setFolderPath((newParent == null) ? "/" : buildPath(newParent));
             fileRepository.save(entity);
         }
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public FileEntity renameFile(Long id, String newName, String username) {
+        // 1. Validamos que el archivo exista y pertenezca al usuario activo
+        FileEntity file = fileRepository.findByIdAndOwner_Username(id, username)
+                .orElseThrow(() -> new InputValidationException("Elemento no encontrado o acceso denegado"));
+
+        if (file.getDeletedAt() != null) {
+            throw new InputValidationException("No se puede renombrar un elemento que está en la papelera");
+        }
+
+        // 2. Verificamos que no cause un conflicto de duplicados en el mismo nivel
+        Optional<FileEntity> conflict = (file.getParent() == null)
+                ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, newName)
+                : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, newName, file.getParent().getId());
+
+        if (conflict.isPresent() && !conflict.get().getId().equals(id)) {
+            throw new InputValidationException("Ya existe un archivo o carpeta con ese nombre en este directorio");
+        }
+
+        String oldName = file.getFileName();
+
+        if ("application/x-directory".equals(file.getFileType())) {
+            String oldParentFullPath = file.getFolderPath().equals("/")
+                    ? "/" + oldName
+                    : file.getFolderPath() + "/" + oldName;
+
+            String newParentFullPath = file.getFolderPath().equals("/")
+                    ? "/" + newName
+                    : file.getFolderPath() + "/" + newName;
+
+            // Recuperamos todos los hijos recursivos usando la consulta limpia que reparamos antes
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                    username, oldParentFullPath, file.getId());
+
+            for (FileEntity child : descendants) {
+                if (!child.getId().equals(file.getId())) {
+                    String currentChildPath = child.getFolderPath();
+                    // Reemplazamos el viejo prefijo de la carpeta por el nuevo nombre otorgado
+                    if (currentChildPath.startsWith(oldParentFullPath)) {
+                        String updatedPath = newParentFullPath + currentChildPath.substring(oldParentFullPath.length());
+                        child.setFolderPath(updatedPath);
+                        fileRepository.save(child);
+                    }
+                }
+            }
+        }
+
+        // 4. Renombramos el elemento principal y consolidamos en la BD
+        file.setFileName(newName);
+        return fileRepository.save(file);
     }
 
     private String buildPath(FileEntity p) {

@@ -476,6 +476,47 @@ const AppFileMethods = {
         }
     },
 
+    openRenameModal(f) {
+        this.confirmModal = {
+            active: true,
+            isDuplicateMode: false,
+            isInput: true,
+            title: '✏️ Cambiar nombre',
+            message: `Introduce el nuevo nombre para "${f.fileName}":`,
+            inputValue: f.fileName,
+            onConfirm: async () => {
+                const newName = this.confirmModal.inputValue.trim();
+
+                // Si el nombre no es válido o es idéntico, cancelamos sin golpear la API
+                if (!newName || newName === f.fileName) {
+                    this.confirmModal.active = false;
+                    this.confirmModal.isInput = false;
+                    return;
+                }
+
+                try {
+                    const res = await API.renameFile(f.id, newName);
+                    if (res.ok) {
+                        this.showInfo("Nombre actualizado con éxito.");
+                        await this.refreshAppData();
+                    } else {
+                        const txt = await res.text();
+                        this.showError(txt || "El nombre ya está en uso en este directorio.");
+                    }
+                } catch (e) {
+                    this.showError("No se pudo conectar con el servidor.");
+                } finally {
+                    this.confirmModal.active = false;
+                    this.confirmModal.isInput = false;
+                }
+            },
+            onCancel: () => {
+                this.confirmModal.active = false;
+                this.confirmModal.isInput = false;
+            }
+        };
+    },
+
     async downloadSelected() {
         const count = this.selectedIds.length;
         if (count === 0) return;

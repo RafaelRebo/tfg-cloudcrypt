@@ -111,6 +111,16 @@ const API = {
         });
     },
 
+    async renameFile(fileId, newName) {
+        const formData = new FormData();
+        formData.append("name", newName);
+        return fetch(`/api/files/${fileId}/rename`, {
+            method: 'POST',
+            body: formData,
+            headers: this.getAuthHeader()
+        });
+    },
+
     // --- CARPETAS ---
 
     async createFolder(folderName, parentId, sessionKey) {
