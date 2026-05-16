@@ -34,7 +34,8 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     // --- CORRECCIÓN 2: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
-            "AND f.parent.id = :parentId AND f.deletedAt IS NULL " +
+            "AND f.parent.id = :parentId " +
+            "AND ((f.parent.deletedAt IS NULL AND f.deletedAt IS NULL) OR (f.parent.deletedAt IS NOT NULL AND f.deletedAt IS NOT NULL)) " +
             "ORDER BY CASE WHEN f.fileType = 'application/x-directory' THEN 0 ELSE 1 END ASC, f.fileName ASC")
     Page<FileEntity> findByOwner_UsernameAndParentId(
             @Param("username") String username,
@@ -44,8 +45,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
-            "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%') OR f.id = :folderId) " +
-            "AND f.deletedAt IS NULL")
+            "AND (f.folderPath = :parentFullPath OR f.folderPath LIKE CONCAT(:parentFullPath, '/%') OR f.id = :folderId)")
     List<FileEntity> findAllByOwnerAndRecursivePathList(
             @Param("username") String username,
             @Param("parentFullPath") String parentFullPath,

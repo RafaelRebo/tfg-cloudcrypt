@@ -81,9 +81,28 @@ public class TrashService {
     }
 
     private void processPhysicalDelete(FileEntity entity) {
-        if (entity.getStoragePath() != null && !"application/x-directory".equals(entity.getFileType())) {
-            try { storageUtils.deletePhysicalFile(entity.getStoragePath()); } catch (IOException ignored) {}
+        if ("application/x-directory".equals(entity.getFileType())) {
+            String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                    entity.getOwner().getUsername(), subPath, entity.getId());
+
+            for (FileEntity child : descendants) {
+                if (child.getStoragePath() != null && !"application/x-directory".equals(child.getFileType())) {
+                    try {
+                        storageUtils.deletePhysicalFile(child.getStoragePath());
+                    } catch (IOException ignored) {}
+                }
+                fileRepository.delete(child);
+            }
+        } else {
+            if (entity.getStoragePath() != null) {
+                try {
+                    storageUtils.deletePhysicalFile(entity.getStoragePath());
+                } catch (IOException ignored) {}
+            }
         }
+
+        // 2. Finalmente, eliminamos el registro de la entidad principal de la BD
         fileRepository.delete(entity);
     }
 }

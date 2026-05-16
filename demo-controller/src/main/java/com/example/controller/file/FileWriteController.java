@@ -28,8 +28,8 @@ public class FileWriteController {
 
     @PostMapping("/move")
     public ResponseEntity<?> moveFiles(Authentication auth,
-                                       @RequestParam List<Long> fileIds,
-                                       @RequestParam(required = false) Long targetParentId) {
+           @RequestParam List<Long> fileIds,
+           @RequestParam(required = false) Long targetParentId) {
         try {
             fileWriteService.moveFiles(fileIds, targetParentId, auth.getName());
             return ResponseEntity.ok().build();
