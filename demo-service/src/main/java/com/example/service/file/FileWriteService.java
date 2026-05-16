@@ -159,6 +159,62 @@ public class FileWriteService {
         return fileRepository.save(file);
     }
 
+    @Transactional(rollbackFor = Exception.class)
+    public void copyFiles(List<Long> fileIds, Long targetParentId, String newName, String username) {
+        UserEntity owner = userRepository.findByUsername(username);
+        FileEntity targetParent = (targetParentId != null) ? fileRepository.findById(targetParentId).orElse(null) : null;
+
+        String targetFolderPath = "/";
+        if (targetParent != null) {
+            targetFolderPath = targetParent.getFolderPath().equals("/")
+                    ? "/" + targetParent.getFileName()
+                    : targetParent.getFolderPath() + "/" + targetParent.getFileName();
+        }
+
+        for (Long id : fileIds) {
+            FileEntity source = fileRepository.findByIdAndOwner_Username(id, username)
+                    .orElseThrow(() -> new InputValidationException("Elemento de origen no encontrado"));
+
+            cloneEntityRecursive(source, targetParent, targetFolderPath, newName, owner, username);
+        }
+    }
+
+    private void cloneEntityRecursive(FileEntity source, FileEntity targetParent, String targetFolderPath, String customName, UserEntity owner, String username) {
+        FileEntity clone = new FileEntity();
+        String finalName = (customName != null && !customName.isEmpty()) ? customName : source.getFileName();
+
+        clone.setFileName(finalName);
+        clone.setFileType(source.getFileType());
+        clone.setFileSize(source.getFileSize());
+        clone.setStoragePath(source.getStoragePath());
+        clone.setChecksum(source.getChecksum());
+        clone.setOwner(owner);
+        clone.setParent(targetParent);
+        clone.setFolderPath(targetFolderPath);
+
+        FileEntity savedClone = fileRepository.save(clone);
+
+        // Duplicamos el sobre digital (clave simétrica envuelta) para que el nuevo registro sea accesible
+        fileKeyRepository.findByFileIdAndUser_Username(source.getId(), username).ifPresent(oldKey -> {
+            FileKeyEntity newKey = new FileKeyEntity();
+            newKey.setFile(savedClone);
+            newKey.setUser(owner);
+            newKey.setEncryptedKey(oldKey.getEncryptedKey());
+            newKey.setStarred(false);
+            fileKeyRepository.save(newKey);
+        });
+
+        if ("application/x-directory".equals(source.getFileType())) {
+            String newFullPath = targetFolderPath.equals("/") ? "/" + finalName : targetFolderPath + "/" + finalName;
+            List<FileEntity> children = fileRepository.findByOwner_UsernameAndParentIdAndDeletedAtIsNull(username, source.getId());
+
+            for (FileEntity child : children) {
+                // Los hijos de la carpeta copiada viajan con nombre vacío para heredar su nombre nativo
+                cloneEntityRecursive(child, savedClone, newFullPath, "", owner, username);
+            }
+        }
+    }
+
     private String buildPath(FileEntity p) {
         return p.getFolderPath().equals("/") ? "/" + p.getFileName() : p.getFolderPath() + "/" + p.getFileName();
     }

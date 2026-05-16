@@ -29,14 +29,18 @@ public class TrashService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void deleteFile(Long id, String username) throws Exception {
+    public void deleteFile(Long id, String username, boolean forcePermanent) throws Exception {
         // 1. Intentamos buscar como dueño
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
         if (entityOpt.isPresent()) {
             FileEntity entity = entityOpt.get();
-            if (entity.getDeletedAt() == null) processLogicalDelete(entity);
-            else processPhysicalDelete(entity);
+
+            if (forcePermanent || entity.getDeletedAt() != null) {
+                processPhysicalDelete(entity);
+            } else {
+                processLogicalDelete(entity);
+            }
             return;
         }
 

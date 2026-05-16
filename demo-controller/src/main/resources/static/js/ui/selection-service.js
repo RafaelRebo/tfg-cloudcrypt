@@ -102,16 +102,6 @@ const AppSelectionMethods = {
         return parseInt(el.getAttribute('data-id'));
     },
 
-    handleGlobalKeydown(e) {
-        const isInput = e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
-        if (isInput) return;
-
-        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
-            e.preventDefault();
-            this.selectAllFiles();
-        }
-    },
-
     async selectAllFiles() {
         // 1. Selección instantánea de los elementos que ya están renderizados en la UI
         if (!this.displayFiles || this.displayFiles.length === 0) return;

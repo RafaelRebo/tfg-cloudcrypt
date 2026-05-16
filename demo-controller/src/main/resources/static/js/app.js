@@ -50,6 +50,17 @@ const appInstance = createApp({
             totalElements: 0,
             sortKey: 'fileName',
             sortOrder: 'asc',
+            contextMenu: {
+                active: false,
+                x: 0,
+                y: 0,
+                type: 'blank', // Puede ser: 'file' (uno solo), 'multiple' (selección masiva) o 'blank' (fondo vacío)
+                target: null   // Guardará el objeto f de la fila pulsada
+            },
+            clipboard: {
+                action: null, // Puede ser 'cut', 'copy' o null
+                items: []     // Almacenará los objetos de los archivos/carpetas en tránsito
+            },
         }
     },
     async mounted() {
@@ -67,9 +78,11 @@ const appInstance = createApp({
             }
         }
         window.addEventListener('keydown', this.handleGlobalKeydown);
+        window.addEventListener('click', this.closeContextMenu);
     },
     unmounted() {
         window.removeEventListener('keydown', this.handleGlobalKeydown);
+        window.removeEventListener('click', this.closeContextMenu);
     },
     computed: {
         quotaPercentage() {
@@ -95,6 +108,7 @@ const appInstance = createApp({
         ...AppModalMethods,
         ...AppSelectionMethods,
         ...AppShareMethods,
+        ...UIService,
     },
     watch: {
         uploadProgress(newVal) {

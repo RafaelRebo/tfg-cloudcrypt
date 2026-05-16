@@ -115,4 +115,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             "AND f.deletedAt IS NULL " +
             "AND EXISTS (SELECT 1 FROM FileKeyEntity fk WHERE fk.file = f AND fk.user.username = :username AND fk.starred = true)")
     Page<FileEntity> findStarred(@Param("username") String username, Pageable pageable);
+
+    List<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId);
 }

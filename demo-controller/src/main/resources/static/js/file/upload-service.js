@@ -85,7 +85,7 @@ const UploadService = {
                         context.status = `Reemplazando versión anterior de: ${checkName}...`;
 
                         // NOTA: Asegúrate de que el JSON de respuesta de tu endpoint check-exists incluya el ID (checkRes.id)
-                        await API.deleteFile(checkRes.existingId);
+                        await API.deleteFile(checkRes.existingId, true);
                     }
                 }
             } else {

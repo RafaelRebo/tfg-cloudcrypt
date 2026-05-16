@@ -551,3 +551,67 @@
     cursor: pointer;
     font-weight: bold;
 }
+
+/* ==========================================================================
+   MENÚ CONTEXTUAL FLOTANTE (CLIC DERECHO FLUIDO)
+   ========================================================================== */
+.context-menu {
+    position: fixed;
+    background-color: var(--sidebar-bg);
+    min-width: 200px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+    z-index: 50000; /* Asegura estar por encima de las filas y la barra azul */
+    padding: 6px 0;
+    animation: ctxFadeIn 0.15s ease-out;
+}
+
+.ctx-item {
+    color: var(--text-main);
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+    user-select: none;
+}
+
+.ctx-item span {
+    font-size: 1.1rem;
+    display: inline-block;
+    width: 20px;
+    text-align: center;
+}
+
+/* Efecto hover interactivo */
+.ctx-item:hover {
+    background-color: var(--row-hover);
+    color: var(--accent-blue);
+}
+
+/* Tratamiento especial para acciones destructivas peligrosas */
+.ctx-item.text-danger:hover {
+    color: var(--danger) !important;
+    background-color: rgba(239, 68, 68, 0.08);
+}
+
+/* Divisor sutil entre bloques de acciones */
+.context-menu .dropdown-divider {
+    height: 1px;
+    background-color: var(--border-color);
+    margin: 6px 0;
+}
+
+@keyframes ctxFadeIn {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+.file-row.is-cut {
+    opacity: 0.4;
+    filter: grayscale(40%);
+    border-left: 3px dashed var(--accent-blue) !important;
+}

@@ -61,4 +61,19 @@ public class FileWriteController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    // En com/example/controller/file/FileWriteController.java
+
+    @PostMapping("/copy")
+    public ResponseEntity<?> copyFiles(Authentication auth,
+           @RequestParam("fileIds") List<Long> fileIds,
+           @RequestParam(value = "targetParentId", required = false) Long targetParentId,
+           @RequestParam(value = "newName", defaultValue = "") String newName) {
+        try {
+            fileWriteService.copyFiles(fileIds, targetParentId, newName, auth.getName());
+            return ResponseEntity.ok().build();
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
 }

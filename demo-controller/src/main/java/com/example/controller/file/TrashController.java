@@ -15,11 +15,16 @@ public class TrashController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteFile(Authentication auth, @PathVariable Long id) {
+    public ResponseEntity<?> deleteFile(Authentication auth,
+            @PathVariable Long id,
+            @RequestParam(value = "permanent", defaultValue = "false") boolean permanent) {
         try {
-            trashService.deleteFile(id, auth.getName());
+            // Pasamos la bandera al servicio de la papelera
+            trashService.deleteFile(id, auth.getName(), permanent);
             return ResponseEntity.ok().build();
-        } catch (Exception e) { return ResponseEntity.internalServerError().build(); }
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     @PostMapping("/{id}/restore")

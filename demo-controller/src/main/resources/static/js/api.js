@@ -97,8 +97,8 @@ const API = {
         });
     },
 
-    async deleteFile(id) {
-        return fetch(`/api/files/${id}`, {
+    async deleteFile(id, permanent = false) {
+        return fetch(`/api/files/${id}?permanent=${permanent}`, {
             method: 'DELETE',
             headers: this.getAuthHeader()
         });
@@ -115,6 +115,19 @@ const API = {
         const formData = new FormData();
         formData.append("name", newName);
         return fetch(`/api/files/${fileId}/rename`, {
+            method: 'POST',
+            body: formData,
+            headers: this.getAuthHeader()
+        });
+    },
+
+    async copyFiles(fileIds, targetParentId, newName = '') {
+        const formData = new FormData();
+        formData.append("targetParentId", (targetParentId && !isNaN(targetParentId)) ? targetParentId : "");
+        formData.append("newName", newName);
+        fileIds.forEach(id => formData.append("fileIds", id));
+
+        return fetch('/api/files/copy', {
             method: 'POST',
             body: formData,
             headers: this.getAuthHeader()
