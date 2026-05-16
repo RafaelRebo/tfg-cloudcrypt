@@ -1,7 +1,4 @@
 const API = {
-    /**
-     * Recupera el token del almacenamiento local y prepara la cabecera Bearer.
-     */
     getAuthHeader() {
         const token = localStorage.getItem('jwtToken');
         return token ? { 'Authorization': `Bearer ${token}` } : {};

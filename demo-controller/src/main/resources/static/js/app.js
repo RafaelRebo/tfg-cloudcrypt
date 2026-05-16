@@ -89,52 +89,11 @@ const appInstance = createApp({
         ...AppNavigationMethods,
         ...AppAuthMethods,
         ...AppUploadMethods,
-        // --- Notifications ---
         ...AppNotificationMethods,
         ...AppFileMethods,
-        async askUserForDuplicateAction(name, isFolder) {
-            return new Promise((resolve) => {
-                this.confirmModal = {
-                    active: true,
-                    isDuplicateMode: true,
-                    isInput: false,
-                    applyToAll: false,
-                    title: isFolder ? '📁 Carpeta duplicada' : '📄 Archivo duplicado',
-                    message: `"${name}" ya existe. ¿Qué deseas hacer?`,
-                    onOverwrite: () => {
-                        const res = { action: 'overwrite', applyToAll: this.confirmModal.applyToAll };
-                        this.closeModal(resolve, res);
-                    },
-                    onCopy: () => {
-                        const res = { action: 'copy', applyToAll: this.confirmModal.applyToAll };
-                        this.closeModal(resolve, res);
-                    },
-                    onSkip: () => {
-                        const res = { action: 'skip', applyToAll: this.confirmModal.applyToAll };
-                        this.closeModal(resolve, res);
-                    },
-                    onCancel: () => {
-                        this.closeModal(resolve, { action: 'skip', applyToAll: false });
-                    }
-                };
-            });
-        },
-
         ...AppModalMethods,
         ...AppSelectionMethods,
         ...AppShareMethods,
-
-        async handleToggleStar(f) {
-            try {
-                await API.toggleStar(f.id);
-                f.starred = !f.starred;
-                if (this.currentCategory === 'starred' && !f.starred) {
-                    this.refreshAppData();
-                }
-            } catch (e) {
-                this.showError("Error al destacar");
-            }
-        },
     },
     watch: {
         uploadProgress(newVal) {
