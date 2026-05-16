@@ -18,7 +18,13 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     // --- CORRECCIÓN 1: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
-    Page<FileEntity> findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(String username, Pageable pageable);
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND f.parent IS NULL AND f.deletedAt IS NULL " +
+            "ORDER BY CASE WHEN f.fileType = 'application/x-directory' THEN 0 ELSE 1 END ASC, f.fileName ASC")
+    Page<FileEntity> findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(
+            @Param("username") String username,
+            Pageable pageable
+    );
 
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(String username, String fileName, Long parentId);
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(String username, String fileName);
@@ -27,7 +33,14 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
 
     // --- CORRECCIÓN 2: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
-    Page<FileEntity> findByOwner_UsernameAndParentId(String username, Long parentId, Pageable pageable);
+    @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
+            "AND f.parent.id = :parentId AND f.deletedAt IS NULL " +
+            "ORDER BY CASE WHEN f.fileType = 'application/x-directory' THEN 0 ELSE 1 END ASC, f.fileName ASC")
+    Page<FileEntity> findByOwner_UsernameAndParentId(
+            @Param("username") String username,
+            @Param("parentId") Long parentId,
+            Pageable pageable
+    );
 
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +

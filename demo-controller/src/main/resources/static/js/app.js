@@ -48,6 +48,8 @@ const appInstance = createApp({
             isHistoryMoving: false,
             folderIdMap: new Map(),
             totalElements: 0,
+            sortKey: 'fileName',
+            sortOrder: 'asc',
         }
     },
     async mounted() {
@@ -81,7 +83,7 @@ const appInstance = createApp({
             );
         },
         displayFiles() {
-            return FileService.getDisplayFiles(this.allUserFiles, this.currentFolder, this.currentCategory);
+            return FileService.getDisplayFiles(this.allUserFiles, this.currentFolder, this.currentCategory, this.sortKey, this.sortOrder);
         },
     },
     methods: {

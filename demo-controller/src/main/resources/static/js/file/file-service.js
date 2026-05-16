@@ -27,6 +27,108 @@ const FileService = {
        }
    },
 
+   async downloadFolder(folderId, folderName, context) {
+       context.status = `Calculando árbol de archivos para: ${folderName}...`;
+       try {
+           // 1. Recuperamos la estructura recursiva completa de hijos
+           const res = await fetch(`/api/files/folder-content-recursive/${folderId}`, { headers: API.getAuthHeader() });
+           if (!res.ok) throw new Error("No se pudo leer la estructura de directorios");
+           const items = await res.json();
+
+           const filesToProcess = items.filter(item => item.fileType !== 'application/x-directory');
+
+           if (filesToProcess.length === 0) {
+               context.showInfo(`La carpeta "${folderName}" está vacía.`);
+               return;
+           }
+
+           // 2. Preparar el mapa de rutas para el ZIP
+           const rootFolder = context.allUserFiles.find(f => f.id === folderId);
+           const rootPath = rootFolder ? this.normalizePath(rootFolder.folderPath + '/' + rootFolder.fileName) : '';
+
+           const zip = new JSZip();
+
+           // 3. CONFIGURACIÓN DEL MOTOR DE CONCURRENCIA
+           // Creamos una copia de la lista de archivos para usarla como una cola de tareas compartida
+           const queue = [...filesToProcess];
+           let completedCount = 0;
+
+           // Un límite de 6 a 8 conexiones paralelas exprime el canal HTTP/2 sin bloquear el navegador
+           const CONCURRENCY_LIMIT = 6;
+
+           // Definimos el ciclo de vida asíncrono que ejecutará cada hilo "trabajador"
+           const workerTask = async () => {
+               while (queue.length > 0) {
+                   // Extraemos el siguiente archivo de la cola de forma segura
+                   const file = queue.shift();
+                   if (!file) continue;
+
+                   try {
+                       // Descarga del bloque binario físico
+                       const fileRes = await API.download(file.id);
+                       if (!fileRes.ok) throw new Error("Fallo de descarga");
+                       const encryptedBlob = await fileRes.blob();
+
+                       // Descarga del sobre digital RSA
+                       const keyRes = await fetch(`/api/files/${file.id}/key`, { headers: API.getAuthHeader() });
+                       const { encryptedFileKey } = await keyRes.json();
+
+                       // Descifrado asíncrono delegando en el Web Worker criptográfico
+                       const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
+                       const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
+
+                       // Reconstrucción de la ruta interna dentro del ZIP
+                       let relativeFolder = '';
+                       if (rootPath && file.folderPath.startsWith(rootPath)) {
+                           relativeFolder = file.folderPath.substring(rootPath.length);
+                       } else {
+                           relativeFolder = file.folderPath;
+                       }
+                       relativeFolder = relativeFolder.replace(/^\/+|\/+$/g, '');
+                       const zipPath = relativeFolder ? `${relativeFolder}/${file.fileName}` : file.fileName;
+
+                       // Inyección síncrona en caliente en la estructura del ZIP en RAM
+                       zip.file(zipPath, decryptedBuffer);
+
+                   } catch (fileError) {
+                       console.error(`Error procesando archivo ${file.fileName}:`, fileError);
+                   } finally {
+                       // Incrementamos el contador y actualizamos el estado visual global en tiempo real
+                       completedCount++;
+                       context.status = `Procesando elementos en paralelo (${completedCount}/${filesToProcess.length})...`;
+                   }
+               }
+           };
+
+           // 4. DISPARO MULTIHILO CONTENIDO
+           // Creamos tantos hilos trabajadores en paralelo como marque el límite de concurrencia
+           const workers = Array(Math.min(CONCURRENCY_LIMIT, filesToProcess.length))
+               .fill(null)
+               .map(() => workerTask());
+
+           // Esperamos a que todos los hilos terminen de vaciar la cola de tareas
+           await Promise.all(workers);
+
+           // 5. Compresión final masiva
+           context.status = "Empaquetando estructura en archivo ZIP...";
+           const zipBlob = await zip.generateAsync({ type: "blob" });
+
+           const url = window.URL.createObjectURL(zipBlob);
+           const a = document.createElement('a');
+           a.href = url;
+           a.download = `${folderName}.zip`;
+           a.click();
+           window.URL.revokeObjectURL(url);
+
+           context.status = "";
+           context.showInfo(`Carpeta "${folderName}" descargada a máxima velocidad.`);
+
+       } catch (err) {
+           console.error(err);
+           context.showError("Error al descargar la estructura: " + err.message);
+       }
+   },
+
     async deleteFile(file, context) {
         const isTrashed = !!file.deletedAt;
         const isShared = context.currentCategory === 'shared';
@@ -72,35 +174,55 @@ const FileService = {
         }
     },
 
-    // En file-service.js
-    getDisplayFiles(allUserFiles, currentFolder, currentCategory) {
-        if (currentCategory === 'trash') {
-            // 1. Obtenemos todos los elementos borrados
-            const deletedItems = allUserFiles.filter(f => f.deletedAt !== null);
+    getDisplayFiles(allUserFiles, currentFolder, currentCategory, sortKey = 'fileName', sortOrder = 'asc') {
+        let filtered = [];
 
-            // 2. Si estamos en la raíz de la papelera ('/')
+        if (currentCategory === 'trash') {
+            const deletedItems = allUserFiles.filter(f => f.deletedAt !== null);
             if (currentFolder === '/') {
-                // Solo mostramos los elementos que NO tienen a su padre también borrado.
-                // Esto identifica al "elemento raíz" que el usuario eliminó originalmente.
-                return deletedItems.filter(item => {
-                    const parentIsAlsoDeleted = deletedItems.some(potentialParent =>
-                        potentialParent.id === item.parentId
-                    );
+                filtered = deletedItems.filter(item => {
+                    const parentIsAlsoDeleted = deletedItems.some(p => p.id === item.parentId);
                     return !parentIsAlsoDeleted;
                 });
+            } else {
+                filtered = deletedItems;
             }
-
-            // 3. Si estamos dentro de una carpeta en la papelera
-            // (Tu API ya debería estar filtrando por folderId, pero por seguridad filtramos aquí)
-            return deletedItems;
+        } else if (currentCategory === 'shared') {
+            filtered = allUserFiles;
+        } else {
+            filtered = allUserFiles.filter(f => f.deletedAt === null);
         }
 
-        if (currentCategory === 'shared') {
-            return allUserFiles;
+        const folders = filtered.filter(f => f.fileType === 'application/x-directory');
+        const files = filtered.filter(f => f.fileType !== 'application/x-directory');
+
+        const compareElements = (a, b, key, order) => {
+            let valA = a[key];
+            let valB = b[key];
+
+            if (typeof valA === 'string') {
+                return order === 'asc'
+                    ? valA.localeCompare(valB, 'es', { sensitivity: 'base' })
+                    : valB.localeCompare(valA, 'es', { sensitivity: 'base' });
+            }
+            if (key === 'updatedAt') {
+                valA = new Date(valA || 0);
+                valB = new Date(valB || 0);
+            }
+            if (valA < valB) return order === 'asc' ? -1 : 1;
+            if (valA > valB) return order === 'asc' ? 1 : -1;
+            return 0;
+        };
+
+        if (sortKey === 'fileSize') {
+            folders.sort((a, b) => a.fileName.localeCompare(b.fileName, 'es', { sensitivity: 'base' }));
+        } else {
+            folders.sort((a, b) => compareElements(a, b, sortKey, sortOrder));
         }
 
-        // Vista normal (Mis Archivos / Categorías): Ocultar siempre lo borrado
-        return allUserFiles.filter(f => f.deletedAt === null);
+        files.sort((a, b) => compareElements(a, b, sortKey, sortOrder));
+
+        return [...folders, ...files];
     },
 
     getPathSegments(currentFolder, currentCategory, trashRootPath) {
@@ -237,9 +359,20 @@ const AppFileMethods = {
         this.preview.content = '';
     },
 
-    async handleDownload(id, name) {
-        const sessionKey = sessionStorage.getItem('fileKey');
-        await FileService.downloadFile(id, name, sessionKey, this);
+    async handleDownload(fileOrId, name = null) {
+        if (typeof fileOrId === 'object' && fileOrId !== null) {
+            // Firma moderna: pasamos el objeto archivo/carpeta completo de la fila
+            if (fileOrId.fileType === 'application/x-directory') {
+                await FileService.downloadFolder(fileOrId.id, fileOrId.fileName, this);
+            } else {
+                const sessionKey = sessionStorage.getItem('fileKey');
+                await FileService.downloadFile(fileOrId.id, fileOrId.fileName, sessionKey, this);
+            }
+        } else {
+            // Firma heredada por compatibilidad (ej: desde la ventana de previsualización)
+            const sessionKey = sessionStorage.getItem('fileKey');
+            await FileService.downloadFile(fileOrId, name, sessionKey, this);
+        }
     },
 
     async handleRestore(f) {
@@ -259,6 +392,25 @@ const AppFileMethods = {
             }
         } catch (e) {
             this.showError("Error al destacar");
+        }
+    },
+
+    async toggleStarSelected() {
+        const count = this.selectedIds.length;
+        if (count === 0) return;
+
+        this.status = "Actualizando destacados...";
+        try {
+            // Ejecutamos las peticiones HTTP en ráfaga paralela
+            await Promise.all(this.selectedIds.map(id => API.toggleStar(id)));
+
+            this.showInfo(`Metadatos actualizados para ${count} elementos.`);
+            this.clearSelection();
+            await this.refreshAppData();
+        } catch (e) {
+            this.showError("Error al procesar la actualización masiva de destacados");
+        } finally {
+            this.status = "";
         }
     },
 
@@ -325,19 +477,128 @@ const AppFileMethods = {
     },
 
     async downloadSelected() {
-        this.status = "Iniciando descarga múltiple...";
-        // IMPORTANTE: Recuperamos la llave de sesión real
+        const count = this.selectedIds.length;
+        if (count === 0) return;
+
         const sessionKey = sessionStorage.getItem('fileKey');
 
-        for (const id of this.selectedIds) {
-            const file = this.allUserFiles.find(f => f.id === id);
-            if (file && file.fileType !== 'application/x-directory') {
-                // Pasamos sessionKey, NO this.password (que está vacío)
-                await FileService.downloadFile(id, file.fileName, sessionKey, this);
-                await new Promise(r => setTimeout(r, 600));
-            }
+        // 1. Mapeamos las llaves primarias a los objetos de metadatos cargados en la UI
+        const selectedItems = this.selectedIds.map(id => this.allUserFiles.find(f => f.id === id)).filter(Boolean);
+
+        // 2. Evaluamos la regla por decreto: ¿Hay carpetas o más de un único elemento seleccionado?
+        const hasFolder = selectedItems.some(item => item.fileType === 'application/x-directory');
+        const shouldZip = hasFolder || selectedItems.length > 1;
+
+        // --- 📄 CASO EXCEPCIÓN: Un único fichero individual -> Descarga directa nativa ---
+        if (!shouldZip) {
+            const singleFile = selectedItems[0];
+            await FileService.downloadFile(singleFile.id, singleFile.fileName, sessionKey, this);
+            this.clearSelection();
+            return;
         }
-        this.status = "";
+
+        // --- 🗜️ CASO DECRETO: Crear un único ZIP combinado de alto rendimiento ---
+        this.status = "Preparando descarga unificada en ZIP...";
+        try {
+            const zip = new JSZip();
+            const tasks = []; // Cola aplanada de tareas criptográficas: { id, zipPath }
+
+            // FASE 1: Construcción del árbol jerárquico de tareas en memoria
+            for (const item of selectedItems) {
+                if (item.fileType === 'application/x-directory') {
+                    // Si es carpeta, traemos recursivamente su estructura completa desde tu API
+                    const res = await fetch(`/api/files/folder-content-recursive/${item.id}`, { headers: API.getAuthHeader() });
+                    if (!res.ok) continue;
+                    const children = await res.json();
+
+                    const rootPath = FileService.normalizePath(item.folderPath + '/' + item.fileName);
+
+                    children.forEach(child => {
+                        // Saltamos los directorios vacíos (JSZip autocrea las rutas dinámicamente)
+                        if (child.fileType !== 'application/x-directory') {
+                            let relativeFolder = child.folderPath.substring(rootPath.length).replace(/^\/+|\/+$/g, '');
+                            // Estructura interna: NombreCarpetaBase/SubcarpetasOpcionales/archivo.ext
+                            const zipPath = item.fileName + (relativeFolder ? '/' + relativeFolder : '') + '/' + child.fileName;
+                            tasks.push({ id: child.id, zipPath });
+                        }
+                    });
+                } else {
+                    // Si es un fichero suelto seleccionado en el nivel actual, viaja directo a la raíz del ZIP
+                    tasks.push({ id: item.id, zipPath: item.fileName });
+                }
+            }
+
+            if (tasks.length === 0) {
+                this.showError("La selección no contiene elementos válidos para empaquetar.");
+                this.status = "";
+                return;
+            }
+
+            // FASE 2: Ráfaga de descifrado asíncrono con límite de concurrencia
+            const queue = [...tasks];
+            let completedCount = 0;
+            const CONCURRENCY_LIMIT = 6; // Balance perfecto de descargas HTTP/2 paralelas
+
+            const workerTask = async () => {
+                while (queue.length > 0) {
+                    const task = queue.shift();
+                    if (!task) continue;
+
+                    try {
+                        // Descarga paralela del binario cifrado opaco del servidor
+                        const fileRes = await API.download(task.id);
+                        if (!fileRes.ok) continue;
+                        const encryptedBlob = await fileRes.blob();
+
+                        // Descarga del sobre digital RSA-OAEP
+                        const keyRes = await fetch(`/api/files/${task.id}/key`, { headers: API.getAuthHeader() });
+                        const { encryptedFileKey } = await keyRes.json();
+
+                        // Apertura de clave y descifrado AES-GCM en el Web Worker secundario
+                        const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
+                        const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
+
+                        // Inyección inmediata del ArrayBuffer descifrado puro dentro del ZIP
+                        zip.file(task.zipPath, decryptedBuffer);
+                    } catch (err) {
+                        console.error(`Error procesando elemento del lote (ID: ${task.id}):`, err);
+                    } finally {
+                        completedCount++;
+                        this.status = `Descifrando y empaquetando lote (${completedCount}/${tasks.length})...`;
+                    }
+                }
+            };
+
+            // Disparamos la piscina de hilos concurrentes
+            const workers = Array(Math.min(CONCURRENCY_LIMIT, tasks.length))
+                .fill(null)
+                .map(() => workerTask());
+
+            await Promise.all(workers);
+
+            // FASE 3: Compilación, compresión y descarga final del contenedor unificado
+            this.status = "Generando archivo comprimido final...";
+            const zipBlob = await zip.generateAsync({ type: "blob" });
+
+            const url = window.URL.createObjectURL(zipBlob);
+            const a = document.createElement('a');
+            a.href = url;
+
+            // Estética: Si seleccionaron un único elemento (que por fuerza era carpeta), usamos su nombre.
+            // Si es una selección mixta/múltiple de varios archivos, usamos un nombre de exportación genérico.
+            a.download = (selectedItems.length === 1) ? `${selectedItems[0].fileName}.zip` : 'cloud_crypt_export.zip';
+
+            a.click();
+            window.URL.revokeObjectURL(url);
+
+            this.showInfo(`¡Descarga masiva de ${tasks.length} elementos completada!`);
+        } catch (e) {
+            console.error(e);
+            this.showError("Fallo crítico en el empaquetado del lote comprimido: " + e.message);
+        } finally {
+            this.status = "";
+            this.clearSelection(); // Limpiamos la barra de selección y las banderas al terminar
+        }
     },
 
     formatCategory(cat) {
@@ -350,6 +611,15 @@ const AppFileMethods = {
 
     formatModDate(dateStr) {
         return FileService.formatModDate(dateStr);
+    },
+
+    changeSort(key) {
+        if (this.sortKey === key) {
+            this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortKey = key;
+            this.sortOrder = 'asc';
+        }
     },
 
     formatSize(b) {

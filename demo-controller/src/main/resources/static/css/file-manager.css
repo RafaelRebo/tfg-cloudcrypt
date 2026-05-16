@@ -87,7 +87,7 @@
 
 .file-row, .file-list-header {
     display: grid !important;
-    grid-template-columns: 3.5fr 1.2fr 1.5fr 0.8fr 1fr;
+    grid-template-columns: 3fr 0.8fr 0.8fr 0.8fr 1.5fr;
     align-items: center;
     padding: 0.5rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
@@ -101,6 +101,35 @@
     letter-spacing: 0.05em;
     padding-bottom: 12px;
     margin-top: 5px;
+    color: var(--text-muted);
+}
+
+.file-list-header > div:not(.col-actions) {
+    cursor: pointer;
+    user-select: none;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.file-list-header > div:not(.col-actions):hover {
+    color: var(--accent-blue);
+    background-color: rgba(59, 130, 246, 0.08);
+}
+
+.file-list-header .col-actions {
+    cursor: default !important;
+    pointer-events: none;
+}
+
+.file-list-header span {
+    color: var(--accent-blue);
+    font-weight: 800;
+    font-size: 0.85rem;
+    animation: fadeIn 0.2s ease;
 }
 
 .col-name {
