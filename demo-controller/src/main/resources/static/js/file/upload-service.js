@@ -2,67 +2,157 @@ const UploadService = {
     folderCache: new Map(),
 
     async processUpload(files, context, isFolder = false, signal = null) {
-        // 1. Calculamos el tamaño REAL que se enviará (Original + 12 bytes de IV por cada archivo)
-        const totalEncryptedSize = files.reduce((acc, f) => acc + f.size + 12, 0);
-
-        const fileProgressMap = new Map();
-        let currentTargetId = context.currentFolderId;
-
         this.folderCache.clear();
         context.uploadProgress = 1;
+        let currentTargetId = context.currentFolderId;
+
+        // FASE 1: 🛡️ CRIBADO SECUENCIAL DE CONFLICTOS
+        const finalFilesToUpload = [];
+        let applyAllAction = null;
+
+        for (const file of files) {
+            if (signal && signal.aborted) throw new Error('Aborted');
+
+            let checkName = file.name;
+            let isDirectoryElement = false;
+
+            if (isFolder && file.webkitRelativePath) {
+                checkName = file.webkitRelativePath.split('/')[0];
+                isDirectoryElement = true;
+            }
+
+            // Para archivos individuales o el nodo raíz de la carpeta en su primera comprobación
+            if (!isFolder || (isFolder && finalFilesToUpload.length === 0)) {
+                const checkRes = await API.checkExists(checkName, currentTargetId);
+
+                if (checkRes.exists) {
+                    let currentAction = applyAllAction;
+
+                    if (!currentAction) {
+                        context.status = `Esperando resolución de conflicto: ${checkName}`;
+                        const userChoice = await context.askUserForDuplicateAction(checkName, isDirectoryElement);
+
+                        if (userChoice.applyToAll) {
+                            applyAllAction = userChoice.action;
+                        }
+                        currentAction = userChoice.action;
+                    }
+
+                    // 💥 EJECUCIÓN TRIPARTITA DEL CRITERIO DE CONFLICTO
+                    if (currentAction === 'skip') {
+                        if (isFolder) return false; // Si el usuario omite la carpeta, cancelamos la subida completa
+                        continue;
+                    }
+
+                    if (currentAction === 'copy') {
+                        if (!isFolder) {
+                            const dot = file.name.lastIndexOf('.');
+                            const nameNoExt = dot !== -1 ? file.name.substring(0, dot) : file.name;
+                            const ext = dot !== -1 ? file.name.substring(dot) : '';
+
+                            let counter = 1;
+                            let candidateName = `${nameNoExt} (Copia)${ext}`;
+
+                            // 🔄 Bucle reactivo: preguntamos al servidor si la copia ya existe
+                            let nestedCheck = await API.checkExists(candidateName, currentTargetId);
+                            while (nestedCheck.exists) {
+                                counter++;
+                                candidateName = `${nameNoExt} (Copia ${counter})${ext}`;
+                                nestedCheck = await API.checkExists(candidateName, currentTargetId);
+                            }
+
+                            // Asignamos el nombre final libre (ej: "foto (Copia 3).png")
+                            file.customName = candidateName;
+                        } else {
+                            let counter = 1;
+                            let candidateRootName = `${checkName} (Copia)`;
+
+                            // Mismo algoritmo incremental aplicado al nodo raíz de la carpeta
+                            let nestedCheck = await API.checkExists(candidateRootName, currentTargetId);
+                            while (nestedCheck.exists) {
+                                counter++;
+                                candidateRootName = `${checkName} (Copia ${counter})`;
+                                nestedCheck = await API.checkExists(candidateRootName, currentTargetId);
+                            }
+
+                            file.customRootName = candidateRootName;
+                        }
+                    }
+
+                    if (currentAction === 'overwrite') {
+                        // ⚡ EL FIX CRÍTICO: Eliminamos el elemento antiguo (fichero o carpeta raíz)
+                        // antes de lanzar la ráfaga de subida para limpiar el espacio por completo.
+                        context.status = `Reemplazando versión anterior de: ${checkName}...`;
+
+                        // NOTA: Asegúrate de que el JSON de respuesta de tu endpoint check-exists incluya el ID (checkRes.id)
+                        await API.deleteFile(checkRes.existingId);
+                    }
+                }
+            } else {
+                // Herencia de nombres para sub-ficheros dentro de carpetas renombradas como copia
+                const rootItem = files[0];
+                if (applyAllAction === 'skip') continue;
+                if (rootItem.customRootName) {
+                    file.customRootName = rootItem.customRootName;
+                }
+            }
+
+            finalFilesToUpload.push(file);
+        }
+
+        if (finalFilesToUpload.length === 0) return false;
+
+        // FASE 2: 🚀 ARRANQUE MULTIHILO CONCURRENTE (Con el espacio ya saneado)
+        const totalEncryptedSize = finalFilesToUpload.reduce((acc, f) => acc + f.size + 12, 0);
+        const fileProgressMap = new Map();
 
         const CONCURRENCY_LIMIT = 4;
-        const queue = [...files];
+        const queue = [...finalFilesToUpload];
         const workers = [];
 
         const task = async () => {
             while (queue.length > 0 && !(signal && signal.aborted)) {
                 const file = queue.shift();
-                // Pasamos totalEncryptedSize en lugar del total original
                 await this.handleSingleFile(file, currentTargetId, isFolder, context, fileProgressMap, totalEncryptedSize, signal);
             }
         };
 
-        for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, files.length); i++) {
+        for (let i = 0; i < Math.min(CONCURRENCY_LIMIT, finalFilesToUpload.length); i++) {
             workers.push(task());
         }
 
         await Promise.all(workers);
-
-        // Al terminar el envío de bytes, fijamos en 92% (fase de espera de base de datos)
         context.uploadProgress = 92;
         return true;
     },
 
     async handleSingleFile(file, currentTargetId, isFolder, context, progressMap, totalEncryptedSize, signal) {
-        let finalName = file.name;
-        let finalParentId = currentTargetId;
+            let finalName = file.customName || file.name;
+            let finalParentId = currentTargetId;
 
-        if (isFolder && file.webkitRelativePath) {
-            const parts = file.webkitRelativePath.split('/');
-            finalName = parts.pop();
-            if (parts.length > 0) {
-                finalParentId = await this.resolveSubfolderChainCached(parts, currentTargetId, context, signal);
+            if (isFolder && file.webkitRelativePath) {
+                const parts = file.webkitRelativePath.split('/');
+                finalName = parts.pop();
+
+                // Si la raíz de la carpeta se renombró a "Carpeta (Copia)", inyectamos la mutación en la ruta
+                if (file.customRootName && parts.length > 0) {
+                    parts[0] = file.customRootName;
+                }
+
+                if (parts.length > 0) {
+                    finalParentId = await this.resolveSubfolderChainCached(parts, currentTargetId, context, signal);
+                }
             }
-        }
 
-        await this.uploadSingle(file, finalParentId, finalName, (bytes) => {
-            // Guardamos el progreso de este archivo individual
-            progressMap.set(file, bytes);
-
-            // Sumamos el progreso de todos los archivos activos
-            const totalUploaded = Array.from(progressMap.values()).reduce((a, b) => a + b, 0);
-
-            // Calculamos el porcentaje sobre la base de 90 (reservando el 10% final para la UI)
-            const calculatedPercentage = Math.floor((totalUploaded / totalEncryptedSize) * 90);
-
-            // REGLA DE MONOTONICIDAD: El progreso solo sube, nunca baja
-            // Esto evita fluctuaciones si los eventos de red llegan desordenados
-            if (calculatedPercentage > context.uploadProgress && calculatedPercentage <= 90) {
-                context.uploadProgress = calculatedPercentage;
-            }
-        }, context, totalEncryptedSize, signal);
-    },
+            await this.uploadSingle(file, finalParentId, finalName, (bytes) => {
+                progressMap.set(file, bytes);
+                const totalUploaded = Array.from(progressMap.values()).reduce((a, b) => a + b, 0);
+                const calculatedPercentage = Math.floor((totalUploaded / totalEncryptedSize) * 90);
+                if (calculatedPercentage > context.uploadProgress && calculatedPercentage <= 90) {
+                    context.uploadProgress = calculatedPercentage;
+                }
+            }, context, totalEncryptedSize, signal);
+        },
 
     async resolveSubfolderChainCached(parts, startParentId, context, signal) {
         let currentId = startParentId;

@@ -1,14 +1,17 @@
 const AppModalMethods = {
     closeModal(resolve, result) {
         this.confirmModal.active = false;
+
         setTimeout(() => {
+            // Limpiamos los estados antiguos de forma segura
             this.confirmModal.isDuplicateMode = false;
             this.confirmModal.isInput = false;
             this.confirmModal.applyToAll = false;
             this.confirmModal.title = '';
             this.confirmModal.message = '';
+
+            resolve(result);
         }, 300);
-        resolve(result);
     },
 
     async openNewFolderModal() {
