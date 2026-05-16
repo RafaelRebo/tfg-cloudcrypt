@@ -9,13 +9,10 @@ const AuthService = {
 
             try {
                 const encryptedPrivKey = await API.getMyPrivateKey();
-                if (encryptedPrivKey) {
-                    const privateKeyObj = await CryptoService.decryptPrivateKey(encryptedPrivKey, password);
+                const pubKeyData = await API.getUserPublicKey(username);
 
-                    const pubKeyData = await API.getUserPublicKey(username);
-                    const publicKeyObj = await CryptoService.importExternalPublicKey(pubKeyData.publicKey);
-
-                    await CryptoService.setKeys(publicKeyObj, privateKeyObj);
+                if (encryptedPrivKey && pubKeyData) {
+                    await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, password, username);
                 }
             } catch (e) {
                 console.error("Error al inicializar identidad en el Worker:", e);
@@ -25,45 +22,40 @@ const AuthService = {
         return false;
     },
 
+    // --- CORRECCIÓN CRÍTICA: Des-silenciar errores del servidor ---
     async setupUserCrypto(username, password) {
-        // Generar par de llaves usando el Worker
-        const keyPair = await CryptoService.generateUserKeyPair();
+        const cryptoPackage = await CryptoService.generateAndPackageKeys(password, username);
 
-        // Exportar pública para el servidor
-        const pubKeyStr = await CryptoService.exportPublicKey(keyPair.publicKey);
+        // Esperamos la respuesta del fetch
+        const res = await API.registerUserKeys(cryptoPackage.publicKeyStr, cryptoPackage.encryptedPrivateKeyBase64);
 
-        // Encriptar privada para el servidor usando el Worker
-        const privKeyEnc = await CryptoService.encryptPrivateKey(keyPair.privateKey, password);
+        // Si el controlador de Spring Boot da un error, lo lanzamos para que vaya al catch de la UI
+        if (!res.ok) {
+            const serverErrorText = await res.text();
+            throw new Error(`El servidor rechazó las llaves (Código ${res.status}): ${serverErrorText}`);
+        }
 
-        // Cargar inmediatamente en el Worker para esta sesión
-        await CryptoService.setKeys(keyPair.publicKey, keyPair.privateKey);
-
-        return await API.registerUserKeys(pubKeyStr, privKeyEnc);
+        return res;
     },
+
     logout() {
         localStorage.removeItem('jwtToken');
         localStorage.removeItem('username');
         sessionStorage.removeItem('fileKey');
     },
+
     getSavedSession() {
         const token = localStorage.getItem('jwtToken');
         const username = localStorage.getItem('username');
         const password = sessionStorage.getItem('fileKey');
-
-        if (token && password && username) {
-            return { token, username, password };
-        }
-        return null;
+        return (token && password && username) ? { token, username, password } : null;
     },
+
     async deriveMasterKey(username, password) {
         const encoder = new TextEncoder();
         const data = encoder.encode(username.toLowerCase() + password);
-
-        // Usamos SHA-256 para generar una clave consistente a partir de user+pass
         const hashBuffer = await crypto.subtle.digest('SHA-256', data);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
-
-        // Retornamos el hash en Hexadecimal
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
 };
@@ -72,10 +64,6 @@ const AppAuthMethods = {
     async handleLogin() {
         try {
             const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
-            // AuthService.login ya se encarga de:
-            // 1. Validar user/pass
-            // 2. Bajar la privada cifrada
-            // 3. Descifrarla con secureKey y meterla en el Worker
             const success = await AuthService.login(this.username, secureKey);
 
             if (success) {
@@ -95,30 +83,35 @@ const AppAuthMethods = {
 
     async handleRegister() {
         try {
-            this.status = "Generando identidad única...";
+            this.status = "Generando identidad segura...";
             const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
 
-            // 1. Crear usuario
+            // 1. Crear el usuario en la base de datos
             const res = await API.register(this.username, masterKey);
-            if (!res.ok) throw new Error("El usuario ya existe");
+            if (!res.ok) throw new Error("El usuario ya existe o los datos son inválidos");
 
-            // 2. Autenticar para obtener Token
+            // 2. Login temporal e interno para obtener el JWT necesario para firmar las llaves
             const loginRes = await API.login(this.username, masterKey);
+            if (!loginRes.ok) throw new Error("Fallo al autenticar tras registro");
+
             const loginData = await loginRes.json();
             localStorage.setItem('jwtToken', loginData.token);
             localStorage.setItem('username', loginData.username);
             sessionStorage.setItem('fileKey', masterKey);
 
-            // 3. GENERAR LLAVES POR ÚNICA VEZ (Aquí es donde debe ir)
+            // 3. Generar y registrar sus llaves criptográficas por única vez
+            this.status = "Configurando llaves criptográficas...";
             await AuthService.setupUserCrypto(this.username, masterKey);
 
             this.showInfo("¡Cuenta e identidad creadas con éxito!");
-            this.isLoggedIn = true;
-            this.password = '';
-            await this.refreshAppData();
+
+            await this.handleLogin();
+
         } catch (e) {
-            this.showError(e.message);
-        } finally { this.status = ""; }
+            this.showError(e.message || "Error en el proceso de registro");
+        } finally {
+            this.status = "";
+        }
     },
 
     logout() {

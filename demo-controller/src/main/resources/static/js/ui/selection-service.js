@@ -9,6 +9,7 @@ const AppSelectionMethods = {
 
     clearSelection() {
         this.selectedIds = [];
+        this.isTrueAllSelected = false;
     },
 
     startDragSelect(e) {
@@ -111,9 +112,45 @@ const AppSelectionMethods = {
         }
     },
 
-    selectAllFiles() {
-        if (this.displayFiles && this.displayFiles.length > 0) {
-            this.selectedIds = this.displayFiles.map(f => f.id);
+    async selectAllFiles() {
+        // 1. Selección instantánea de los elementos que ya están renderizados en la UI
+        if (!this.displayFiles || this.displayFiles.length === 0) return;
+        this.selectedIds = this.displayFiles.map(f => f.id);
+
+        // 2. Si hay más elementos en el backend de los que tenemos cargados localmente...
+        if (this.allUserFiles.length < this.totalElements) {
+            this.status = "Seleccionando la totalidad de los archivos del directorio...";
+            try {
+                let pageToFetch = this.currentPage + 1;
+                let gathering = true;
+
+                // Bucle de fondo: devoramos todas las páginas restantes de la API
+                while (gathering) {
+                    const res = await API.getFiles(this.currentFolderId, this.currentCategory, pageToFetch);
+
+                    if (res.content && res.content.length > 0) {
+                        // Los metemos en el array. Vue los renderizará reactivamente hacia abajo
+                        this.allUserFiles.push(...res.content);
+                        this.currentPage = pageToFetch; // Avanzamos el puntero de página actual
+                    }
+
+                    // Si Spring nos dice que es la última página, rompemos el bucle
+                    if (!res.page || res.page.number >= res.page.totalPages - 1) {
+                        gathering = false;
+                    } else {
+                        pageToFetch++;
+                    }
+                }
+
+                // 3. Mapeo final: Una vez traídos todos a la memoria RAM de Vue, los seleccionamos todos
+                this.selectedIds = this.displayFiles.map(f => f.id);
+                this.hasMore = false; // Desactivamos el infinite scroll, ya no queda nada que cargar paulatinamente
+
+            } catch (e) {
+                this.showError("Error al sincronizar la selección masiva con el servidor");
+            } finally {
+                this.status = "";
+            }
         }
     },
 
@@ -187,13 +224,15 @@ const AppSelectionMethods = {
 
     openFileOrFolder(f) {
         if (this.currentCategory === 'starred') {
+            const targetCategory = (f.ownerUsername !== this.username) ? 'shared' : 'all';
+
             if (f.fileType === 'application/x-directory') {
-                this.currentCategory = 'all';
+                this.currentCategory = targetCategory;
                 this.currentFolderId = f.id;
                 this.currentFolder = f.folderPath === '/' ? `/${f.fileName}` : `${f.folderPath}/${f.fileName}`;
                 this.refreshAppData();
             } else {
-                this.currentCategory = 'all';
+                this.currentCategory = targetCategory;
                 this.currentFolderId = f.parentId;
                 this.currentFolder = f.folderPath;
                 this.selectedIds = [f.id];

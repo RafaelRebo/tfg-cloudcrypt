@@ -10,6 +10,8 @@ import com.example.util.PathUtils;
 import jakarta.persistence.EntityManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -52,16 +54,19 @@ public class ShareService {
 
     @Transactional(rollbackFor = Exception.class)
     public void shareBatch(List<ShareRequestDto> requests, String ownerUsername) throws Exception {
-        for (ShareRequestDto req : requests) {
-            // Validamos que el archivo existe
-            FileEntity file = fileRepository.findById(req.getFileId())
-                    .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+        List<FileKeyEntity> keysToSave = new ArrayList<>();
 
-            // Buscamos al destinatario
+        for (ShareRequestDto req : requests) {
+            FileEntity file = fileRepository.findById(req.getFileId())
+                    .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado con ID: " + req.getFileId()));
+
+            if (!file.getOwner().getUsername().equals(ownerUsername)) {
+                throw new SecurityException("Acceso denegado: No tienes autorización sobre el archivo " + file.getFileName());
+            }
+
             UserEntity targetUser = userRepository.findByUsername(req.getTargetUsername());
             if (targetUser == null) continue;
 
-            // Creamos o actualizamos la entrada en la tabla de llaves
             FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(req.getFileId(), req.getTargetUsername())
                     .orElse(new FileKeyEntity());
 
@@ -69,7 +74,11 @@ public class ShareService {
             fileKey.setUser(targetUser);
             fileKey.setEncryptedKey(req.getEncryptedKey());
 
-            fileKeyRepository.save(fileKey);
+            keysToSave.add(fileKey);
+        }
+
+        if (!keysToSave.isEmpty()) {
+            fileKeyRepository.saveAll(keysToSave);
         }
     }
 

@@ -110,27 +110,6 @@ const FileService = {
         const parts = currentFolder.split('/').filter(p => p !== '');
         let pathAccumulated = '';
 
-        if (currentCategory === 'trash' && trashRootPath) {
-            const rootParts = trashRootPath.split('/').filter(p => p !== '');
-            let inTrashPath = false;
-
-            parts.forEach((name, index) => {
-                pathAccumulated += '/' + name;
-
-                // Solo empezamos a añadir al breadcrumb cuando llegamos
-                // a la carpeta que marcó el inicio de la papelera
-                if (name === rootParts[rootParts.length - 1] || inTrashPath) {
-                    inTrashPath = true;
-                    segments.push({
-                        name: name,
-                        path: pathAccumulated
-                    });
-                }
-            });
-            return segments;
-        }
-
-        // Ruta normal para Mis Archivos
         parts.forEach((name) => {
             pathAccumulated += '/' + name;
             segments.push({
@@ -150,36 +129,70 @@ const FileService = {
         return p;
     },
 
-    getFileIconSvg(mime) {
-        // ICONO DE IMAGEN (PNG, JPG, etc.)
-        if (mime && mime.startsWith('image/')) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
-                <circle cx="9" cy="9" r="2"/>
-                <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
-            </svg>`;
+    getFileIconSvg(mime, fileName) {
+        const m = (mime || '').toLowerCase();
+        const name = (fileName || '').toLowerCase();
+        const ext = name.split('.').pop(); // Extrae la extensión (ej: 'zip', 'pdf')
+
+        // 1. PDFs
+        if (m === 'application/pdf' || ext === 'pdf') {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="3" fill="none" />
+                        <text x="12" y="12.5" font-family="system-ui, -apple-system, sans-serif" font-size="6.5" font-weight="900" fill="#ffffff" stroke="none" text-anchor="middle" dominant-baseline="central">PDF</text>
+                    </svg>`;
+        }
+        // 2. Archivos Comprimidos (ZIP, RAR, 7Z, TAR)
+        if (m.includes('zip') || m.includes('rar') || m.includes('7z') || m.includes('tar') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M12 2v4M12 8v2M12 12v2"/></svg>`;
         }
 
-        // ICONO DE AUDIO (MP3, WAV, etc.)
-        if (mime && mime.startsWith('audio/')) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M9 18V5l12-2v13"/>
-                <circle cx="6" cy="18" r="3"/>
-                <circle cx="18" cy="16" r="3"/>
-            </svg>`;
+        // 3. Hojas de Cálculo (Excel, CSV)
+        if (m.includes('excel') || m.includes('spreadsheetml') || m.includes('csv') || ['xls', 'xlsx', 'csv'].includes(ext)) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><rect width="8" height="8" x="8" y="10" rx="1"/></svg>`;
         }
 
-        if (mime && mime.startsWith('video/')) {
-            return `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clapperboard-icon lucide-clapperboard"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>`;
+        // 4. Documentos de Texto o Código (TXT, Markdown, JS, JSON, HTML, etc.)
+        if (m.startsWith('text/') || m.includes('json') || m.includes('javascript') || ['txt', 'md', 'json', 'js', 'html', 'css', 'xml'].includes(ext)) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`;
         }
 
-        // ICONO POR DEFECTO / DOCUMENTOS (PDF, TXT, etc.)
-        // Mantiene el diseño que te gustó de la imagen image_792770.png
-        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
-            <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
-        </svg>`;
-    }
+        // 5. Presentaciones (PowerPoint)
+        if (m.includes('powerpoint') || m.includes('presentationml') || ['ppt', 'pptx'].includes(ext)) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polygon points="12 10 16 14 12 18 8 14"/></svg>`;
+        }
+
+        // 6. Filtros nativos multimedia que ya tenías (Imágenes, Audio, Vídeo)
+        if (m.startsWith('image/')) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
+        }
+        if (m.startsWith('audio/')) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
+        }
+        if (m.startsWith('video/')) {
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>`;
+        }
+
+        // 7. Icono genérico por defecto (Documento blanco)
+        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+    },
+
+    formatModDate(dateStr) {
+        if (!dateStr) return '-';
+
+        const date = new Date(dateStr);
+
+        // 1. Formateamos la parte de la fecha (igual que antes)
+        let datePart = date.toLocaleDateString('es-ES', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        }).replace('.', '').replace(',', '');
+
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+
+        return `${datePart} ${hours}:${minutes}`;
+    },
 
 };
 
@@ -288,18 +301,25 @@ const AppFileMethods = {
 
     async deleteSelected() {
         const count = this.selectedIds.length;
+        if (count === 0) return;
+
         const isTrash = this.currentCategory === 'trash';
         const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos?` : `¿Mover ${count} elementos a la papelera?`;
 
         if (await this.askConfirmation(msg)) {
+            this.status = "Eliminando elementos...";
             try {
+                // Borrado masivo y simultáneo mediante los IDs recolectados previamente
                 await Promise.all(this.selectedIds.map(id => API.deleteFile(id)));
-                this.showInfo(`${count} elementos procesados correctamente`);
+
+                this.showInfo(`${count} elementos procesados y eliminados.`);
                 this.selectedIds = [];
-                await this.refreshAppData();
+                await this.refreshAppData(); // Limpia y resetea la vista a la página 0 limpia
             } catch (e) {
                 this.showError("Hubo un error al eliminar algunos archivos");
                 await this.refreshAppData();
+            } finally {
+                this.status = "";
             }
         }
     },
@@ -324,8 +344,12 @@ const AppFileMethods = {
         return UIService.formatCategory(cat);
     },
 
-    getFileIcon(mime) {
-        return FileService.getFileIconSvg(mime);
+    getFileIcon(mime, fileName = '') {
+        return FileService.getFileIconSvg(mime, fileName);
+    },
+
+    formatModDate(dateStr) {
+        return FileService.formatModDate(dateStr);
     },
 
     formatSize(b) {

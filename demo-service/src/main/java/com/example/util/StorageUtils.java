@@ -32,23 +32,23 @@ public class StorageUtils {
         // 1. Preparar el cálculo de integridad (SHA-256)
         MessageDigest md = MessageDigest.getInstance("SHA-256");
 
-        // 2. Definir estructura de almacenamiento físico
-        // Limpiamos la ruta para evitar problemas de dobles slashes o caracteres prohibidos
+        // 2. Definir estructura de almacenamiento físico corrigiendo la doble barra
         String sanitizedFolder = folderPath.replaceAll("^/|/$", "");
-        String physicalFolder = username + "/" + sanitizedFolder;
+
+        // CORRECCIÓN: Si está en la raíz (vacío), no concatenamos barra extra al usuario
+        String physicalFolder = sanitizedFolder.isEmpty() ? username : username + "/" + sanitizedFolder;
         String storageName = UUID.randomUUID().toString();
 
-        // 3. FLUJO DE TRANSFERENCIA:
-        // DigestInputStream actúa como un "peaje": el archivo pasa a través de él,
-        // se calcula el hash al vuelo y se entrega al storageRepository.
+        // 3. FLUJO DE TRANSFERENCIA
         try (DigestInputStream dis = new DigestInputStream(is, md)) {
+            // Aquí se mantiene igual
             storageRepository.save(dis, physicalFolder, storageName);
         }
 
-        // 4. Generar respuesta con metadatos del archivo físico
+        // 4. Generar respuesta con metadatos limpios sin dobles slashes
         Map<String, String> results = new HashMap<>();
         results.put("storagePath", physicalFolder + "/" + storageName);
-        results.put("checksum", bytesToHex(md.digest())); // md.digest() ya tiene el hash calculado
+        results.put("checksum", bytesToHex(md.digest()));
 
         return results;
     }

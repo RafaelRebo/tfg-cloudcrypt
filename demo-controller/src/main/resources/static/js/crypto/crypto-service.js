@@ -1,5 +1,5 @@
 const CryptoService = {
-    worker: new Worker('js/crypto-worker.js'),
+    worker: new Worker('js/crypto/crypto-worker.js'),
     msgId: 0,
     pendingPromises: {},
 
@@ -28,6 +28,10 @@ const CryptoService = {
     },
 
     // --- MÉTODOS DE COMPATIBILIDAD TOTAL ---
+
+    async generateAndPackageKeys(password, username) {return this._send('GENERATE_AND_PACKAGE_KEYS', { password, username });},
+
+    async initializeIdentity(encryptedBase64, publicKeyStr, password, username) {return this._send('INITIALIZE_IDENTITY', { encryptedBase64, publicKeyStr, password, username });},
 
     async setKeys(publicKey, privateKey) { return this._send('SET_KEYS', { publicKey, privateKey }); },
 

@@ -40,6 +40,7 @@ public class FileMapper {
                 entity.getFileSize(),
                 entity.getFolderPath(),
                 entity.getChecksum(),
+                entity.getUpdatedAt(),
                 entity.getDeletedAt(),
                 entity.getSalt(),
                 ownerName,

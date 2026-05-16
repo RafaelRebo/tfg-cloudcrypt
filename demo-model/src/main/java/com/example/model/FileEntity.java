@@ -37,6 +37,9 @@ public class FileEntity {
     @Column(name = "storage_path")
     private String storagePath;
 
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
@@ -57,6 +60,12 @@ public class FileEntity {
     @OneToMany(mappedBy = "parent", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FileEntity> children = new ArrayList<>();
 
-    @OneToMany(mappedBy = "file", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OneToMany(mappedBy = "file", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<FileKeyEntity> fileKeys = new ArrayList<>();
+
+    @PrePersist
+    @PreUpdate
+    public void preUpdateLifecycle() {
+        this.updatedAt = LocalDateTime.now();
+    }
 }

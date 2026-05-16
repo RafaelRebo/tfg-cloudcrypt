@@ -43,7 +43,13 @@ const AppNavigationMethods = {
 
             this.allUserFiles = [];
             this.allUserFiles = res.content;
-            this.hasMore = !res.last;
+            if (res.page) {
+                this.hasMore = res.page.number < res.page.totalPages - 1;
+                this.totalElements = res.page.totalElements;
+            } else {
+                this.hasMore = false;
+                this.totalElements = res.content.length;
+            }
             this.stats = await API.getStats(this.username);
             this.status = "";
 
@@ -100,8 +106,14 @@ const AppNavigationMethods = {
         }
     },
 
-    handleInfiniteScroll() {
-        if ((window.innerHeight + window.scrollY) >= document.body.offsetHeight - 100) {
+    handleInfiniteScroll(event) {
+        // Capturamos el contenedor exacto que está haciendo scroll
+        const el = event.target;
+
+        // Alerta de depuración opcional: console.log(el.scrollTop + el.clientHeight, el.scrollHeight);
+
+        // Si la suma de lo scrollado más la altura visible llega al fondo (-100px de margen)
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
             this.loadNextPage();
         }
     },
@@ -110,11 +122,28 @@ const AppNavigationMethods = {
         if (this.isLoadingMore || !this.hasMore) return;
         this.isLoadingMore = true;
         this.currentPage++;
+
         try {
-            const res = await API.getFiles(this.currentFolder, this.currentCategory, this.currentPage);
-            this.allUserFiles.push(...res.content);
-            if (res.last) this.hasMore = false;
-        } catch (e) { console.error(e); } finally { this.isLoadingMore = false; }
+            const res = await API.getFiles(this.currentFolderId, this.currentCategory, this.currentPage);
+
+            if (res.content && res.content.length > 0) {
+                this.allUserFiles.push(...res.content);
+            }
+
+            if (res.page) {
+                this.totalElements = res.page.totalElements;
+                if (res.page.number >= res.page.totalPages - 1) {
+                    this.hasMore = false;
+                }
+            } else {
+                // Fallback por si la respuesta viniera plana en algún endpoint
+                this.hasMore = false;
+            }
+        } catch (e) {
+            console.error("Error cargando la siguiente página:", e);
+        } finally {
+            this.isLoadingMore = false;
+        }
     },
 
     setCategory(cat) {
@@ -175,6 +204,8 @@ const AppNavigationMethods = {
         event.currentTarget.classList.remove('drag-target');
     },
 
+    // Dentro de AppNavigationMethods en js/ui/navigation-service.js
+
     async onCrumbDrop(targetPath, targetFolderId, event) {
         event.currentTarget.classList.remove('drag-target');
 
@@ -187,14 +218,12 @@ const AppNavigationMethods = {
 
             if (targetPath === '/') {
                 targetId = null;
-            } else if (!targetId) {
-                const foundFolder = this.allUserFiles.find(f =>
-                    f.fileType === 'application/x-directory' &&
-                    (f.folderPath === targetPath || (f.folderPath + '/' + f.fileName).replace(/\/\+/g, '/') === targetPath)
-                );
-                if (foundFolder) targetId = foundFolder.id;
+            }
+            else if (!targetId) {
+                targetId = this.folderIdMap.get(targetPath) || null;
             }
 
+            // 3. Enviamos la petición con el ID real recuperado del mapa
             const res = await API.moveFiles(idsToMove, targetId);
             if (res.ok) {
                 this.showInfo("Elementos relocalizados con éxito.");

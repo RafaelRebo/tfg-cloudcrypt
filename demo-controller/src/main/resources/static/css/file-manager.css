@@ -86,11 +86,12 @@
 }
 
 .file-row, .file-list-header {
-    display: flex !important; /* Forzamos flex para anular cualquier grid previo */
+    display: grid !important;
+    grid-template-columns: 3.5fr 1.2fr 1.5fr 0.8fr 1fr;
     align-items: center;
-    padding: 0.4rem 1.5rem;
+    padding: 0.5rem 1.5rem;
     border-bottom: 1px solid var(--border-color);
-    gap: 0; /* El espacio lo controlamos con el flex-basis */
+    gap: 15px;
 }
 
 .file-list-header {
@@ -113,6 +114,12 @@
 .col-owner {
     flex: 0 0 20%; /* 20% del ancho total */
     text-align: left;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.col-modified {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

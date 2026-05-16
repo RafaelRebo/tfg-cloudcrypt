@@ -47,6 +47,7 @@ const appInstance = createApp({
             historyIndex: 0,
             isHistoryMoving: false,
             folderIdMap: new Map(),
+            totalElements: 0,
         }
     },
     async mounted() {
@@ -64,11 +65,9 @@ const appInstance = createApp({
             }
         }
         window.addEventListener('keydown', this.handleGlobalKeydown);
-        window.addEventListener('scroll', this.handleInfiniteScroll);
     },
     unmounted() {
         window.removeEventListener('keydown', this.handleGlobalKeydown);
-        window.removeEventListener('scroll', this.handleInfiniteScroll);
     },
     computed: {
         quotaPercentage() {

@@ -186,7 +186,7 @@
                 </div>
             </header>
 
-            <div class="file-manager":class="{ 'drag-over': isDragging }" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop" @mousedown="startDragSelect" @mousemove="onDragSelect" @mouseup="stopDragSelect" @mouseleave="stopDragSelect" @click.self="handleBackgroundClick">
+            <div class="file-manager":class="{ 'drag-over': isDragging }" @scroll="handleInfiniteScroll" @dragover.prevent="onDragOver" @dragleave.prevent="onDragLeave" @drop.prevent="onDrop" @mousedown="startDragSelect" @mousemove="onDragSelect" @mouseup="stopDragSelect" @mouseleave="stopDragSelect" @click.self="handleBackgroundClick">
                 <div id="selection-box" v-show="selectionBox.active" :style="selectionBox.style"></div>
                 <div class="search-container">
                     <div class="search-box">
@@ -215,6 +215,7 @@
                 <div class="file-list-header">
                     <div class="col-name">Nombre</div>
                     <div class="col-owner">Propietario</div>
+                    <div class="col-modified">Modificado</div>
                     <div class="col-size">Tamaño</div>
                     <div class="col-actions">Acciones</div>
                 </div>
@@ -236,7 +237,7 @@
                             <div class="icon-wrapper">
                                 <span class="icon">
                                 <svg v-if="f.fileType === 'application/x-directory'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="3"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
-                                <span v-else v-html="getFileIcon(f.fileType)"></span>
+                                <span v-else v-html="getFileIcon(f.fileType, f.fileName)"></span>
                             </span>
 
                                 <!-- Simplificamos la lógica: si el servidor dice que está compartido, mostramos badge -->
@@ -259,6 +260,9 @@
                             <span :class="f.ownerUsername === username ? 'owner-me' : 'owner-other'">
                                 {{ f.ownerUsername === username ? 'Yo' : f.ownerUsername }}
                             </span>
+                        </div>
+                        <div class="col-modified">
+                            {{ formatModDate(f.updatedAt) }}
                         </div>
                         <div class="col-size">{{ (f.fileSize / 1024).toFixed(1) }} KB</div>
                         <div class="col-actions" @mousedown.stop @click.stop>
@@ -389,7 +393,7 @@
         <div class="preview-window">
             <div class="preview-header">
                 <div class="preview-title">
-                    <span class="preview-icon">{{ getFileIcon(preview.mime) }}</span>
+                    <span class="preview-icon" v-html="getFileIcon(preview.mime, preview.name)"></span>
                     <strong>{{ preview.name }}</strong>
                 </div>
                 <button @click="closePreview" class="btn-close-preview">✕</button>

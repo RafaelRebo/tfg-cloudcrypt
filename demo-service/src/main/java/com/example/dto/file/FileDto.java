@@ -16,6 +16,7 @@ public class FileDto {
     private long fileSize;
     private String folderPath;
     private String checksum;
+    private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
     private String salt;
     private String ownerUsername;
