@@ -64,51 +64,68 @@ const AppAuthMethods = {
     async handleLogin() {
         try {
             const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
-            const success = await AuthService.login(this.username, secureKey);
+            const res = await API.login(this.username, secureKey);
 
-            if (success) {
+            if (res.ok) {
+                const data = await res.json();
+                localStorage.setItem('jwtToken', data.token);
+                localStorage.setItem('username', data.username);
                 sessionStorage.setItem('fileKey', secureKey);
+
+                try {
+                    const encryptedPrivKey = await API.getMyPrivateKey();
+                    const pubKeyData = await API.getUserPublicKey(this.username);
+                    if (encryptedPrivKey && pubKeyData) {
+                        await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, secureKey, this.username);
+                    }
+                } catch (cryptoErr) {
+                    console.error("Identidad asimétrica no inicializada en el hilo secundario", cryptoErr);
+                }
+
                 this.password = '';
                 this.loginError = false;
                 this.isLoggedIn = true;
                 await this.refreshAppData();
             } else {
                 this.loginError = true;
-                this.showError("Usuario o contraseña incorrectos");
+                const errorMsg = await API.extractErrorMessage(res);
+                this.showError(errorMsg);
             }
         } catch (e) {
-            this.showError("Error al inicializar sesión segura");
+            this.showError("Error al iniciar la pasarela de sesión segura.");
         }
     },
 
     async handleRegister() {
         try {
-            this.status = "Generando identidad segura...";
+            this.status = "Derivando claves criptográficas de seguridad...";
             const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
 
-            // 1. Crear el usuario en la base de datos
             const res = await API.register(this.username, masterKey);
-            if (!res.ok) throw new Error("El usuario ya existe o los datos son inválidos");
+            if (!res.ok) {
+                const errorMsg = await API.extractErrorMessage(res);
+                throw new Error(errorMsg);
+            }
 
-            // 2. Login temporal e interno para obtener el JWT necesario para firmar las llaves
             const loginRes = await API.login(this.username, masterKey);
-            if (!loginRes.ok) throw new Error("Fallo al autenticar tras registro");
+            if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro instantáneo.");
 
             const loginData = await loginRes.json();
             localStorage.setItem('jwtToken', loginData.token);
             localStorage.setItem('username', loginData.username);
             sessionStorage.setItem('fileKey', masterKey);
 
-            // 3. Generar y registrar sus llaves criptográficas por única vez
-            this.status = "Configurando llaves criptográficas...";
+            this.status = "Configurando sobres e identidad RSA...";
             await AuthService.setupUserCrypto(this.username, masterKey);
 
-            this.showInfo("¡Cuenta e identidad creadas con éxito!");
-
-            await this.handleLogin();
+            this.showInfo("¡Identidad y monedero de claves instanciados con éxito!");
+            this.password = '';
+            this.loginError = false;
+            this.isLoggedIn = true;
+            await this.refreshAppData();
 
         } catch (e) {
-            this.showError(e.message || "Error en el proceso de registro");
+            this.showError(e.message || "Fallo crítico en el proceso de registro.");
         } finally {
             this.status = "";
         }
@@ -117,8 +134,6 @@ const AppAuthMethods = {
     logout() {
         AuthService.logout();
         this.isLoggedIn = false;
-        window.userPrivateKey = null;
-        window.userPublicKey = null;
         Object.assign(this.$data, this.$options.data());
     }
 };

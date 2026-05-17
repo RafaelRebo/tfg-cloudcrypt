@@ -79,12 +79,12 @@ const UploadService = {
                     }
 
                     if (currentAction === 'overwrite') {
-                        // ⚡ EL FIX CRÍTICO: Eliminamos el elemento antiguo (fichero o carpeta raíz)
-                        // antes de lanzar la ráfaga de subida para limpiar el espacio por completo.
                         context.status = `Reemplazando versión anterior de: ${checkName}...`;
-
-                        // NOTA: Asegúrate de que el JSON de respuesta de tu endpoint check-exists incluya el ID (checkRes.id)
-                        await API.deleteFile(checkRes.existingId, true);
+                        const delRes = await API.deleteFile(checkRes.existingId, true);
+                        if (!delRes.ok) {
+                            const errorMsg = await API.extractErrorMessage(delRes);
+                            throw new Error(errorMsg);
+                        }
                     }
                 }
             } else {

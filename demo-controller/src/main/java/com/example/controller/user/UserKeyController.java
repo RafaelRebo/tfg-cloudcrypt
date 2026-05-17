@@ -5,6 +5,7 @@ import com.example.service.user.UserKeyService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/keys")
@@ -18,30 +19,18 @@ public class UserKeyController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerKeys(@RequestBody KeyRequestDto request, Authentication auth) {
-        try {
-            userKeyService.registerKeys(auth.getName(), request);
-            return ResponseEntity.ok("Llaves registradas correctamente");
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+    public ResponseEntity<String> registerKeys(@RequestBody KeyRequestDto request, Authentication auth) {
+        userKeyService.registerKeys(auth.getName(), request);
+        return ResponseEntity.ok("Llaves registradas correctamente");
     }
 
     @GetMapping("/public/{username}")
-    public ResponseEntity<?> getPublicKey(@PathVariable String username) {
-        try {
-            return ResponseEntity.ok(userKeyService.getPublicInfo(username));
-        } catch (Exception e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+    public ResponseEntity<Map<String, Object>> getPublicKey(@PathVariable String username) {
+        return ResponseEntity.ok(userKeyService.getPublicInfo(username));
     }
 
     @GetMapping("/my-private")
-    public ResponseEntity<?> getMyPrivateKey(Authentication auth) {
-        try {
-            return ResponseEntity.ok(userKeyService.getEncryptedPrivateKey(auth.getName()));
-        } catch (Exception e) {
-            return ResponseEntity.status(404).body(e.getMessage());
-        }
+    public ResponseEntity<String> getMyPrivateKey(Authentication auth) {
+        return ResponseEntity.ok(userKeyService.getEncryptedPrivateKey(auth.getName()));
     }
 }

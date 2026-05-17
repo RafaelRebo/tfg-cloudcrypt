@@ -1,6 +1,6 @@
 package com.example.exceptions;
 
-public class InternalStorageException extends Exception {
+public class InternalStorageException extends RuntimeException {
     public InternalStorageException(String message) {
         super(message);
     }

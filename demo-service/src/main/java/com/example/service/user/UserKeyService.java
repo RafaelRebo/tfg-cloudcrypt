@@ -24,7 +24,7 @@ public class UserKeyService {
     }
 
     @Transactional
-    public void registerKeys(String username, KeyRequestDto request) throws InstanceNotFoundException {
+    public void registerKeys(String username, KeyRequestDto request){
         UserEntity user = userRepository.findByUsername(username);
         if (user == null) throw new InstanceNotFoundException("Usuario no encontrado");
 
@@ -38,7 +38,7 @@ public class UserKeyService {
         userKeyRepository.saveAndFlush(userKeys);
     }
 
-    public Map<String, Object> getPublicInfo(String username) throws InstanceNotFoundException {
+    public Map<String, Object> getPublicInfo(String username){
         UserEntity user = userRepository.findByUsername(username);
         if (user == null) throw new InstanceNotFoundException("Usuario no encontrado");
 
@@ -50,12 +50,12 @@ public class UserKeyService {
         return response;
     }
 
-    public String getEncryptedPrivateKey(String username) throws InstanceNotFoundException {
+    public String getEncryptedPrivateKey(String username){
         UserEntity user = userRepository.findByUsername(username);
         if (user == null) throw new InstanceNotFoundException("Usuario no encontrado");
 
         return userKeyRepository.findById(user.getId())
                 .map(UserKeyEntity::getEncryptedPrivateKey)
-                .orElseThrow(() -> new InstanceNotFoundException("No tienes llaves registradas"));
+                .orElseThrow(() -> new InstanceNotFoundException("El usuario no tiene llaves registradas"));
     }
 }

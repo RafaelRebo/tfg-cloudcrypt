@@ -24,7 +24,7 @@ public class UserService {
         this.userMapper = userMapper;
     }
 
-    public UserDto register(String username, String password, String email) throws UserAlreadyExistsException {
+    public UserDto register(String username, String password, String email){
         if (userRepository.findByUsername(username) != null) {
             throw new UserAlreadyExistsException("El usuario '" + username + "' ya está registrado.");
         }
@@ -35,7 +35,7 @@ public class UserService {
         return userMapper.toDto(user);
     }
 
-    public UserDto authenticate(String username, String rawPassword) throws InvalidCredentialsException {
+    public UserDto authenticate(String username, String rawPassword){
         UserEntity user = userRepository.findByUsername(username);
         if (user != null && passwordEncoder.matches(rawPassword, user.getPassword())) {
             return userMapper.toDto(user);

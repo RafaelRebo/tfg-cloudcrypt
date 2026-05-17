@@ -37,31 +37,31 @@ public class FolderService {
         UserEntity owner = userRepository.findByUsername(username);
 
         return fileRepository.findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(username, folderName, parent)
-                .orElseGet(() -> {
+            .orElseGet(() -> {
 
-                    FileEntity newFolder = new FileEntity();
-                    newFolder.setFileName(folderName);
-                    newFolder.setFileType("application/x-directory");
-                    newFolder.setOwner(owner);
-                    newFolder.setParent(parent);
-                    newFolder.setFileSize(0L);
+                FileEntity newFolder = new FileEntity();
+                newFolder.setFileName(folderName);
+                newFolder.setFileType("application/x-directory");
+                newFolder.setOwner(owner);
+                newFolder.setParent(parent);
+                newFolder.setFileSize(0L);
 
-                    String path = (parent == null) ? "/" :
-                            (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
-                    newFolder.setFolderPath(path);
+                String path = (parent == null) ? "/" :
+                        (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
+                newFolder.setFolderPath(path);
 
-                    FileEntity savedFolder = fileRepository.save(newFolder);
+                FileEntity savedFolder = fileRepository.save(newFolder);
 
 
-                    FileKeyEntity folderKey = new FileKeyEntity();
-                    folderKey.setFile(savedFolder);
-                    folderKey.setUser(owner);
-                    folderKey.setEncryptedKey("FOLDER_PERMISSION");
-                    folderKey.setStarred(false);
-                    fileKeyRepository.save(folderKey);
+                FileKeyEntity folderKey = new FileKeyEntity();
+                folderKey.setFile(savedFolder);
+                folderKey.setUser(owner);
+                folderKey.setEncryptedKey("FOLDER_PERMISSION");
+                folderKey.setStarred(false);
+                fileKeyRepository.save(folderKey);
 
-                    return savedFolder;
-                });
+                return savedFolder;
+            });
     }
 
     @Transactional

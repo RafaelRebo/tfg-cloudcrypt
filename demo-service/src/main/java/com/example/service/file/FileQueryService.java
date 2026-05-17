@@ -1,3 +1,4 @@
+// com/example/service/file/FileQueryService.java
 package com.example.service.file;
 
 import com.example.dto.file.FileDto;
@@ -12,6 +13,8 @@ import com.example.util.StorageUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+
+import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
@@ -34,35 +37,49 @@ public class FileQueryService {
     }
 
     public Page<FileDto> getFilesByFolder(String username, Long parentId, String category, Pageable pageable) {
-        if ("trash".equals(category) && parentId == null) return fileRepository.findTrashRoot(username, pageable).map(fileMapper::toDto);
-        if ("shared".equals(category)) return fileRepository.findSharedWithMe(username, parentId, pageable).map(fileMapper::toDto);
-        if ("starred".equals(category)) return fileRepository.findStarred(username, pageable).map(fileMapper::toDto);
-        if (parentId != null) return fileRepository.findByOwner_UsernameAndParentId(username, parentId, pageable).map(fileMapper::toDto);
-
-        String mimePattern = getMimePattern(category);
-        if (mimePattern != null) return fileRepository.findByCategory(username, mimePattern, pageable).map(fileMapper::toDto);
-
-        return fileRepository.findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(username, pageable).map(fileMapper::toDto);
+        Page<FileEntity> entities;
+        if ("trash".equals(category) && parentId == null) entities = fileRepository.findTrashRoot(username, pageable);
+        else if ("shared".equals(category)) entities = fileRepository.findSharedWithMe(username, parentId, pageable);
+        else if ("starred".equals(category)) entities = fileRepository.findStarred(username, pageable);
+        else if (parentId != null) entities = fileRepository.findByOwner_UsernameAndParentId(username, parentId, pageable);
+        else {
+            String mimePattern = getMimePattern(category);
+            entities = (mimePattern != null)
+                    ? fileRepository.findByCategory(username, mimePattern, pageable)
+                    : fileRepository.findByOwner_UsernameAndParentIsNullAndDeletedAtIsNull(username, pageable);
+        }
+        return entities.map(f -> fileMapper.toDto(f, username));
     }
 
-    public FileDto getFileById(Long id, String username) throws InstanceNotFoundException {
+    public FileDto getFileById(Long id, String username) {
         return fileRepository.findByIdAndHasAccess(id, username)
-                .map(fileMapper::toDto)
-                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+                .map(f -> fileMapper.toDto(f, username))
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado."));
     }
 
-    public String getEncryptedFileKey(Long fileId, String username) throws InstanceNotFoundException {
+    public String getEncryptedFileKey(Long fileId, String username) {
         return fileKeyRepository.findByFileIdAndUser_Username(fileId, username)
                 .map(FileKeyEntity::getEncryptedKey)
-                .orElseThrow(() -> new InstanceNotFoundException("Sin acceso a la llave"));
+                .orElseThrow(() -> new InstanceNotFoundException("Sin acceso a la llave criptográfica."));
     }
 
-    public InputStream getFileDownloadStream(Long id, String username) throws Exception {
+    public InputStream getFileDownloadStream(Long id, String username) {
         FileEntity entity = fileRepository.findByIdAndHasAccess(id, username)
-                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado"));
+                .orElseThrow(() -> new InstanceNotFoundException("Elemento no encontrado."));
 
-        if (!storageUtils.exists(entity.getStoragePath())) throw new InternalStorageException("Archivo no encontrado en disco");
-        return storageUtils.getRawStream(entity.getStoragePath());
+        if ("application/x-directory".equals(entity.getFileType())) {
+            throw new IllegalArgumentException("No se puede descargar un directorio como flujo de datos plano.");
+        }
+
+        if (entity.getStoragePath() == null || !storageUtils.exists(entity.getStoragePath())) {
+            throw new InternalStorageException("Error: El archivo físico no existe en el almacenamiento.");
+        }
+
+        try {
+            return storageUtils.getRawStream(entity.getStoragePath());
+        } catch (IOException e) {
+            throw new InternalStorageException("Error de lectura en el disco del servidor.");
+        }
     }
 
     public Map<String, Object> checkExistsById(String username, String fileName, Long parentId) {
@@ -76,15 +93,17 @@ public class FileQueryService {
         return response;
     }
 
-    public List<FileDto> getRecursiveFilesForSharing(Long folderId, String username) throws Exception {
-        FileEntity folder = fileRepository.findByIdAndOwner_Username(folderId, username).orElseThrow();
+    public List<FileDto> getRecursiveFilesForSharing(Long folderId, String username) {
+        FileEntity folder = fileRepository.findByIdAndOwner_Username(folderId, username)
+                .orElseThrow(() -> new InstanceNotFoundException("La carpeta solicitada no existe o no tienes acceso."));
         String fullPath = folder.getFolderPath().equals("/") ? "/" + folder.getFileName() : folder.getFolderPath() + "/" + folder.getFileName();
-        return fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath, folderId).stream().map(fileMapper::toDto).collect(Collectors.toList());
+        return fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath, folderId).stream()
+                .map(f -> fileMapper.toDto(f, username)).collect(Collectors.toList());
     }
 
     public Page<FileDto> searchFiles(String username, String query, Pageable pageable) {
         if (query == null || query.isBlank()) return Page.empty();
-        return fileRepository.searchByName(username, query.trim(), pageable).map(fileMapper::toDto);
+        return fileRepository.searchByName(username, query.trim(), pageable).map(f -> fileMapper.toDto(f, username));
     }
 
     private String getMimePattern(String category) {

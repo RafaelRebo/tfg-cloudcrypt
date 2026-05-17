@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -28,7 +29,7 @@ public class StorageUtils {
      * Guarda el archivo cifrado usando una clave AES única proporcionada.
      * Ya no depende de la contraseña del usuario.
      */
-    public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws Exception {
+    public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws IOException, NoSuchAlgorithmException {
         // 1. Preparar el cálculo de integridad (SHA-256)
         MessageDigest md = MessageDigest.getInstance("SHA-256");
 

@@ -3,11 +3,9 @@ package com.example.controller.file;
 import com.example.dto.file.ShareRequestDto;
 import com.example.service.file.FileQueryService;
 import com.example.service.file.ShareService;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
 import java.util.Collections;
 import java.util.List;
 
@@ -24,42 +22,30 @@ public class ShareController {
 
     @PostMapping("/{id}/share")
     public ResponseEntity<?> shareFile(@PathVariable Long id, @RequestBody List<ShareRequestDto> requests, Authentication auth) {
-        try {
-            shareService.shareFile(id, requests, auth.getName());
-            return ResponseEntity.ok().build();
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+        shareService.shareFile(id, requests, auth.getName());
+        return ResponseEntity.ok().build();
     }
 
     @PostMapping("/share/batch")
     public ResponseEntity<?> shareFilesBatch(Authentication auth, @RequestBody List<ShareRequestDto> requests) {
-        try {
-            shareService.shareBatch(requests, auth.getName());
-            return ResponseEntity.ok().build();
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        shareService.shareBatch(requests, auth.getName());
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/{id}/key")
     public ResponseEntity<?> getFileKey(@PathVariable Long id, Authentication auth) {
-        try {
-            String key = queryService.getEncryptedFileKey(id, auth.getName());
-            return ResponseEntity.ok(Collections.singletonMap("encryptedFileKey", key));
-        } catch (Exception e) { return ResponseEntity.status(HttpStatus.FORBIDDEN).build(); }
+        String key = queryService.getEncryptedFileKey(id, auth.getName());
+        return ResponseEntity.ok(Collections.singletonMap("encryptedFileKey", key));
     }
 
     @GetMapping("/{id}/shared-users")
     public ResponseEntity<?> getSharedUsers(@PathVariable Long id, Authentication auth) {
-        try {
-            return ResponseEntity.ok(shareService.getSharedUsernames(id, auth.getName()));
-        } catch (Exception e) { return ResponseEntity.status(HttpStatus.FORBIDDEN).body(e.getMessage()); }
+        return ResponseEntity.ok(shareService.getSharedUsernames(id, auth.getName()));
     }
 
     @DeleteMapping("/{id}/share/revoke")
     public ResponseEntity<?> revokeAccess(@PathVariable Long id, @RequestParam String target, Authentication auth) {
-        try {
-            shareService.revokeAccess(id, target, auth.getName());
-            return ResponseEntity.ok().build();
-        } catch (Exception e) { return ResponseEntity.badRequest().body(e.getMessage()); }
+        shareService.revokeAccess(id, target, auth.getName());
+        return ResponseEntity.ok().build();
     }
 }

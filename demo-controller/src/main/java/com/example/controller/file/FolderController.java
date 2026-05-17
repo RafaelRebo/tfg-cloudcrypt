@@ -23,21 +23,13 @@ public class FolderController {
     public ResponseEntity<?> createFolder(Authentication auth,
           @RequestParam String folderName,
           @RequestParam(required = false) Long parentId) {
-        try {
             return ResponseEntity.ok(fileWriteService.createFolder(folderName, auth.getName(), parentId));
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
     }
 
     @PostMapping("/folder/sync")
     public ResponseEntity<?> createFolderSync(Authentication auth,
           @RequestParam("folderName") String folderName,
           @RequestParam(value = "parentId", required = false) Long parentId) {
-        try {
             return ResponseEntity.ok(fileWriteService.ensureFolderSync(auth.getName(), folderName, parentId));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(e.getMessage());
-        }
     }
 }

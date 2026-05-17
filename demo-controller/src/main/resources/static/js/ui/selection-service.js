@@ -103,28 +103,23 @@ const AppSelectionMethods = {
     },
 
     async selectAllFiles() {
-        // 1. Selección instantánea de los elementos que ya están renderizados en la UI
         if (!this.displayFiles || this.displayFiles.length === 0) return;
         this.selectedIds = this.displayFiles.map(f => f.id);
 
-        // 2. Si hay más elementos en el backend de los que tenemos cargados localmente...
         if (this.allUserFiles.length < this.totalElements) {
             this.status = "Seleccionando la totalidad de los archivos del directorio...";
             try {
                 let pageToFetch = this.currentPage + 1;
                 let gathering = true;
 
-                // Bucle de fondo: devoramos todas las páginas restantes de la API
                 while (gathering) {
                     const res = await API.getFiles(this.currentFolderId, this.currentCategory, pageToFetch);
 
                     if (res.content && res.content.length > 0) {
-                        // Los metemos en el array. Vue los renderizará reactivamente hacia abajo
                         this.allUserFiles.push(...res.content);
-                        this.currentPage = pageToFetch; // Avanzamos el puntero de página actual
+                        this.currentPage = pageToFetch;
                     }
 
-                    // Si Spring nos dice que es la última página, rompemos el bucle
                     if (!res.page || res.page.number >= res.page.totalPages - 1) {
                         gathering = false;
                     } else {
@@ -132,12 +127,14 @@ const AppSelectionMethods = {
                     }
                 }
 
-                // 3. Mapeo final: Una vez traídos todos a la memoria RAM de Vue, los seleccionamos todos
                 this.selectedIds = this.displayFiles.map(f => f.id);
-                this.hasMore = false; // Desactivamos el infinite scroll, ya no queda nada que cargar paulatinamente
+                this.hasMore = false;
 
-            } catch (e) {
-                this.showError("Error al sincronizar la selección masiva con el servidor");
+            } catch (responseError) {
+                this.status = "";
+                // ⚡ TOAST FIX: Extrae el motivo real si el servidor corta la sincronización masiva
+                const msg = await API.extractErrorMessage(responseError);
+                this.showError(msg);
             } finally {
                 this.status = "";
             }
@@ -252,11 +249,15 @@ const AppSelectionMethods = {
 
             const res = await API.moveFiles(idsToMove, targetFolder.id);
             if (res.ok) {
-                this.showInfo("Elementos movidos.");
+                this.showInfo("Elementos movidos con éxito.");
                 await this.refreshAppData();
+            } else {
+                // ⚡ TOAST FIX: Si el arrastre es ilegal o denegado, alertamos al usuario con un globo explícito
+                const errorMsg = await API.extractErrorMessage(res);
+                this.showError(errorMsg);
             }
         } catch (e) {
-            console.error("Error al mover:", e);
+            this.showError("No se ha podido procesar la reubicación por arrastre.");
         }
-    }
+    },
 };

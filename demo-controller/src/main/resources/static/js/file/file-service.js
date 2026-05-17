@@ -3,13 +3,19 @@ const FileService = {
        context.status = "Descargando y descifrando...";
        try {
            const res = await API.download(fileId);
-           if (!res.ok) throw new Error("Acceso denegado");
+           if (!res.ok) {
+               const errorMsg = await API.extractErrorMessage(res);
+               throw new Error(errorMsg);
+           }
            const encryptedBlob = await res.blob();
 
            const keyRes = await fetch(`/api/files/${fileId}/key`, { headers: API.getAuthHeader() });
+           if (!keyRes.ok) {
+               const errorMsg = await API.extractErrorMessage(keyRes);
+               throw new Error(errorMsg);
+           }
            const { encryptedFileKey } = await keyRes.json();
 
-           // EL WORKER se encarga de usar la llave privada interna
            const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
            const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
 
@@ -23,61 +29,59 @@ const FileService = {
            context.status = "";
            context.showInfo("Archivo descargado correctamente.");
        } catch (err) {
-           context.showError("Error al descifrar: " + err.message);
+           context.status = "";
+           context.showError(err.message);
        }
    },
 
    async downloadFolder(folderId, folderName, context) {
        context.status = `Calculando árbol de archivos para: ${folderName}...`;
        try {
-           // 1. Recuperamos la estructura recursiva completa de hijos
            const res = await fetch(`/api/files/folder-content-recursive/${folderId}`, { headers: API.getAuthHeader() });
-           if (!res.ok) throw new Error("No se pudo leer la estructura de directorios");
+           if (!res.ok) {
+               const errorMsg = await API.extractErrorMessage(res);
+               throw new Error(errorMsg);
+           }
            const items = await res.json();
-
            const filesToProcess = items.filter(item => item.fileType !== 'application/x-directory');
 
            if (filesToProcess.length === 0) {
                context.showInfo(`La carpeta "${folderName}" está vacía.`);
+               context.status = "";
                return;
            }
 
-           // 2. Preparar el mapa de rutas para el ZIP
            const rootFolder = context.allUserFiles.find(f => f.id === folderId);
            const rootPath = rootFolder ? this.normalizePath(rootFolder.folderPath + '/' + rootFolder.fileName) : '';
-
            const zip = new JSZip();
 
-           // 3. CONFIGURACIÓN DEL MOTOR DE CONCURRENCIA
-           // Creamos una copia de la lista de archivos para usarla como una cola de tareas compartida
            const queue = [...filesToProcess];
            let completedCount = 0;
-
-           // Un límite de 6 a 8 conexiones paralelas exprime el canal HTTP/2 sin bloquear el navegador
            const CONCURRENCY_LIMIT = 6;
 
-           // Definimos el ciclo de vida asíncrono que ejecutará cada hilo "trabajador"
            const workerTask = async () => {
                while (queue.length > 0) {
-                   // Extraemos el siguiente archivo de la cola de forma segura
                    const file = queue.shift();
                    if (!file) continue;
 
                    try {
-                       // Descarga del bloque binario físico
                        const fileRes = await API.download(file.id);
-                       if (!fileRes.ok) throw new Error("Fallo de descarga");
+                       if (!fileRes.ok) {
+                           const errorMsg = await API.extractErrorMessage(fileRes);
+                           throw new Error(errorMsg);
+                       }
                        const encryptedBlob = await fileRes.blob();
 
-                       // Descarga del sobre digital RSA
                        const keyRes = await fetch(`/api/files/${file.id}/key`, { headers: API.getAuthHeader() });
+                       if (!keyRes.ok) {
+                           const errorMsg = await API.extractErrorMessage(keyRes);
+                           throw new Error(errorMsg);
+                       }
                        const { encryptedFileKey } = await keyRes.json();
 
-                       // Descifrado asíncrono delegando en el Web Worker criptográfico
                        const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
                        const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
 
-                       // Reconstrucción de la ruta interna dentro del ZIP
                        let relativeFolder = '';
                        if (rootPath && file.folderPath.startsWith(rootPath)) {
                            relativeFolder = file.folderPath.substring(rootPath.length);
@@ -87,29 +91,23 @@ const FileService = {
                        relativeFolder = relativeFolder.replace(/^\/+|\/+$/g, '');
                        const zipPath = relativeFolder ? `${relativeFolder}/${file.fileName}` : file.fileName;
 
-                       // Inyección síncrona en caliente en la estructura del ZIP en RAM
                        zip.file(zipPath, decryptedBuffer);
 
                    } catch (fileError) {
-                       console.error(`Error procesando archivo ${file.fileName}:`, fileError);
+                       throw fileError;
                    } finally {
-                       // Incrementamos el contador y actualizamos el estado visual global en tiempo real
                        completedCount++;
                        context.status = `Procesando elementos en paralelo (${completedCount}/${filesToProcess.length})...`;
                    }
                }
            };
 
-           // 4. DISPARO MULTIHILO CONTENIDO
-           // Creamos tantos hilos trabajadores en paralelo como marque el límite de concurrencia
            const workers = Array(Math.min(CONCURRENCY_LIMIT, filesToProcess.length))
                .fill(null)
                .map(() => workerTask());
 
-           // Esperamos a que todos los hilos terminen de vaciar la cola de tareas
            await Promise.all(workers);
 
-           // 5. Compresión final masiva
            context.status = "Empaquetando estructura en archivo ZIP...";
            const zipBlob = await zip.generateAsync({ type: "blob" });
 
@@ -121,11 +119,10 @@ const FileService = {
            window.URL.revokeObjectURL(url);
 
            context.status = "";
-           context.showInfo(`Carpeta "${folderName}" descargada a máxima velocidad.`);
-
+           context.showInfo(`Carpeta "${folderName}" descargada con éxito.`);
        } catch (err) {
-           console.error(err);
-           context.showError("Error al descargar la estructura: " + err.message);
+           context.status = "";
+           context.showError(err.message);
        }
    },
 
@@ -135,9 +132,9 @@ const FileService = {
         let proceed = false;
 
         if (isTrashed) {
-            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente?`);
+            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente del disco duro?`);
         } else if (isShared) {
-            proceed = await context.askConfirmation(`¿Deseas quitar tu acceso a "${file.fileName}"? No podrás volver a verlo a menos que te lo compartan de nuevo.`);
+            proceed = await context.askConfirmation(`¿Quitar tu acceso a "${file.fileName}"?`);
         } else {
             proceed = await context.askConfirmation(`¿Mover "${file.fileName}" a la papelera?`);
         }
@@ -147,30 +144,29 @@ const FileService = {
         try {
             const res = await API.deleteFile(file.id);
             if (res.ok) {
-                context.showInfo(isShared ? "Acceso revocado" : (isTrashed ? "Eliminado" : "Papelera"));
+                context.showInfo(isShared ? "Acceso revocado" : (isTrashed ? "Eliminado permanentemente" : "Elemento enviado a la papelera"));
                 await context.refreshAppData();
             } else {
-                throw new Error();
+                const errorMsg = await API.extractErrorMessage(res);
+                throw new Error(errorMsg);
             }
         } catch (error) {
-            context.showError("No se pudo eliminar el elemento.");
+            context.showError(error.message);
         }
     },
 
     async restoreFile(file, context) {
         try {
-            const res = await fetch(`/api/files/${file.id}/restore`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('jwtToken')}`
-                }
-            });
+            const res = await API.restoreFile(file.id);
             if (res.ok) {
-                context.showInfo("Restaurado correctamente");
+                context.showInfo(`"${file.fileName}" se ha restaurado correctamente.`);
                 await context.refreshAppData();
+            } else {
+                const errorMsg = await API.extractErrorMessage(res);
+                throw new Error(errorMsg);
             }
         } catch (e) {
-            context.showError("Error al restaurar");
+            context.showError(e.message);
         }
     },
 
@@ -254,36 +250,23 @@ const FileService = {
     getFileIconSvg(mime, fileName) {
         const m = (mime || '').toLowerCase();
         const name = (fileName || '').toLowerCase();
-        const ext = name.split('.').pop(); // Extrae la extensión (ej: 'zip', 'pdf')
+        const ext = name.split('.').pop();
 
-        // 1. PDFs
         if (m === 'application/pdf' || ext === 'pdf') {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <rect x="3" y="3" width="18" height="18" rx="3" fill="none" />
-                        <text x="12" y="12.5" font-family="system-ui, -apple-system, sans-serif" font-size="6.5" font-weight="900" fill="#ffffff" stroke="none" text-anchor="middle" dominant-baseline="central">PDF</text>
-                    </svg>`;
+            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" fill="none" /><text x="12" y="12.5" font-family="system-ui, -apple-system, sans-serif" font-size="6.5" font-weight="900" fill="#ffffff" stroke="none" text-anchor="middle" dominant-baseline="central">PDF</text></svg>`;
         }
-        // 2. Archivos Comprimidos (ZIP, RAR, 7Z, TAR)
         if (m.includes('zip') || m.includes('rar') || m.includes('7z') || m.includes('tar') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M12 2v4M12 8v2M12 12v2"/></svg>`;
         }
-
-        // 3. Hojas de Cálculo (Excel, CSV)
         if (m.includes('excel') || m.includes('spreadsheetml') || m.includes('csv') || ['xls', 'xlsx', 'csv'].includes(ext)) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><rect width="8" height="8" x="8" y="10" rx="1"/></svg>`;
         }
-
-        // 4. Documentos de Texto o Código (TXT, Markdown, JS, JSON, HTML, etc.)
         if (m.startsWith('text/') || m.includes('json') || m.includes('javascript') || ['txt', 'md', 'json', 'js', 'html', 'css', 'xml'].includes(ext)) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`;
         }
-
-        // 5. Presentaciones (PowerPoint)
         if (m.includes('powerpoint') || m.includes('presentationml') || ['ppt', 'pptx'].includes(ext)) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polygon points="12 10 16 14 12 18 8 14"/></svg>`;
         }
-
-        // 6. Filtros nativos multimedia que ya tenías (Imágenes, Audio, Vídeo)
         if (m.startsWith('image/')) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
         }
@@ -293,29 +276,17 @@ const FileService = {
         if (m.startsWith('video/')) {
             return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>`;
         }
-
-        // 7. Icono genérico por defecto (Documento blanco)
         return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
     },
 
     formatModDate(dateStr) {
         if (!dateStr) return '-';
-
         const date = new Date(dateStr);
-
-        // 1. Formateamos la parte de la fecha (igual que antes)
-        let datePart = date.toLocaleDateString('es-ES', {
-            day: 'numeric',
-            month: 'short',
-            year: 'numeric'
-        }).replace('.', '').replace(',', '');
-
+        let datePart = date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' }).replace('.', '').replace(',', '');
         const hours = String(date.getHours()).padStart(2, '0');
         const minutes = String(date.getMinutes()).padStart(2, '0');
-
         return `${datePart} ${hours}:${minutes}`;
     },
-
 };
 
 const AppFileMethods = {
@@ -328,11 +299,11 @@ const AppFileMethods = {
                 this.showInfo(`Carpeta "${name}" creada.`);
                 await this.refreshAppData();
             } else {
-                const errorText = await res.text();
-                this.showError(errorText);
+                const errorMsg = await API.extractErrorMessage(res);
+                this.showError(errorMsg);
             }
         } catch (e) {
-            this.showError("Error al crear carpeta");
+            this.showError("Error inesperado al instanciar el directorio.");
         }
     },
 
@@ -340,14 +311,15 @@ const AppFileMethods = {
         if (this.clickTimer) clearTimeout(this.clickTimer);
         if (this.selectedIds.length <= 1) {
             this.closePreview();
-            this.status = "Descifrando...";
+            this.status = "Descifrando recurso...";
             try {
                 const sessionKey = sessionStorage.getItem('fileKey');
                 const data = await PreviewService.getPreviewData(f, sessionKey);
                 this.preview = { active: true, id: f.id, name: f.fileName, mime: f.fileType, ...data };
                 this.status = "Vista previa cargada.";
             } catch (e) {
-                this.showError("No se pudo descifrar el archivo.");
+                this.status = "";
+                this.showError(e.message || "No se ha podido descifrar o renderizar el archivo.");
             }
         }
     },
@@ -361,7 +333,6 @@ const AppFileMethods = {
 
     async handleDownload(fileOrId, name = null) {
         if (typeof fileOrId === 'object' && fileOrId !== null) {
-            // Firma moderna: pasamos el objeto archivo/carpeta completo de la fila
             if (fileOrId.fileType === 'application/x-directory') {
                 await FileService.downloadFolder(fileOrId.id, fileOrId.fileName, this);
             } else {
@@ -369,7 +340,6 @@ const AppFileMethods = {
                 await FileService.downloadFile(fileOrId.id, fileOrId.fileName, sessionKey, this);
             }
         } else {
-            // Firma heredada por compatibilidad (ej: desde la ventana de previsualización)
             const sessionKey = sessionStorage.getItem('fileKey');
             await FileService.downloadFile(fileOrId, name, sessionKey, this);
         }
@@ -385,13 +355,17 @@ const AppFileMethods = {
 
     async handleToggleStar(f) {
         try {
-            await API.toggleStar(f.id);
-            f.starred = !f.starred; // Actualización optimista en UI
+            const res = await API.toggleStar(f.id);
+            if (!res.ok) {
+                const errorMsg = await API.extractErrorMessage(res);
+                throw new Error(errorMsg);
+            }
+            f.starred = !f.starred;
             if (this.currentCategory === 'starred' && !f.starred) {
-                this.refreshAppData(); // Si dejamos de destacar estando en la sección, refrescamos
+                await this.refreshAppData();
             }
         } catch (e) {
-            this.showError("Error al destacar");
+            this.showError(e.message);
         }
     },
 
@@ -401,14 +375,19 @@ const AppFileMethods = {
 
         this.status = "Actualizando destacados...";
         try {
-            // Ejecutamos las peticiones HTTP en ráfaga paralela
-            await Promise.all(this.selectedIds.map(id => API.toggleStar(id)));
+            await Promise.all(this.selectedIds.map(async id => {
+                const res = await API.toggleStar(id);
+                if (!res.ok) {
+                    const errorMsg = await API.extractErrorMessage(res);
+                    throw new Error(errorMsg);
+                }
+            }));
 
             this.showInfo(`Metadatos actualizados para ${count} elementos.`);
             this.clearSelection();
             await this.refreshAppData();
         } catch (e) {
-            this.showError("Error al procesar la actualización masiva de destacados");
+            this.showError(e.message);
         } finally {
             this.status = "";
         }
@@ -425,30 +404,18 @@ const AppFileMethods = {
 
         this.searchTimeout = setTimeout(async () => {
             this.isSearching = true;
-            this.status = "Buscando...";
+            this.status = "Buscando en la base de datos...";
             try {
                 const res = await API.searchFiles(this.searchQuery, 0);
                 this.allUserFiles = res.content;
                 this.hasMore = !res.last;
                 this.status = "";
             } catch (e) {
-                this.showError("Error en la búsqueda");
                 this.isSearching = false;
+                this.status = "";
+                this.showError("No se ha podido procesar la búsqueda en el servidor.");
             }
         }, 400);
-    },
-
-    highlight(text) {
-        if (!this.searchQuery || !this.isSearching) return text;
-
-        // 1. Escapar HTML para evitar XSS (Nivel Pro TFG)
-        const div = document.createElement('div');
-        div.textContent = text;
-        const safeText = div.innerHTML;
-
-        // 2. Aplicar el resaltado sobre el texto ya seguro
-        const regex = new RegExp(`(${this.searchQuery})`, 'gi');
-        return safeText.replace(regex, '<span class="highlight">$1</span>');
     },
 
     async deleteSelected() {
@@ -456,19 +423,24 @@ const AppFileMethods = {
         if (count === 0) return;
 
         const isTrash = this.currentCategory === 'trash';
-        const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos?` : `¿Mover ${count} elementos a la papelera?`;
+        const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos del almacenamiento físico?` : `¿Mover ${count} elementos a la papelera?`;
 
         if (await this.askConfirmation(msg)) {
             this.status = "Eliminando elementos...";
             try {
-                // Borrado masivo y simultáneo mediante los IDs recolectados previamente
-                await Promise.all(this.selectedIds.map(id => API.deleteFile(id)));
+                await Promise.all(this.selectedIds.map(async id => {
+                    const res = await API.deleteFile(id);
+                    if (!res.ok) {
+                        const errorMsg = await API.extractErrorMessage(res);
+                        throw new Error(errorMsg);
+                    }
+                }));
 
-                this.showInfo(`${count} elementos procesados y eliminados.`);
+                this.showInfo(`${count} elementos purgados.`);
                 this.selectedIds = [];
-                await this.refreshAppData(); // Limpia y resetea la vista a la página 0 limpia
+                await this.refreshAppData();
             } catch (e) {
-                this.showError("Hubo un error al eliminar algunos archivos");
+                this.showError(e.message);
                 await this.refreshAppData();
             } finally {
                 this.status = "";
@@ -481,13 +453,12 @@ const AppFileMethods = {
             active: true,
             isDuplicateMode: false,
             isInput: true,
-            title: '✏️ Cambiar nombre',
+            title: 'Cambiar nombre',
             message: `Introduce el nuevo nombre para "${f.fileName}":`,
             inputValue: f.fileName,
             onConfirm: async () => {
                 const newName = this.confirmModal.inputValue.trim();
 
-                // Si el nombre no es válido o es idéntico, cancelamos sin golpear la API
                 if (!newName || newName === f.fileName) {
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
@@ -500,11 +471,11 @@ const AppFileMethods = {
                         this.showInfo("Nombre actualizado con éxito.");
                         await this.refreshAppData();
                     } else {
-                        const txt = await res.text();
-                        this.showError(txt || "El nombre ya está en uso en este directorio.");
+                        const errorMsg = await API.extractErrorMessage(res);
+                        this.showError(errorMsg);
                     }
                 } catch (e) {
-                    this.showError("No se pudo conectar con el servidor.");
+                    this.showError("Fallo crítico de comunicación.");
                 } finally {
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
@@ -522,15 +493,10 @@ const AppFileMethods = {
         if (count === 0) return;
 
         const sessionKey = sessionStorage.getItem('fileKey');
-
-        // 1. Mapeamos las llaves primarias a los objetos de metadatos cargados en la UI
         const selectedItems = this.selectedIds.map(id => this.allUserFiles.find(f => f.id === id)).filter(Boolean);
-
-        // 2. Evaluamos la regla por decreto: ¿Hay carpetas o más de un único elemento seleccionado?
         const hasFolder = selectedItems.some(item => item.fileType === 'application/x-directory');
         const shouldZip = hasFolder || selectedItems.length > 1;
 
-        // --- 📄 CASO EXCEPCIÓN: Un único fichero individual -> Descarga directa nativa ---
         if (!shouldZip) {
             const singleFile = selectedItems[0];
             await FileService.downloadFile(singleFile.id, singleFile.fileName, sessionKey, this);
@@ -538,47 +504,42 @@ const AppFileMethods = {
             return;
         }
 
-        // --- 🗜️ CASO DECRETO: Crear un único ZIP combinado de alto rendimiento ---
         this.status = "Preparando descarga unificada en ZIP...";
         try {
             const zip = new JSZip();
-            const tasks = []; // Cola aplanada de tareas criptográficas: { id, zipPath }
+            const tasks = [];
 
-            // FASE 1: Construcción del árbol jerárquico de tareas en memoria
             for (const item of selectedItems) {
                 if (item.fileType === 'application/x-directory') {
-                    // Si es carpeta, traemos recursivamente su estructura completa desde tu API
                     const res = await fetch(`/api/files/folder-content-recursive/${item.id}`, { headers: API.getAuthHeader() });
-                    if (!res.ok) continue;
+                    if (!res.ok) {
+                        const errorMsg = await API.extractErrorMessage(res);
+                        throw new Error(errorMsg);
+                    }
                     const children = await res.json();
-
                     const rootPath = FileService.normalizePath(item.folderPath + '/' + item.fileName);
 
                     children.forEach(child => {
-                        // Saltamos los directorios vacíos (JSZip autocrea las rutas dinámicamente)
                         if (child.fileType !== 'application/x-directory') {
                             let relativeFolder = child.folderPath.substring(rootPath.length).replace(/^\/+|\/+$/g, '');
-                            // Estructura interna: NombreCarpetaBase/SubcarpetasOpcionales/archivo.ext
                             const zipPath = item.fileName + (relativeFolder ? '/' + relativeFolder : '') + '/' + child.fileName;
                             tasks.push({ id: child.id, zipPath });
                         }
                     });
                 } else {
-                    // Si es un fichero suelto seleccionado en el nivel actual, viaja directo a la raíz del ZIP
                     tasks.push({ id: item.id, zipPath: item.fileName });
                 }
             }
 
             if (tasks.length === 0) {
-                this.showError("La selección no contiene elementos válidos para empaquetar.");
+                this.showError("La selección está completamente vacía.");
                 this.status = "";
                 return;
             }
 
-            // FASE 2: Ráfaga de descifrado asíncrono con límite de concurrencia
             const queue = [...tasks];
             let completedCount = 0;
-            const CONCURRENCY_LIMIT = 6; // Balance perfecto de descargas HTTP/2 paralelas
+            const CONCURRENCY_LIMIT = 6;
 
             const workerTask = async () => {
                 while (queue.length > 0) {
@@ -586,23 +547,26 @@ const AppFileMethods = {
                     if (!task) continue;
 
                     try {
-                        // Descarga paralela del binario cifrado opaco del servidor
                         const fileRes = await API.download(task.id);
-                        if (!fileRes.ok) continue;
+                        if (!fileRes.ok) {
+                            const errorMsg = await API.extractErrorMessage(fileRes);
+                            throw new Error(errorMsg);
+                        }
                         const encryptedBlob = await fileRes.blob();
 
-                        // Descarga del sobre digital RSA-OAEP
                         const keyRes = await fetch(`/api/files/${task.id}/key`, { headers: API.getAuthHeader() });
+                        if (!keyRes.ok) {
+                            const errorMsg = await API.extractErrorMessage(keyRes);
+                            throw new Error(errorMsg);
+                        }
                         const { encryptedFileKey } = await keyRes.json();
 
-                        // Apertura de clave y descifrado AES-GCM en el Web Worker secundario
                         const aesKeyObj = await CryptoService.unwrapKey(encryptedFileKey);
                         const decryptedBuffer = await CryptoService.decryptFile(encryptedBlob, aesKeyObj);
 
-                        // Inyección inmediata del ArrayBuffer descifrado puro dentro del ZIP
                         zip.file(task.zipPath, decryptedBuffer);
                     } catch (err) {
-                        console.error(`Error procesando elemento del lote (ID: ${task.id}):`, err);
+                        throw err;
                     } finally {
                         completedCount++;
                         this.status = `Descifrando y empaquetando lote (${completedCount}/${tasks.length})...`;
@@ -610,44 +574,26 @@ const AppFileMethods = {
                 }
             };
 
-            // Disparamos la piscina de hilos concurrentes
-            const workers = Array(Math.min(CONCURRENCY_LIMIT, tasks.length))
-                .fill(null)
-                .map(() => workerTask());
-
+            const workers = Array(Math.min(CONCURRENCY_LIMIT, tasks.length)).fill(null).map(() => workerTask());
             await Promise.all(workers);
 
-            // FASE 3: Compilación, compresión y descarga final del contenedor unificado
             this.status = "Generando archivo comprimido final...";
             const zipBlob = await zip.generateAsync({ type: "blob" });
 
             const url = window.URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
             a.href = url;
-
-            // Estética: Si seleccionaron un único elemento (que por fuerza era carpeta), usamos su nombre.
-            // Si es una selección mixta/múltiple de varios archivos, usamos un nombre de exportación genérico.
             a.download = (selectedItems.length === 1) ? `${selectedItems[0].fileName}.zip` : 'cloud_crypt_export.zip';
-
             a.click();
             window.URL.revokeObjectURL(url);
 
             this.showInfo(`¡Descarga masiva de ${tasks.length} elementos completada!`);
         } catch (e) {
-            console.error(e);
-            this.showError("Fallo crítico en el empaquetado del lote comprimido: " + e.message);
+            this.showError(e.message);
         } finally {
             this.status = "";
-            this.clearSelection(); // Limpiamos la barra de selección y las banderas al terminar
+            this.clearSelection();
         }
-    },
-
-    formatCategory(cat) {
-        return UIService.formatCategory(cat);
-    },
-
-    getFileIcon(mime, fileName = '') {
-        return FileService.getFileIconSvg(mime, fileName);
     },
 
     formatModDate(dateStr) {
@@ -661,9 +607,5 @@ const AppFileMethods = {
             this.sortKey = key;
             this.sortOrder = 'asc';
         }
-    },
-
-    formatSize(b) {
-        return UIService.formatSize(b);
     }
 };

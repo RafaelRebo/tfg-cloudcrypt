@@ -29,7 +29,7 @@ public class TrashService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public void deleteFile(Long id, String username, boolean forcePermanent) throws Exception {
+    public void deleteFile(Long id, String username, boolean forcePermanent){
         // 1. Intentamos buscar como dueño
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
@@ -62,7 +62,7 @@ public class TrashService {
     }
 
     @Transactional
-    public void restoreFile(Long id, String username) throws InstanceNotFoundException {
+    public void restoreFile(Long id, String username){
         FileEntity entity = fileRepository.findByIdAndHasAccess(id, username).orElseThrow();
         folderService.restoreParentHierarchy(entity.getOwner().getUsername(), entity.getFolderPath());
         fileRepository.restoreFile(entity.getId());

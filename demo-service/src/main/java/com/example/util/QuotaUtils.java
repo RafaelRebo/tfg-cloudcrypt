@@ -16,7 +16,7 @@ public class QuotaUtils {
         this.storageConfig = storageConfig;
     }
 
-    public void checkQuota(String username, long newFileSize) throws QuotaExceededException {
+    public void checkQuota(String username, long newFileSize){
         long currentUsage = fileRepository.getTotalUsageByUser(username);
         if (currentUsage + newFileSize > storageConfig.getMaxQuota()) {
             long disponible = storageConfig.getMaxQuota() - currentUsage;

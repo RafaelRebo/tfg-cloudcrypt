@@ -35,13 +35,8 @@ const AppNavigationMethods = {
         this.selectedIds = [];
 
         try {
-            const res = await API.getFiles(
-                this.currentFolderId,
-                this.currentCategory,
-                0
-            );
+            const res = await API.getFiles(this.currentFolderId, this.currentCategory, 0);
 
-            this.allUserFiles = [];
             this.allUserFiles = res.content;
             if (res.page) {
                 this.hasMore = res.page.number < res.page.totalPages - 1;
@@ -53,12 +48,8 @@ const AppNavigationMethods = {
             this.stats = await API.getStats(this.username);
             this.status = "";
 
-            // --- GESTIÓN DE HISTORIAL CORREGIDA (SIN DUPLICADOS) ---
             if (!this.isHistoryMoving && this.currentCategory === 'all') {
-                const currentPosition = {
-                    folder: this.currentFolder,
-                    folderId: this.currentFolderId
-                };
+                const currentPosition = { folder: this.currentFolder, folderId: this.currentFolderId };
 
                 if (this.navigationHistory.length == 0) {
                     this.navigationHistory.push(currentPosition);
@@ -73,8 +64,11 @@ const AppNavigationMethods = {
                     }
                 }
             }
-        } catch (e) {
-            this.showError("Error al actualizar la vista");
+        } catch (responseError) {
+            this.status = "";
+            // Extraemos el error empaquetado del Response de la API de forma reactiva
+            const msg = await API.extractErrorMessage(responseError);
+            this.showError(msg);
         }
     },
 
@@ -83,11 +77,9 @@ const AppNavigationMethods = {
             this.isHistoryMoving = true;
             this.historyIndex--;
             const previousState = this.navigationHistory[this.historyIndex];
-
             this.currentCategory = 'all';
             this.currentFolder = previousState.folder;
             this.currentFolderId = previousState.folderId;
-
             this.refreshAppData().then(() => { this.isHistoryMoving = false; });
         }
     },
@@ -97,22 +89,15 @@ const AppNavigationMethods = {
             this.isHistoryMoving = true;
             this.historyIndex++;
             const nextState = this.navigationHistory[this.historyIndex];
-
             this.currentCategory = 'all';
             this.currentFolder = nextState.folder;
             this.currentFolderId = nextState.folderId;
-
             this.refreshAppData().then(() => { this.isHistoryMoving = false; });
         }
     },
 
     handleInfiniteScroll(event) {
-        // Capturamos el contenedor exacto que está haciendo scroll
         const el = event.target;
-
-        // Alerta de depuración opcional: console.log(el.scrollTop + el.clientHeight, el.scrollHeight);
-
-        // Si la suma de lo scrollado más la altura visible llega al fondo (-100px de margen)
         if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
             this.loadNextPage();
         }
@@ -125,22 +110,17 @@ const AppNavigationMethods = {
 
         try {
             const res = await API.getFiles(this.currentFolderId, this.currentCategory, this.currentPage);
-
             if (res.content && res.content.length > 0) {
                 this.allUserFiles.push(...res.content);
             }
-
             if (res.page) {
                 this.totalElements = res.page.totalElements;
-                if (res.page.number >= res.page.totalPages - 1) {
-                    this.hasMore = false;
-                }
+                if (res.page.number >= res.page.totalPages - 1) this.hasMore = false;
             } else {
-                // Fallback por si la respuesta viniera plana en algún endpoint
                 this.hasMore = false;
             }
         } catch (e) {
-            console.error("Error cargando la siguiente página:", e);
+            console.error("Error cargando la siguiente página");
         } finally {
             this.isLoadingMore = false;
         }
@@ -161,78 +141,44 @@ const AppNavigationMethods = {
 
     enterFolder(f) {
         this.currentFolderId = f.id;
-
-        let newPath;
-        if (this.currentCategory === 'shared') {
-            newPath = this.currentFolder === '/' ? '/' + f.fileName : this.currentFolder + '/' + f.fileName;
-        } else {
-            newPath = FileService.normalizePath(f.folderPath + '/' + f.fileName);
-        }
+        let newPath = this.currentCategory === 'shared'
+            ? (this.currentFolder === '/' ? '/' + f.fileName : this.currentFolder + '/' + f.fileName)
+            : FileService.normalizePath(f.folderPath + '/' + f.fileName);
 
         this.currentFolder = newPath;
         this.folderIdMap.set(newPath, f.id);
-
         this.refreshAppData();
     },
 
-    isTrashRoot(f) {
-        return this.currentCategory === 'trash';
-    },
-
-    goBack() {
-        this.currentFolder = this.currentFolder.substring(0, this.currentFolder.lastIndexOf('/')) || '/';
-        this.refreshAppData();
-    },
+    isTrashRoot(f) { return this.currentCategory === 'trash'; },
 
     goToFolder(path, id = null) {
         this.currentFolder = path;
-
-        if (id === null) {
-            this.currentFolderId = this.folderIdMap.get(path) || null;
-        } else {
-            this.currentFolderId = id;
-        }
-
+        this.currentFolderId = id === null ? (this.folderIdMap.get(path) || null) : id;
         this.refreshAppData();
     },
 
-    onCrumbDragOver(event) {
-        event.currentTarget.classList.add('drag-target');
-    },
-
-    onCrumbDragLeave(event) {
-        event.currentTarget.classList.remove('drag-target');
-    },
-
-    // Dentro de AppNavigationMethods en js/ui/navigation-service.js
+    onCrumbDragOver(event) { event.currentTarget.classList.add('drag-target'); },
+    onCrumbDragLeave(event) { event.currentTarget.classList.remove('drag-target'); },
 
     async onCrumbDrop(targetPath, targetFolderId, event) {
         event.currentTarget.classList.remove('drag-target');
-
         try {
             const idsToMove = JSON.parse(event.dataTransfer.getData("text/plain"));
             if (!idsToMove || idsToMove.length === 0) return;
 
             this.status = "Relocalizando elementos...";
-            let targetId = targetFolderId;
+            let targetId = targetPath === '/' ? null : (targetFolderId || this.folderIdMap.get(targetPath) || null);
 
-            if (targetPath === '/') {
-                targetId = null;
-            }
-            else if (!targetId) {
-                targetId = this.folderIdMap.get(targetPath) || null;
-            }
-
-            // 3. Enviamos la petición con el ID real recuperado del mapa
             const res = await API.moveFiles(idsToMove, targetId);
             if (res.ok) {
-                this.showInfo("Elementos relocalizados con éxito.");
+                this.showInfo("Elementos relocalizados.");
                 await this.refreshAppData();
             } else {
-                this.showError("No se pudieron mover los elementos a ese nivel.");
+                const errorMsg = await API.extractErrorMessage(res);
+                this.showError(errorMsg);
             }
         } catch (e) {
-            console.error("Error al soltar en breadcrumbs:", e);
             this.showError("Operación de arrastre no válida.");
         } finally {
             this.status = "";

@@ -1,4 +1,20 @@
 const API = {
+
+    async extractErrorMessage(res) {
+        try {
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                const data = await res.json();
+                return data.error || "Se ha producido un error inesperado en el servidor.";
+            } else {
+                const text = await res.text();
+                return text || `Error del servidor (Código: ${res.status})`;
+            }
+        } catch (e) {
+            return `Error de comunicación con el servidor (Código: ${res.status})`;
+        }
+    },
+
     getAuthHeader() {
         const token = localStorage.getItem('jwtToken');
         return token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -28,7 +44,7 @@ const API = {
         const url = `/api/files?page=${page}&size=${size}&category=${category}&folderId=${fId}`;
 
         const res = await fetch(url, { headers: this.getAuthHeader() });
-        if (!res.ok) throw new Error("Error al obtener archivos");
+        if (!res.ok) throw res;
         return res.json();
     },
 
@@ -37,7 +53,6 @@ const API = {
             const xhr = new XMLHttpRequest();
             xhr.open("POST", "/api/files/upload", true);
 
-            // Abortar si el usuario lo pide
             if (signal) {
                 signal.addEventListener('abort', () => {
                     xhr.abort();
@@ -45,16 +60,14 @@ const API = {
                 });
             }
 
-            // Cabeceras de seguridad
             const auth = this.getAuthHeader();
             if (auth.Authorization) {
                 xhr.setRequestHeader('Authorization', auth.Authorization);
             }
 
-            // REUPERAMOS LA BARRA DE CARGA
             xhr.upload.onprogress = (e) => {
                 if (e.lengthComputable) {
-                    onProgress(e.loaded); // Enviamos los bytes subidos al Service
+                    onProgress(e.loaded);
                 }
             };
 
@@ -66,18 +79,22 @@ const API = {
                         resolve(xhr.response);
                     }
                 } else {
-                    reject(new Error(xhr.responseText || `Error ${xhr.status}`));
+                    let msg = "Error en la subida del archivo";
+                    try {
+                        const data = JSON.parse(xhr.responseText);
+                        msg = data.error || msg;
+                    } catch(e) {
+                        msg = xhr.responseText || msg;
+                    }
+                    reject(new Error(msg));
                 }
             };
 
-            xhr.onerror = () => reject(new Error("Error de red"));
-
-            // Enviamos el FormData que contiene el encryptedBlob
+            xhr.onerror = () => reject(new Error("Error crítico de red al transferir los bloques cifrados."));
             xhr.send(formData);
         });
     },
 
-    // En API.js
     async download(fileId) {
         return fetch(`/api/files/download/${fileId}`, {
             method: 'GET',
@@ -161,7 +178,10 @@ const API = {
             headers: this.getAuthHeader()
         });
 
-        if (!res.ok) throw new Error("Error en sincronización de carpetas");
+        if (!res.ok) {
+            const errorMsg = await this.extractErrorMessage(res);
+            throw new Error(errorMsg);
+        }
         return res.json();
     },
 
@@ -171,7 +191,10 @@ const API = {
         let url = `/api/files/check-exists?fileName=${encodeURIComponent(fileName)}&parentId=${pId}`;
 
         const res = await fetch(url, { headers: this.getAuthHeader() });
-        if (!res.ok) throw new Error("Error al verificar existencia en el servidor");
+        if (!res.ok) {
+            const errorMsg = await this.extractErrorMessage(res);
+            throw new Error(errorMsg);
+        }
         return res.json();
     },
 
@@ -181,14 +204,14 @@ const API = {
         const res = await fetch(`/api/files/stats?t=${Date.now()}`, {
             headers: this.getAuthHeader()
         });
-        if (!res.ok) throw new Error("Error al obtener estadísticas");
+        if (!res.ok) throw res;
         return res.json();
     },
 
     async searchFiles(query, page = 0, size = 20) {
         const url = `/api/files/search?q=${encodeURIComponent(query)}&page=${page}&size=${size}`;
         const res = await fetch(url, { headers: this.getAuthHeader() });
-        if (!res.ok) throw new Error("Error en la búsqueda");
+        if (!res.ok) throw res;
         return res.json();
     },
 

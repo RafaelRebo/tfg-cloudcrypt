@@ -168,12 +168,9 @@ const UIService = {
 
         try {
             for (const item of this.clipboard.items) {
-                // 🛡️ COMPROBACIÓN CRÍTICA DE CONTEXTO LOCAL:
-                // Evaluamos si el origen del archivo coincide con el directorio de destino actual
                 const isSameFolder = item.parentId === this.currentFolderId;
 
-                // 🌟 CORRECCIÓN 2: Si el usuario CORTÓ y está pegando en el mismo sitio,
-                // es un No-Op absoluto. Saltamos el elemento para evitar que se borre a sí mismo.
+                // No-Op seguro si se corta y pega en la misma ubicación
                 if (isSameFolder && this.clipboard.action === 'cut') {
                     continue;
                 }
@@ -181,12 +178,9 @@ const UIService = {
                 let currentName = item.fileName;
                 const isDir = item.fileType === 'application/x-directory';
 
-                // Validamos colisión de nombres en el directorio destino
                 const checkRes = await API.checkExists(currentName, this.currentFolderId);
                 let action = applyAllAction;
 
-                // 🌟 CORRECCIÓN 3: Si es una COPIA en el mismo sitio, forzamos la acción 'copy'
-                // de forma automática para que genere el "archivo (Copia).ext" directamente sin preguntar.
                 if (isSameFolder && this.clipboard.action === 'copy') {
                     action = 'copy';
                 }
@@ -200,13 +194,13 @@ const UIService = {
                 if (action === 'skip') continue;
 
                 if (action === 'overwrite') {
-                    // Mueve el archivo viejo del destino a la papelera de forma segura
-                    await API.deleteFile(checkRes.existingId, true);
+                    const delRes = await API.deleteFile(checkRes.existingId, true);
+                    // ⚡ TOAST FIX: Si falla la purga por falta de permisos o integridad, extraemos el error semántico
+                    if (!delRes.ok) throw new Error(await API.extractErrorMessage(delRes));
                 }
 
                 let targetName = currentName;
                 if (action === 'copy') {
-                    // Resolución incremental de nombres para copias consecutivas
                     const dot = currentName.lastIndexOf('.');
                     const nameNoExt = dot !== -1 ? currentName.substring(0, dot) : currentName;
                     const ext = dot !== -1 ? currentName.substring(dot) : '';
@@ -221,20 +215,23 @@ const UIService = {
                     }
                 }
 
-                // Ejecución de operaciones en la API
+                // ⚡ TOAST FIXES: Validamos el .ok de cada operación de red y disparamos el extractor si el servidor rechaza la acción
                 if (this.clipboard.action === 'cut') {
-                    await API.moveFiles([item.id], this.currentFolderId);
+                    const moveRes = await API.moveFiles([item.id], this.currentFolderId);
+                    if (!moveRes.ok) throw new Error(await API.extractErrorMessage(moveRes));
+
                     if (targetName !== currentName) {
-                        await API.renameFile(item.id, targetName);
+                        const renameRes = await API.renameFile(item.id, targetName);
+                        if (!renameRes.ok) throw new Error(await API.extractErrorMessage(renameRes));
                     }
                 } else if (this.clipboard.action === 'copy') {
-                    await API.copyFiles([item.id], this.currentFolderId, targetName);
+                    const copyRes = await API.copyFiles([item.id], this.currentFolderId, targetName);
+                    if (!copyRes.ok) throw new Error(await API.extractErrorMessage(copyRes));
                 }
             }
 
             this.showInfo("Portapapeles procesado con éxito.");
 
-            // Si fue un corte exitoso, vaciamos el portapapeles. Si fue copia, se mantiene.
             if (this.clipboard.action === 'cut') {
                 this.clipboard.action = null;
                 this.clipboard.items = [];
@@ -244,7 +241,8 @@ const UIService = {
             await this.refreshAppData();
 
         } catch (e) {
-            this.showError("Hubo un fallo al pegar los elementos");
+            // Canalaea el mensaje exacto inyectado en el throw new Error()
+            this.showError(e.message || "Hubo un fallo al pegar los elementos");
         } finally {
             this.status = "";
         }

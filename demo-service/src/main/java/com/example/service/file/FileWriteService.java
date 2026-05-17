@@ -38,11 +38,15 @@ public class FileWriteService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public FileDto uploadFile(FileUploadRequestDto request, String username) throws Exception {
+    public FileDto uploadFile(FileUploadRequestDto request, String username) {
         UserEntity owner = userRepository.findByUsername(username);
         quotaUtils.checkQuota(username, request.getFile().getSize());
 
-        FileEntity parent = (request.getParentId() != null) ? fileRepository.findById(request.getParentId()).orElseThrow() : null;
+        FileEntity parent = null;
+        if (request.getParentId() != null) {
+            parent = fileRepository.findById(request.getParentId())
+                    .orElseThrow(() -> new InstanceNotFoundException("La carpeta de destino seleccionada ya no existe."));
+        }
         String logicalPath = (parent == null) ? "/" : buildPath(parent);
         String storagePathCancel = null;
 
@@ -67,84 +71,107 @@ public class FileWriteService {
             key.setEncryptedKey(request.getEncryptedFileKey());
             fileKeyRepository.save(key);
 
-            return fileMapper.toDto(saved);
+            return fileMapper.toDto(saved, username);
         } catch (Exception e) {
-            if (storagePathCancel != null) storageUtils.deletePhysicalFile(storagePathCancel);
-            throw e;
+            if (storagePathCancel != null) {
+                try { storageUtils.deletePhysicalFile(storagePathCancel); } catch (Exception ignored) {}
+            }
+            throw new InternalStorageException("Fallo crítico al empaquetar y cifrar el flujo del archivo.");
         }
     }
 
     @Transactional
-    public FileDto createFolder(String name, String username, Long parentId) throws InputValidationException {
+    public FileDto createFolder(String name, String username, Long parentId) {
+        if (name == null || name.isBlank() || name.contains("/") || name.contains("..")) {
+            throw new InputValidationException("El nombre de la carpeta es inválido.");
+        }
+
         UserEntity owner = userRepository.findByUsername(username);
-        FileEntity parent = (parentId != null) ? fileRepository.findById(parentId).orElse(null) : null;
-        FileEntity folder = folderService.ensureExists(username, name, parent);
-        return fileMapper.toDto(folder);
+        FileEntity parent = null;
+        if (parentId != null) {
+            parent = fileRepository.findByIdAndOwner_Username(parentId, username)
+                    .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado al directorio contenedor."));
+        }
+
+        FileEntity folder = folderService.ensureExists(username, name.trim(), parent);
+        return fileMapper.toDto(folder, username);
     }
 
     @Transactional
     public FileDto ensureFolderSync(String username, String folderName, Long parentId) {
-        FileEntity parent = (parentId != null) ? fileRepository.findById(parentId).orElse(null) : null;
-        return fileMapper.toDto(folderService.ensureExists(username, folderName, parent));
+        FileEntity parent = null;
+        if (parentId != null) {
+            parent = fileRepository.findByIdAndOwner_Username(parentId, username)
+                    .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado en la sincronización del lote."));
+        }
+        return fileMapper.toDto(folderService.ensureExists(username, folderName, parent), username);
     }
 
     @Transactional
-    public FileDto toggleStar(Long id, String username) throws InstanceNotFoundException {
+    public FileDto toggleStar(Long id, String username){
         FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(id, username)
-                .orElseThrow(() -> new InstanceNotFoundException("Acceso denegado"));
+                .orElseThrow(() -> new InstanceNotFoundException("Acceso denegado al metadato privado."));
         fileKey.setStarred(!fileKey.isStarred());
-        return fileMapper.toDto(fileKeyRepository.save(fileKey).getFile());
+        return fileMapper.toDto(fileKeyRepository.save(fileKey).getFile(), username);
     }
 
     @Transactional
-    public void moveFiles(List<Long> fileIds, Long targetParentId, String username) throws Exception {
-        FileEntity newParent = (targetParentId != null) ? fileRepository.findById(targetParentId).orElseThrow() : null;
+    public void moveFiles(List<Long> fileIds, Long targetParentId, String username){
+        FileEntity newParent = null;
+
+        if (targetParentId != null) {
+            newParent = fileRepository.findByIdAndOwner_Username(targetParentId, username)
+                    .orElseThrow(() -> new FileAccessDeniedException("No tienes permisos sobre la carpeta de destino."));
+
+            if (!"application/x-directory".equals(newParent.getFileType())) {
+                throw new InputValidationException("El destino debe ser un directorio.");
+            }
+        }
+
         for (Long id : fileIds) {
-            FileEntity entity = fileRepository.findByIdAndOwner_Username(id, username).orElseThrow();
+            FileEntity entity = fileRepository.findByIdAndOwner_Username(id, username)
+                    .orElseThrow(() -> new InstanceNotFoundException("Elemento a mover no encontrado."));
+
+            if (newParent != null && "application/x-directory".equals(entity.getFileType())) {
+                if (newParent.getId().equals(entity.getId()) || newParent.getFolderPath().startsWith(buildPath(entity))) {
+                    throw new InputValidationException("Operación inválida: No puedes anidar un directorio dentro de sí mismo.");
+                }
+            }
+
             entity.setParent(newParent);
             entity.setFolderPath((newParent == null) ? "/" : buildPath(newParent));
             fileRepository.save(entity);
         }
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public FileEntity renameFile(Long id, String newName, String username) {
-        // 1. Validamos que el archivo exista y pertenezca al usuario activo
+    @Transactional
+    public FileEntity renameFile(Long id, String newName, String username){
         FileEntity file = fileRepository.findByIdAndOwner_Username(id, username)
-                .orElseThrow(() -> new InputValidationException("Elemento no encontrado o acceso denegado"));
+                .orElseThrow(() -> new InputValidationException("Elemento no encontrado o acceso denegado."));
 
         if (file.getDeletedAt() != null) {
-            throw new InputValidationException("No se puede renombrar un elemento que está en la papelera");
+            throw new InputValidationException("No se puede renombrar un elemento que está en la papelera.");
         }
 
-        // 2. Verificamos que no cause un conflicto de duplicados en el mismo nivel
         Optional<FileEntity> conflict = (file.getParent() == null)
                 ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, newName)
                 : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, newName, file.getParent().getId());
 
         if (conflict.isPresent() && !conflict.get().getId().equals(id)) {
-            throw new InputValidationException("Ya existe un archivo o carpeta con ese nombre en este directorio");
+            throw new InputValidationException("Ya existe un elemento con ese nombre en la ruta actual.");
         }
 
         String oldName = file.getFileName();
 
         if ("application/x-directory".equals(file.getFileType())) {
-            String oldParentFullPath = file.getFolderPath().equals("/")
-                    ? "/" + oldName
-                    : file.getFolderPath() + "/" + oldName;
+            String oldParentFullPath = file.getFolderPath().equals("/") ? "/" + oldName : file.getFolderPath() + "/" + oldName;
+            String newParentFullPath = file.getFolderPath().equals("/") ? "/" + newName : file.getFolderPath() + "/" + newName;
 
-            String newParentFullPath = file.getFolderPath().equals("/")
-                    ? "/" + newName
-                    : file.getFolderPath() + "/" + newName;
-
-            // Recuperamos todos los hijos recursivos usando la consulta limpia que reparamos antes
-            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
-                    username, oldParentFullPath, file.getId());
+            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(username, oldParentFullPath, file.getId());
 
             for (FileEntity child : descendants) {
                 if (!child.getId().equals(file.getId())) {
                     String currentChildPath = child.getFolderPath();
-                    // Reemplazamos el viejo prefijo de la carpeta por el nuevo nombre otorgado
                     if (currentChildPath.startsWith(oldParentFullPath)) {
                         String updatedPath = newParentFullPath + currentChildPath.substring(oldParentFullPath.length());
                         child.setFolderPath(updatedPath);
@@ -154,13 +181,12 @@ public class FileWriteService {
             }
         }
 
-        // 4. Renombramos el elemento principal y consolidamos en la BD
         file.setFileName(newName);
         return fileRepository.save(file);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public void copyFiles(List<Long> fileIds, Long targetParentId, String newName, String username) {
+    @Transactional
+    public void copyFiles(List<Long> fileIds, Long targetParentId, String newName, String username){
         UserEntity owner = userRepository.findByUsername(username);
         FileEntity targetParent = (targetParentId != null) ? fileRepository.findById(targetParentId).orElse(null) : null;
 
@@ -173,7 +199,7 @@ public class FileWriteService {
 
         for (Long id : fileIds) {
             FileEntity source = fileRepository.findByIdAndOwner_Username(id, username)
-                    .orElseThrow(() -> new InputValidationException("Elemento de origen no encontrado"));
+                    .orElseThrow(() -> new InputValidationException("Elemento de origen no encontrado."));
 
             cloneEntityRecursive(source, targetParent, targetFolderPath, newName, owner, username);
         }
@@ -194,7 +220,6 @@ public class FileWriteService {
 
         FileEntity savedClone = fileRepository.save(clone);
 
-        // Duplicamos el sobre digital (clave simétrica envuelta) para que el nuevo registro sea accesible
         fileKeyRepository.findByFileIdAndUser_Username(source.getId(), username).ifPresent(oldKey -> {
             FileKeyEntity newKey = new FileKeyEntity();
             newKey.setFile(savedClone);
@@ -209,7 +234,6 @@ public class FileWriteService {
             List<FileEntity> children = fileRepository.findByOwner_UsernameAndParentIdAndDeletedAtIsNull(username, source.getId());
 
             for (FileEntity child : children) {
-                // Los hijos de la carpeta copiada viajan con nombre vacío para heredar su nombre nativo
                 cloneEntityRecursive(child, savedClone, newFullPath, "", owner, username);
             }
         }

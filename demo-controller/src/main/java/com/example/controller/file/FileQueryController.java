@@ -7,12 +7,10 @@ import org.springframework.core.io.Resource;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-
 import java.io.InputStream;
 
 @RestController
@@ -40,17 +38,13 @@ public class FileQueryController {
     }
 
     @GetMapping("/download/{id}")
-    public ResponseEntity<Resource> downloadFile(Authentication auth, @PathVariable Long id) {
-        try {
-            FileDto dto = queryService.getFileById(id, auth.getName());
-            InputStream stream = queryService.getFileDownloadStream(id, auth.getName());
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + dto.getFileName() + "\"")
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(new InputStreamResource(stream));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
-        }
+    public ResponseEntity<Resource> downloadFile(Authentication auth, @PathVariable Long id) throws Exception {
+        FileDto dto = queryService.getFileById(id, auth.getName());
+        InputStream stream = queryService.getFileDownloadStream(id, auth.getName());
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + dto.getFileName() + "\"")
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .body(new InputStreamResource(stream));
     }
 
     @GetMapping("/check-exists")
@@ -62,10 +56,6 @@ public class FileQueryController {
 
     @GetMapping("/folder-content-recursive/{id}")
     public ResponseEntity<?> getRecursiveContent(@PathVariable Long id, Authentication auth) {
-        try {
-            return ResponseEntity.ok(queryService.getRecursiveFilesForSharing(id, auth.getName()));
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
-        }
+        return ResponseEntity.ok(queryService.getRecursiveFilesForSharing(id, auth.getName()));
     }
 }

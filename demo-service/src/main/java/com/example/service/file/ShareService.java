@@ -1,6 +1,8 @@
 package com.example.service.file;
 
 import com.example.dto.file.ShareRequestDto;
+import com.example.exceptions.FileAccessDeniedException;
+import com.example.exceptions.InputValidationException;
 import com.example.exceptions.InstanceNotFoundException;
 import com.example.model.*;
 import com.example.repository.file.FileRepository;
@@ -33,8 +35,9 @@ public class ShareService {
     }
 
     @Transactional
-    public void shareFile(Long fileId, List<ShareRequestDto> requests, String ownerUsername) throws Exception {
-        FileEntity file = fileRepository.findById(fileId).orElseThrow();
+    public void shareFile(Long fileId, List<ShareRequestDto> requests, String ownerUsername){
+        FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
+                .orElseThrow(() -> new FileAccessDeniedException("No tienes permisos sobre este recurso."));
         ensureOwnerHasKey(file, ownerUsername);
 
         for (ShareRequestDto req : requests) {
@@ -52,16 +55,20 @@ public class ShareService {
         entityManager.refresh(file);
     }
 
-    @Transactional(rollbackFor = Exception.class)
-    public void shareBatch(List<ShareRequestDto> requests, String ownerUsername) throws Exception {
+    @Transactional
+    public void shareBatch(List<ShareRequestDto> requests, String ownerUsername){
         List<FileKeyEntity> keysToSave = new ArrayList<>();
 
         for (ShareRequestDto req : requests) {
+            if (req.getTargetUsername().equals(ownerUsername)) {
+                throw new InputValidationException("No puedes compartir elementos contigo mismo.");
+            }
+
             FileEntity file = fileRepository.findById(req.getFileId())
-                    .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado con ID: " + req.getFileId()));
+                    .orElseThrow(() -> new InstanceNotFoundException("Elemento no encontrado"));
 
             if (!file.getOwner().getUsername().equals(ownerUsername)) {
-                throw new SecurityException("Acceso denegado: No tienes autorización sobre el archivo " + file.getFileName());
+                throw new FileAccessDeniedException("Acceso denegado a este elemento");
             }
 
             UserEntity targetUser = userRepository.findByUsername(req.getTargetUsername());
@@ -83,8 +90,10 @@ public class ShareService {
     }
 
     @Transactional
-    public void revokeAccess(Long fileId, String targetUsername, String ownerUsername) throws Exception {
-        FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername).orElseThrow();
+    public void revokeAccess(Long fileId, String targetUsername, String ownerUsername){
+        FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
+                .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado a este elemento"));
+
         fileKeyRepository.deleteByFileIdAndUser_Username(fileId, targetUsername);
 
         if ("application/x-directory".equals(file.getFileType())) {
@@ -94,8 +103,9 @@ public class ShareService {
         }
     }
 
-    public List<String> getSharedUsernames(Long fileId, String requesterUsername) throws Exception {
-        fileRepository.findByIdAndOwner_Username(fileId, requesterUsername).orElseThrow();
+    public List<String> getSharedUsernames(Long fileId, String requesterUsername){
+        fileRepository.findByIdAndOwner_Username(fileId, requesterUsername)
+                .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado a este elemento"));
         return fileKeyRepository.findUsernamesByFileId(fileId).stream()
                 .filter(name -> !name.equals(requesterUsername)).collect(Collectors.toList());
     }

@@ -44,12 +44,16 @@ const AppModalMethods = {
                         if (!proceed) return;
                     }
 
+                    // Dejamos que las excepciones viajen al catch de forma natural
                     await this.handleCreateFolder(name, targetId);
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
                 } catch (e) {
-                    console.error(e);
-                    this.showError("Error al procesar la carpeta");
+                    this.confirmModal.active = false;
+                    this.confirmModal.isInput = false;
+                    // ⚡ TOAST FIX: Extrae el error semántico si vino de un rechazo de la Fetch API
+                    const msg = e instanceof Response ? await API.extractErrorMessage(e) : (e.message || "Error al procesar la carpeta");
+                    this.showError(msg);
                 }
             },
             onCancel: () => {

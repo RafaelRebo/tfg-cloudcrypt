@@ -17,22 +17,33 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(InputValidationException.class)
     public ResponseEntity<?> handleInputValidation(InputValidationException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.NOT_FOUND);
+        return buildResponse(ex.getMessage(), HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(FileAccessDeniedException.class)
+    public ResponseEntity<?> handleAccessDenied(FileAccessDeniedException ex) {
+        return buildResponse(ex.getMessage(), HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(QuotaExceededException.class)
     public ResponseEntity<?> handleQuota(QuotaExceededException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.FORBIDDEN); // 413
+        return buildResponse(ex.getMessage(), HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<?> handleUnauthorized(InvalidCredentialsException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED); // 401
+        return buildResponse(ex.getMessage(), HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<?> handleConflict(UserAlreadyExistsException ex) {
-        return buildResponse(ex.getMessage(), HttpStatus.CONFLICT); // 409
+        return buildResponse(ex.getMessage(), HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    public ResponseEntity<?> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
+        return buildResponse("Conflicto de integridad: El registro ya existe o viola las restricciones del sistema.",
+                HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(InternalStorageException.class)
@@ -44,6 +55,7 @@ public class GlobalExceptionHandler {
     // Captura cualquier otro error no controlado -> 500
     @ExceptionHandler(Exception.class)
     public ResponseEntity<?> handleGeneral(Exception ex) {
+        ex.printStackTrace();
         return buildResponse("Error interno del servidor", HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
