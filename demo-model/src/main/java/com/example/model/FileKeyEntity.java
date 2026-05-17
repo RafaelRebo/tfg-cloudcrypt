@@ -5,7 +5,9 @@ import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "file_keys")
+@Table(name = "file_keys", uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"file_id", "user_id"})
+})
 @Getter
 @Setter
 public class FileKeyEntity {

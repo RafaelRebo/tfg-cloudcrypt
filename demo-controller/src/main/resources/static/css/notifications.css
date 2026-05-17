@@ -258,3 +258,57 @@
     font-family: monospace; /* Estilo más "técnico" para las estadísticas */
     letter-spacing: 0.5px;
 }
+
+/* css/notifications.css -> Añade estas reglas en la sección del modal de duplicados */
+
+/* css/notifications.css -> Reemplaza por completo el bloque de #applyAll y su ::after */
+
+#applyAll {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    /* 🛡️ RESETEO ANTIFRAGMENTACIÓN: Forzamos el tamaño real y destruimos el padding heredado */
+    width: 14px !important;        /* Machaca el 'width: auto' del estilo en línea del HTML */
+    height: 14px !important;
+    padding: 0 !important;          /* Extirpa el colchón de 0.8rem de los inputs de texto */
+    margin-bottom: 0 !important;    /* Elimina el margen inferior que descuadraba la línea */
+
+    background: rgba(15, 23, 42, 0.6);
+    border: 1.5px solid var(--border-color);
+    border-radius: 3px;
+    cursor: pointer;
+
+    /* Centrado absoluto del check vectorizado interno */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.15s ease;
+    position: relative;
+    outline: none;
+}
+
+/* Efecto focus interactivo */
+#applyAll:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+/* Estado Activo (Cuando está marcado) */
+#applyAll:checked {
+    background-color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
+/* El check interno adaptado milimétricamente al contenedor de 14px libre de padding */
+#applyAll:checked::after {
+    content: "";
+    width: 3px;
+    height: 6px;
+    border: solid white;
+    border-width: 0 1.5px 1.5px 0;
+    transform: rotate(45deg);
+    position: absolute;
+    top: 2px;
+    left: 4px;
+}

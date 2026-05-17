@@ -67,10 +67,13 @@ const AppNotificationMethods = {
         NotificationService.animateOut(id, this.notifications);
     },
 
-    askConfirmation(msg) {
+    askConfirmation(msg, isDestructive = false) {
         return new Promise((resolve) => {
             this.confirmModal = {
                 active: true,
+                isDuplicateMode: false,
+                isInput: false,
+                isDestructive: isDestructive,
                 message: msg,
                 onConfirm: () => { this.confirmModal.active = false; resolve(true); },
                 onCancel: () => { this.confirmModal.active = false; resolve(false); }

@@ -238,7 +238,7 @@
                             </button>
 
                             <button class="btn-icon" @click="downloadSelected" title="Descargar selección">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                             </button>
                             <button class="btn-icon btn-delete" @click="deleteSelected" title="Eliminar selección">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
@@ -280,18 +280,15 @@
                          @drop.prevent="onFileDrop(f, $event)"
                          @click.prevent="handleFileClick(f, $event)"
                          @contextmenu.prevent.stop="handleContextMenu($event, f)">
+
                         <div class="col-name">
                             <div class="icon-wrapper">
                                 <span class="icon">
-                                <svg v-if="f.fileType === 'application/x-directory'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="3"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
-                                <span v-else v-html="getFileIcon(f.fileType, f.fileName)"></span>
-                            </span>
+                                    <svg v-if="f.fileType === 'application/x-directory'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="#fbbf24" stroke="#fbbf24" stroke-width="3"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2z"/></svg>
+                                    <span v-else v-html="getFileIcon(f.fileType, f.fileName)"></span>
+                                </span>
 
-                                <!-- Simplificamos la lógica: si el servidor dice que está compartido, mostramos badge -->
-                                <!-- También comprobamos si el dueño no soy yo por si acaso -->
-                                <div v-if="f.shared || f.ownerUsername !== username"
-                                     class="shared-badge"
-                                     style="display: flex !important;"> <!-- Forzamos visibilidad para pruebas -->
+                                <div v-if="f.shared || f.ownerUsername !== username" class="shared-badge" style="display: flex !important;">
                                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path>
                                         <circle cx="9" cy="7" r="4"></circle>
@@ -308,80 +305,57 @@
                                 {{ f.ownerUsername === username ? 'Yo' : f.ownerUsername }}
                             </span>
                         </div>
+
                         <div class="col-modified">
                             {{ formatModDate(f.updatedAt) }}
                         </div>
+
                         <div class="col-size">
                             {{ f.fileType === 'application/x-directory' ? '-' : formatSize(f.fileSize) }}
                         </div>
+
                         <div class="col-actions" @mousedown.stop @click.stop>
-                            <button v-if="currentCategory !== 'trash' && f.ownerUsername === username"
-                                    @click="openRenameModal(f)"
-                                    class="btn-icon"
-                                    title="Cambiar nombre">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 20h9"/>
-                                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-                                </svg>
+                            <button v-if="currentCategory !== 'trash' && f.ownerUsername === username" @click="openRenameModal(f)" class="btn-icon" title="Cambiar nombre">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
                             </button>
 
                             <button v-if="currentCategory === 'trash' && isTrashRoot(f)" @click="handleRestore(f)" class="btn-icon" title="Restaurar">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
                             </button>
 
-                            <button v-if="currentCategory !== 'trash' && f.ownerUsername === username"
-                                    @click="openShareModal(f)"
-                                    class="btn-icon"
-                                    title="Compartir">
+                            <button v-if="currentCategory !== 'trash' && f.ownerUsername === username" @click="openShareModal(f)" class="btn-icon" title="Compartir">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
                             </button>
 
-                            <button v-if="currentCategory !== 'trash'"
-                                    @click="handleDownload(f)"
-                                    class="btn-icon"
-                                    title="Descargar">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M12 3v12M8 11l4 4 4-4"/>
-                                    <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/>
-                                </svg>
+                            <button v-if="currentCategory !== 'trash'" @click="handleDownload(f)" class="btn-icon" title="Descargar">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
                             </button>
 
                             <button @click="handleToggleStar(f)" class="btn-icon" :title="f.starred ? 'Quitar de destacados' : 'Destacar'">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
-                                     :fill="f.starred ? '#fbbf24' : 'none'"
-                                     :stroke="f.starred ? '#fbbf24' : 'currentColor'"
-                                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                                </svg>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" :fill="f.starred ? '#fbbf24' : 'none'" :stroke="f.starred ? '#fbbf24' : 'currentColor'" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
                             </button>
 
-                            <button @click="handleDelete(f)"
-                                    class="btn-icon btn-delete"
-                                    v-if="currentCategory !== 'shared' || currentFolderId === null"
-                                    :title="currentCategory === 'trash' ? 'Eliminar permanentemente' : (currentCategory === 'shared' ? 'Quitar acceso' : 'Mover a papelera')">
+                            <button @click="handleDelete(f)" class="btn-icon btn-delete" v-if="currentCategory !== 'shared' || currentFolderId === null" :title="currentCategory === 'trash' ? 'Eliminar permanentemente' : (currentCategory === 'shared' ? 'Quitar acceso' : 'Mover a papelera')">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                             </button>
                         </div>
+                    </div> <div v-if="displayFiles.length === 0" class="empty-state">
+                    <p v-if="isSearching" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        No se han encontrado resultados para "{{ searchQuery }}"
+                    </p>
+                    <p v-else>Esta carpeta está vacía</p>
+                </div>
 
-                    <div v-if="displayFiles.length === 0" class="empty-state">
-                        <p v-if="isSearching" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                            No se han encontrado resultados para "{{ searchQuery }}"
-                        </p>
-                        <p v-else>Esta carpeta está vacía</p>
+                    <div v-if="isDragging" class="drop-overlay">
+                        <div class="drop-message">
+                            <span class="drop-icon" style="display: flex; justify-content: center; margin-bottom: 1rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
+                            </span>
+                            <p>Suelta tus archivos para subirlos a {{ currentFolder }}</p>
+                        </div>
                     </div>
-                </div>
-                <div v-if="isDragging" class="drop-overlay">
-                    <div class="drop-message">
-                        <span class="drop-icon" style="display: flex; justify-content: center; margin-bottom: 1rem;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m15 15-3-3-3 3"/></svg>
-                        </span>
-                        <p>Suelta tus archivos para subirlos a {{ currentFolder }}</p>
-                    </div>
-                </div>
-            </div>
-            </div>
-        </main>
+                </div> </div> </main>
     </div>
     <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;" @click.self="confirmModal.onCancel">
         <div class="auth-card" style="max-width: 440px; text-align: left; padding: 2rem;">
@@ -424,8 +398,11 @@
                 <!-- Botones Normales / Nueva Carpeta -->
                 <template v-else>
                     <button @click="confirmModal.onCancel" class="btn-modal btn-cancel">Cancelar</button>
-                    <button @click="confirmModal.onConfirm" class="btn-modal btn-confirm">
-                        {{ confirmModal.isInput ? 'Crear' : 'Confirmar' }}
+
+                    <button @click="confirmModal.onConfirm"
+                            class="btn-modal"
+                            :class="confirmModal.isDestructive ? 'btn-destructive' : 'btn-confirm'">
+                        {{ confirmModal.buttonText || 'Confirmar' }}
                     </button>
                 </template>
             </div>
@@ -495,49 +472,53 @@
     </div>
     <div v-if="shareModal.active" class="preview-overlay" @click.self="closeShareModal">
         <div class="auth-card" style="max-width: 500px; text-align: left;">
-            <h2 style="display: flex; align-items: center; gap: 10px;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                <span>Compartir {{ shareModal.isFolder ? 'Carpeta' : 'Archivo' }}</span>
-            </h2>
-            <p style="color: var(--text-muted); margin-bottom: 1rem;">"{{ shareModal.fileName }}"</p>
 
-            <div class="search-container" style="position: relative; margin-bottom: 1rem;">
-                <input type="text" v-model="shareModal.searchQuery"
-                       @input="onUserSearchInput"
-                       placeholder="Buscar usuario..." class="search-input" style="width: 100%;">
+            <template v-if="!shareModal.isProcessing">
+                <h2 style="display: flex; align-items: center; gap: 10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                    <span>Compartir {{ shareModal.isFolder ? 'Carpeta' : 'Archivo' }}</span>
+                </h2>
+                <p style="color: var(--text-muted); margin-bottom: 1rem;">"{{ shareModal.fileName }}"</p>
 
-                <div v-if="shareModal.searchResults && shareModal.searchResults.length > 0" class="search-results-dropdown">
-                    <div v-for="user in shareModal.searchResults"
-                         :key="user" @click="selectUser(user)" class="search-result-item">
+                <div class="search-container" style="position: relative; margin-bottom: 1rem;">
+                    <input type="text" v-model="shareModal.searchQuery" @input="onUserSearchInput" placeholder="Buscar usuario..." class="search-input" style="width: 100%;">
+                    <div v-if="shareModal.searchResults && shareModal.searchResults.length > 0" class="search-results-dropdown">
+                        <div v-for="user in shareModal.searchResults" :key="user" @click="selectUser(user)" class="search-result-item">
                         <span style="display: inline-flex; align-items: center; gap: 8px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                             {{ user }}
                         </span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="selected-users-container" style="margin-bottom: 2rem; min-height: 40px;">
-                <label style="display:block; font-size: 0.8rem; margin-bottom: 5px;">Compartir con:</label>
-                <div class="selected-users-list">
-                    <div v-for="user in shareModal.selectedUsers" :key="user" class="user-chip">
-                        <span>{{ user }}</span>
-                        <button @click="removeUserFromShare(user)" class="btn-remove">✕</button>
+                <div class="selected-users-container" style="margin-bottom: 2rem; min-height: 40px;">
+                    <label style="display:block; font-size: 0.8rem; margin-bottom: 5px;">Compartir con:</label>
+                    <div class="selected-users-list">
+                        <div v-for="user in shareModal.selectedUsers" :key="user" class="user-chip">
+                            <span>{{ user }}</span>
+                            <button @click="removeUserFromShare(user)" class="btn-remove">✕</button>
+                        </div>
+                        <p v-if="shareModal.selectedUsers.length === 0" style="color: #666; font-size: 0.85rem; font-style: italic;">
+                            Busca y selecciona un usuario...
+                        </p>
                     </div>
-                    <p v-if="shareModal.selectedUsers.length === 0" style="color: #666; font-size: 0.85rem; italic">
-                        Busca y selecciona un usuario...
-                    </p>
                 </div>
-            </div>
 
-            <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
-                <button @click="closeShareModal" class="btn-modal btn-cancel">Cancelar</button>
-                <button @click="executeShare"
-                        :disabled="shareModal.isProcessing"
-                        class="btn-modal btn-confirm">
-                    {{ shareModal.isProcessing ? 'Procesando...' : 'Compartir' }}
-                </button>
-            </div>
+                <div class="modal-footer" style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button @click="closeShareModal" class="btn-modal btn-cancel">Cancelar</button>
+                    <button @click="executeShare" class="btn-modal btn-confirm">Compartir</button>
+                </div>
+            </template>
+
+            <template v-else>
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2.5rem 1rem; gap: 1.2rem; text-align: center;">
+                    <div class="upload-spinner" style="width: 36px; height: 36px; border-width: 3px;"></div>
+                    <strong style="color: var(--text-main); font-size: 1.1rem; letter-spacing: 0.5px;">Actualizando accesos seguros</strong>
+                    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0; font-family: monospace;">{{ status }}</p>
+                </div>
+            </template>
+
         </div>
     </div>
     <div v-if="contextMenu.active"

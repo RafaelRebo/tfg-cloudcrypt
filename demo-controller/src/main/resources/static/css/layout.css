@@ -152,13 +152,24 @@
 }
 
 .btn-confirm {
-    background: var(--danger);
+    background: var(--accent-blue);
     color: white;
-    box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.2);
+    box-shadow: 0 4px 6px -1px rgba(59, 130, 246, 0.2);
 }
 
 .btn-confirm:hover {
-    background: #b91c1c; /* Un rojo un poco más oscuro al pasar el ratón */
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+}
+
+.btn-destructive {
+    background: var(--danger);
+    color: white;
+    box-shadow: 0 4px 6px -1px rgba(239, 68, 68, 0.2);
+}
+
+.btn-destructive:hover {
+    background: #b91c1c; /* Rojo oscuro */
     transform: translateY(-1px);
 }
 

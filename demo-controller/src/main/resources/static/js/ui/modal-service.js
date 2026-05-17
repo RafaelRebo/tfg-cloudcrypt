@@ -9,6 +9,7 @@ const AppModalMethods = {
             this.confirmModal.applyToAll = false;
             this.confirmModal.title = '';
             this.confirmModal.message = '';
+            this.confirmModal.buttonText = '';
 
             resolve(result);
         }, 300);
@@ -24,6 +25,7 @@ const AppModalMethods = {
             isDuplicateMode: false,
             isInput: true,
             title: 'Nueva carpeta',
+            buttonText: 'Crear',
             message: `Crear en: ${targetName}`,
             inputValue: 'Carpeta sin título',
             onConfirm: async () => {

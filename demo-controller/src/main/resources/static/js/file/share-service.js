@@ -41,14 +41,17 @@ const AppShareMethods = {
         this.shareModal.active = true;
     },
 
+    // js/file/share-service.js -> Reemplaza por completo tu función executeShare por esta:
+
     async executeShare() {
         this.shareModal.isProcessing = true;
-        this.status = "Calculando árbol de claves masivo...";
+        this.status = "Preparando archivos...";
 
         try {
             const targetsWorklist = this.shareModal.fileId ? [this.shareModal.fileId] : [...this.selectedIds];
             let flatItemsToShare = [];
 
+            // FASE 1: Recolección de archivos
             for (const id of targetsWorklist) {
                 const currentFile = this.allUserFiles.find(f => f.id === id);
                 if (!currentFile) continue;
@@ -60,14 +63,24 @@ const AppShareMethods = {
                         throw new Error(errorMsg);
                     }
                     const children = await res.json();
-                    flatItemsToShare.push({ id, fileType: 'application/x-directory' });
+
+                    // Metemos la carpeta base de forma explícita
+                    flatItemsToShare.push({ id, fileType: 'application/x-directory', fileName: currentFile.fileName });
+                    // Metemos todo el árbol recursivo devuelto por el servidor
                     flatItemsToShare.push(...children);
                 } else {
-                    flatItemsToShare.push({ id, fileType: currentFile.fileType });
+                    flatItemsToShare.push({ id, fileType: currentFile.fileType, fileName: currentFile.fileName });
                 }
             }
 
-            this.status = "Homogeneizando listas de control de acceso...";
+            const seenIds = new Set();
+            flatItemsToShare = flatItemsToShare.filter(item => {
+                if (seenIds.has(item.id)) return false;
+                seenIds.add(item.id);
+                return true;
+            });
+
+            this.status = "Configurando nuevos accesos...";
             for (const itemId of targetsWorklist) {
                 const currentRes = await fetch(`/api/files/${itemId}/shared-users`, { headers: API.getAuthHeader() });
                 if (!currentRes.ok) {
@@ -89,8 +102,6 @@ const AppShareMethods = {
             }
 
             if (this.shareModal.selectedUsers.length > 0) {
-                this.status = "Descifrando y re-envolviendo sobres digitales...";
-
                 const recipientKeys = {};
                 for (const user of this.shareModal.selectedUsers) {
                     const data = await API.getUserPublicKey(user);
@@ -99,7 +110,10 @@ const AppShareMethods = {
 
                 const batchRequests = [];
 
+                // FASE 3: Bucle de protección asimétrica libre de duplicados
                 for (const item of flatItemsToShare) {
+                    this.status = `Dando acceso seguro a: ${item.fileName}...`;
+
                     if (item.fileType === 'application/x-directory') {
                         for (const targetUser of this.shareModal.selectedUsers) {
                             batchRequests.push({
@@ -127,7 +141,7 @@ const AppShareMethods = {
                 }
 
                 if (batchRequests.length > 0) {
-                    this.status = "Confirmando transacciones en el servidor...";
+                    this.status = "Guardando cambios en el servidor...";
                     const batchRes = await fetch('/api/files/share/batch', {
                         method: 'POST',
                         headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
@@ -140,7 +154,7 @@ const AppShareMethods = {
                 }
             }
 
-            this.showInfo("Permisos y sobres criptográficos actualizados.");
+            this.showInfo("Elemento compartido correctamente.");
             this.closeShareModal();
             this.clearSelection();
             await this.refreshAppData();

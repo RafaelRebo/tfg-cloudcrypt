@@ -132,11 +132,11 @@ const FileService = {
         let proceed = false;
 
         if (isTrashed) {
-            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente del disco duro?`);
+            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente del disco duro?`, true);
         } else if (isShared) {
-            proceed = await context.askConfirmation(`¿Quitar tu acceso a "${file.fileName}"?`);
+            proceed = await context.askConfirmation(`¿Quitar tu acceso a "${file.fileName}"?`, true);
         } else {
-            proceed = await context.askConfirmation(`¿Mover "${file.fileName}" a la papelera?`);
+            proceed = await context.askConfirmation(`¿Mover "${file.fileName}" a la papelera?`, true);
         }
 
         if (!proceed) return;
@@ -422,7 +422,7 @@ const AppFileMethods = {
         const isTrash = this.currentCategory === 'trash';
         const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos del almacenamiento físico?` : `¿Mover ${count} elementos a la papelera?`;
 
-        if (await this.askConfirmation(msg)) {
+        if (await this.askConfirmation(msg, true)) {
             this.status = "Eliminando elementos...";
             try {
                 await Promise.all(this.selectedIds.map(async id => {
@@ -452,6 +452,7 @@ const AppFileMethods = {
             isInput: true,
             title: 'Cambiar nombre',
             message: `Introduce el nuevo nombre para "${f.fileName}":`,
+            buttonText: 'Renombrar',
             inputValue: f.fileName,
             onConfirm: async () => {
                 const newName = this.confirmModal.inputValue.trim();

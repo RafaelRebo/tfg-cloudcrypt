@@ -46,10 +46,6 @@ const PreviewService = {
             return { type: 'text', content: text };
         }
 
-        if (mime.includes('zip') || mime.includes('rar')) {
-            return { type: 'archive', url };
-        }
-
         return { type: 'unsupported', url };
     }
 };
