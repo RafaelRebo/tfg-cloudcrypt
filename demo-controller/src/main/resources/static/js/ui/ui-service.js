@@ -1,15 +1,14 @@
 const UIService = {
-    // Resaltado SEGURO contra XSS
     highlight(text) {
         if (!this.searchQuery || !this.isSearching) return text;
 
-        // 1. Escapar HTML para evitar XSS (Nivel Pro TFG)
         const div = document.createElement('div');
         div.textContent = text;
         const safeText = div.innerHTML;
 
-        // 2. Aplicar el resaltado sobre el texto ya seguro
-        const regex = new RegExp(`(${this.searchQuery})`, 'gi');
+        const escapedQuery = this.searchQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        const regex = new RegExp(`(${escapedQuery})`, 'gi');
         return safeText.replace(regex, '<span class="highlight">$1</span>');
     },
 

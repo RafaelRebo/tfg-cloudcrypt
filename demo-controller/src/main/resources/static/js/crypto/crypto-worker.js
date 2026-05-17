@@ -69,6 +69,12 @@ self.onmessage = async (e) => {
                 self.postMessage({ id, status: 'OK', payload: decryptedBuffer });
                 break;
 
+            case 'WIPE_IDENTITY':
+                privateKey = null;
+                publicKey = null;
+                self.postMessage({ id, status: 'OK' });
+                break;
+
             default:
                 self.postMessage({ id, status: 'OK' }); // Mantener compatibilidad pasiva
         }

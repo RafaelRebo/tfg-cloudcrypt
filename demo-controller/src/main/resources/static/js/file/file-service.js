@@ -249,34 +249,31 @@ const FileService = {
 
     getFileIconSvg(mime, fileName) {
         const m = (mime || '').toLowerCase();
-        const name = (fileName || '').toLowerCase();
-        const ext = name.split('.').pop();
+        const ext = (fileName || '').toLowerCase().split('.').pop();
 
-        if (m === 'application/pdf' || ext === 'pdf') {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" fill="none" /><text x="12" y="12.5" font-family="system-ui, -apple-system, sans-serif" font-size="6.5" font-weight="900" fill="#ffffff" stroke="none" text-anchor="middle" dominant-baseline="central">PDF</text></svg>`;
-        }
-        if (m.includes('zip') || m.includes('rar') || m.includes('7z') || m.includes('tar') || ['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M12 2v4M12 8v2M12 12v2"/></svg>`;
-        }
-        if (m.includes('excel') || m.includes('spreadsheetml') || m.includes('csv') || ['xls', 'xlsx', 'csv'].includes(ext)) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><rect width="8" height="8" x="8" y="10" rx="1"/></svg>`;
-        }
-        if (m.startsWith('text/') || m.includes('json') || m.includes('javascript') || ['txt', 'md', 'json', 'js', 'html', 'css', 'xml'].includes(ext)) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`;
-        }
-        if (m.includes('powerpoint') || m.includes('presentationml') || ['ppt', 'pptx'].includes(ext)) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polygon points="12 10 16 14 12 18 8 14"/></svg>`;
-        }
-        if (m.startsWith('image/')) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`;
-        }
-        if (m.startsWith('audio/')) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`;
-        }
-        if (m.startsWith('video/')) {
-            return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>`;
-        }
-        return `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`;
+        const iconTemplates = {
+            pdf: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3" fill="none" /><text x="12" y="12.5" font-family="system-ui, -apple-system, sans-serif" font-size="6.5" font-weight="900" fill="#ffffff" stroke="none" text-anchor="middle" dominant-baseline="central">PDF</text></svg>`,
+            compressed: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M12 2v4M12 8v2M12 12v2"/></svg>`,
+            spreadsheet: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><rect width="8" height="8" x="8" y="10" rx="1"/></svg>`,
+            text: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/></svg>`,
+            presentation: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polygon points="12 10 16 14 12 18 8 14"/></svg>`,
+            image: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>`,
+            audio: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>`,
+            video: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>`,
+            generic: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`
+        };
+
+        // Evaluación rápida por extensión o tipo MIME
+        if (m === 'application/pdf' || ext === 'pdf') return iconTemplates.pdf;
+        if (m.includes('zip') || m.includes('rar') || m.includes('7z') || m.includes('tar') || ['zip','rar','7z','tar','gz'].includes(ext)) return iconTemplates.compressed;
+        if (m.includes('excel') || m.includes('spreadsheetml') || m.includes('csv') || ['xls','xlsx','csv'].includes(ext)) return iconTemplates.spreadsheet;
+        if (m.startsWith('text/') || m.includes('json') || m.includes('javascript') || ['txt','md','json','js','html','css','xml'].includes(ext)) return iconTemplates.text;
+        if (m.includes('powerpoint') || m.includes('presentationml') || ['ppt','pptx'].includes(ext)) return iconTemplates.presentation;
+        if (m.startsWith('image/')) return iconTemplates.image;
+        if (m.startsWith('audio/')) return iconTemplates.audio;
+        if (m.startsWith('video/')) return iconTemplates.video;
+
+        return iconTemplates.generic;
     },
 
     formatModDate(dateStr) {

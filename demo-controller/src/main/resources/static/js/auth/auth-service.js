@@ -131,7 +131,12 @@ const AppAuthMethods = {
         }
     },
 
-    logout() {
+    async logout() {
+        try {
+            await CryptoService.wipeIdentity();
+        } catch (e) {
+            console.error("Error al purgar el contenedor criptográfico:", e);
+        }
         AuthService.logout();
         this.isLoggedIn = false;
         Object.assign(this.$data, this.$options.data());

@@ -47,13 +47,13 @@ const CryptoService = {
 
     async unwrapKey(encryptedAesKeyBase64) { return this._send('UNWRAP_KEY', { encryptedAesKeyBase64 }); },
 
-    async reWrapKeyForUser(encryptedAesKeyBase64, targetPublicKeyJwk) {
-        return this._send('REWRAP_KEY', { encryptedAesKeyBase64, targetPublicKeyJwk });
-    },
+    async reWrapKeyForUser(encryptedAesKeyBase64, targetPublicKeyJwk) {return this._send('REWRAP_KEY', { encryptedAesKeyBase64, targetPublicKeyJwk });},
 
     async encryptPrivateKey(privateKey, password) { return this._send('ENCRYPT_PRIVATE_KEY', { privateKey, password }); },
 
     async decryptPrivateKey(encryptedBase64, password) { return this._send('DECRYPT_PRIVATE_KEY', { encryptedBase64, password }); },
+
+    async wipeIdentity() { return this._send('WIPE_IDENTITY', {}); },
 
     // Estas son utilidades rápidas que no necesitan Worker (no son pesadas ni secretas)
     async exportPublicKey(publicKey) {

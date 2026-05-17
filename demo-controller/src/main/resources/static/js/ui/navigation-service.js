@@ -97,8 +97,10 @@ const AppNavigationMethods = {
     },
 
     handleInfiniteScroll(event) {
+        if (this.isLoadingMore || !this.hasMore) return;
+
         const el = event.target;
-        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 100) {
+        if (el.scrollTop + el.clientHeight >= el.scrollHeight - 150) {
             this.loadNextPage();
         }
     },
