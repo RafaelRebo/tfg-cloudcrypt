@@ -6,7 +6,6 @@ const UploadService = {
         context.uploadProgress = 1;
         let currentTargetId = context.currentFolderId;
 
-        // FASE 1: 🛡️ CRIBADO SECUENCIAL DE CONFLICTOS
         const finalFilesToUpload = [];
         let applyAllAction = null;
 

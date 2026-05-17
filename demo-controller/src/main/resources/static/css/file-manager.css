@@ -107,7 +107,7 @@
 .file-list-header > div:not(.col-actions) {
     cursor: pointer;
     user-select: none;
-    padding: 6px 10px;
+    padding: 6px 10px 6px 0;
     border-radius: 6px;
     transition: all 0.2s ease;
     display: inline-flex;
@@ -558,11 +558,11 @@
 .context-menu {
     position: fixed;
     background-color: var(--sidebar-bg);
-    min-width: 200px;
+    min-width: 230px;
     border: 1px solid var(--border-color);
     border-radius: 8px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
-    z-index: 50000; /* Asegura estar por encima de las filas y la barra azul */
+    z-index: 50000;
     padding: 6px 0;
     animation: ctxFadeIn 0.15s ease-out;
 }
@@ -570,13 +570,15 @@
 .ctx-item {
     color: var(--text-main);
     padding: 10px 16px;
-    font-size: 0.88rem;
-    display: flex;
+    font-size: 0.85rem;
+    display: flex !important;
+    flex-direction: row !important;
     align-items: center;
     gap: 12px;
     cursor: pointer;
     transition: background 0.15s ease, color 0.15s ease;
     user-select: none;
+    white-space: nowrap;
 }
 
 .ctx-item span {
@@ -584,6 +586,13 @@
     display: inline-block;
     width: 20px;
     text-align: center;
+}
+
+.ctx-item svg {
+    width: 17px !important;
+    height: 17px !important;
+    flex-shrink: 0;
+    color: inherit;
 }
 
 /* Efecto hover interactivo */

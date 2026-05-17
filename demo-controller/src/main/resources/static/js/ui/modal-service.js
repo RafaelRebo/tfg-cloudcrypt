@@ -23,7 +23,7 @@ const AppModalMethods = {
             active: true,
             isDuplicateMode: false,
             isInput: true,
-            title: '📁 Nueva carpeta',
+            title: 'Nueva carpeta',
             message: `Crear en: ${targetName}`,
             inputValue: 'Carpeta sin título',
             onConfirm: async () => {
@@ -66,7 +66,7 @@ const AppModalMethods = {
                 isDuplicateMode: true,
                 isInput: false,
                 applyToAll: false,
-                title: isFolder ? '📁 Carpeta duplicada' : '📄 Archivo duplicado',
+                title: isFolder ? 'Carpeta duplicada' : 'Archivo duplicado',
                 message: `"${name}" ya existe. ¿Qué deseas hacer?`,
                 onOverwrite: () => {
                     const res = { action: 'overwrite', applyToAll: this.confirmModal.applyToAll };

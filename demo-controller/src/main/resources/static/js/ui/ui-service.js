@@ -35,7 +35,21 @@ const UIService = {
     },
 
     getFileIcon(mime) { return FileService.getFileIconSvg(mime); },
-    formatSize(b) { return (b / (1024 * 1024)).toFixed(1) + ' MB'; },
+    formatSize(bytes) {
+        if (bytes === undefined || bytes === null || isNaN(bytes)) return '-';
+        if (bytes === 0) return '0 B';
+
+        const k = 1024;
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+        const val = bytes / Math.pow(k, i);
+
+        const decimals = (i === 0 || val % 1 === 0) ? 0 : 1;
+
+        return val.toFixed(decimals) + ' ' + units[i];
+    },
     formatCategory(cat) {
         const labels = { 'all': 'Mis archivos', 'image': 'Imágenes', 'audio': 'Audio', 'video': 'Vídeos', 'document': 'Documentos', 'shared': 'Compartidos conmigo', 'trash': 'Papelera', 'starred': 'Destacados' };
         return labels[cat] || cat;
