@@ -1,15 +1,14 @@
+// com/example/util/StorageUtils.java
 package com.example.util;
 
+import com.example.config.CryptoConfig; // ⚡ NUEVO IMPORT
 import com.example.repository.storage.IStorageRepository;
 import org.springframework.stereotype.Service;
-
-import javax.crypto.Cipher;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -18,49 +17,36 @@ import java.util.UUID;
 public class StorageUtils {
 
     private final IStorageRepository storageRepository;
-    private final CryptoUtils cryptoUtils;
+    private final CryptoConfig cryptoConfig; // ⚡ CAMBIO: Inyectamos el lector de propiedades
 
-    public StorageUtils(IStorageRepository storageRepository, CryptoUtils cryptoUtils) {
+    public StorageUtils(IStorageRepository storageRepository, CryptoConfig cryptoConfig) {
         this.storageRepository = storageRepository;
-        this.cryptoUtils = cryptoUtils;
+        this.cryptoConfig = cryptoConfig;
     }
 
-    /**
-     * Guarda el archivo cifrado usando una clave AES única proporcionada.
-     * Ya no depende de la contraseña del usuario.
-     */
     public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws IOException, NoSuchAlgorithmException {
-        // 1. Preparar el cálculo de integridad (SHA-256)
-        MessageDigest md = MessageDigest.getInstance("SHA-256");
+        // ⚡ REFACTORIZADO: Lee dinámicamente el algoritmo de hash configurado (SHA-256 / SHA-512)
+        MessageDigest md = MessageDigest.getInstance(cryptoConfig.getHashAlgorithm());
 
-        // 2. Definir estructura de almacenamiento físico corrigiendo la doble barra
         String sanitizedFolder = folderPath.replaceAll("^/|/$", "");
-
-        // CORRECCIÓN: Si está en la raíz (vacío), no concatenamos barra extra al usuario
         String physicalFolder = sanitizedFolder.isEmpty() ? username : username + "/" + sanitizedFolder;
         String storageName = UUID.randomUUID().toString();
 
-        // 3. FLUJO DE TRANSFERENCIA
         try (DigestInputStream dis = new DigestInputStream(is, md)) {
-            // Aquí se mantiene igual
             storageRepository.save(dis, physicalFolder, storageName);
         }
 
-        // 4. Generar respuesta con metadatos limpios sin dobles slashes
         Map<String, String> results = new HashMap<>();
         results.put("storagePath", physicalFolder + "/" + storageName);
         results.put("checksum", bytesToHex(md.digest()));
 
         return results;
     }
-    /**
-     * Carga el stream descifrado usando la clave AES del archivo.
-     */
+
     public InputStream getRawStream(String storagePath) throws IOException {
         return storageRepository.loadStream(storagePath);
     }
 
-    // Métodos auxiliares se mantienen igual
     public void deletePhysicalFile(String storagePath) throws IOException {
         storageRepository.delete(storagePath);
     }

@@ -28,7 +28,7 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 1. Permitimos el index.html y los recursos estáticos (CSS, JS, imágenes)
-                        .requestMatchers("/", "/index.html", "/css/**", "/img/**", "/js/**", "/static/avatars/**", "/favicon.ico").permitAll()
+                        .requestMatchers("/", "/api/setup/**", "/setup.html", "/index.html", "/css/**", "/img/**", "/js/**", "/static/avatars/**", "/favicon.ico").permitAll()
 
                         // 2. Permitimos login y registro de la API
                         .requestMatchers("/api/users/login", "/api/users/register").permitAll()

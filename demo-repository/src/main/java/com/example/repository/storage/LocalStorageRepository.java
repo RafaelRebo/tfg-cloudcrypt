@@ -1,5 +1,6 @@
 package com.example.repository.storage;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 import jakarta.annotation.PostConstruct;
@@ -7,6 +8,7 @@ import jakarta.annotation.PostConstruct;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -16,10 +18,19 @@ import java.nio.file.*;
 @Primary
 public class LocalStorageRepository implements IStorageRepository {
 
-    private final Path root = Paths.get("uploads");
+    @Value("${app.storage.upload-dir:uploads}")
+    private String uploadDir;
+
+    private Path root;
 
     @PostConstruct
     public void init() {
+        this.root = Paths.get(uploadDir);
+        boolean isInstalled = new File("./demo-controller/config/application-prod.properties").exists()
+                || new File("./config/application-prod.properties").exists();
+        if (!isInstalled && "uploads".equals(uploadDir)) {
+            return;
+        }
         try {
             if (!Files.exists(root)) {
                 Files.createDirectories(root);

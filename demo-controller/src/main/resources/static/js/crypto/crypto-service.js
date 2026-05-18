@@ -27,43 +27,78 @@ const CryptoService = {
         });
     },
 
-    // --- MÉTODOS DE COMPATIBILIDAD TOTAL ---
+    // --- PASARELA DE CONTROL MULTI-MÓDULO ---
 
-    async generateAndPackageKeys(password, username) {return this._send('GENERATE_AND_PACKAGE_KEYS', { password, username });},
+    async generateAndPackageKeys(password, username) {
+        return this._send('GENERATE_AND_PACKAGE_KEYS', { password, username });
+    },
 
-    async initializeIdentity(encryptedBase64, publicKeyStr, password, username) {return this._send('INITIALIZE_IDENTITY', { encryptedBase64, publicKeyStr, password, username });},
+    async initializeIdentity(encryptedBase64, publicKeyStr, password, username) {
+        return this._send('INITIALIZE_IDENTITY', { encryptedBase64, publicKeyStr, password, username });
+    },
 
-    async setKeys(publicKey, privateKey) { return this._send('SET_KEYS', { publicKey, privateKey }); },
+    async setKeys(publicKey, privateKey) {
+        return this._send('SET_KEYS', { publicKey, privateKey });
+    },
 
-    async generateUserKeyPair() { return this._send('GENERATE_RSA_KEYS', {}); },
+    async generateUserKeyPair() {
+        return this._send('GENERATE_RSA_KEYS', {});
+    },
 
-    async encryptFile(file, aesKey) { return this._send('ENCRYPT_FILE', { file, aesKey }); },
+    async encryptFile(file, aesKey) {
+        return this._send('ENCRYPT_FILE', { file, aesKey });
+    },
 
-    async encryptFileForUpload(file) {return this._send('ENCRYPT_FILE_FOR_UPLOAD', { file });},
+    async encryptFileForUpload(file) {
+        return this._send('ENCRYPT_FILE_FOR_UPLOAD', { file });
+    },
 
-    async decryptFile(encryptedBlob, aesKey) { return this._send('DECRYPT_FILE', { encryptedBlob, aesKey }); },
+    async decryptFile(encryptedBlob, aesKey) {
+        return this._send('DECRYPT_FILE', { encryptedBlob, aesKey });
+    },
 
-    async wrapKey(rawAesKey, targetPublicKey) { return this._send('WRAP_KEY', { rawAesKey, targetPublicKey }); },
+    async wrapKey(rawAesKey, targetPublicKey) {
+        return this._send('WRAP_KEY', { rawAesKey, targetPublicKey });
+    },
 
-    async unwrapKey(encryptedAesKeyBase64) { return this._send('UNWRAP_KEY', { encryptedAesKeyBase64 }); },
+    async unwrapKey(encryptedAesKeyBase64) {
+        return this._send('UNWRAP_KEY', { encryptedAesKeyBase64 });
+    },
 
-    async reWrapKeyForUser(encryptedAesKeyBase64, targetPublicKeyJwk) {return this._send('REWRAP_KEY', { encryptedAesKeyBase64, targetPublicKeyJwk });},
+    async reWrapKeyForUser(encryptedAesKeyBase64, targetPublicKeyJwk) {
+        return this._send('REWRAP_KEY', { encryptedAesKeyBase64, targetPublicKeyJwk });
+    },
 
-    async encryptPrivateKey(privateKey, password) { return this._send('ENCRYPT_PRIVATE_KEY', { privateKey, password }); },
+    async encryptPrivateKey(privateKey, password) {
+        return this._send('ENCRYPT_PRIVATE_KEY', { privateKey, password });
+    },
 
-    async decryptPrivateKey(encryptedBase64, password) { return this._send('DECRYPT_PRIVATE_KEY', { encryptedBase64, password }); },
+    async decryptPrivateKey(encryptedBase64, password) {
+        return this._send('DECRYPT_PRIVATE_KEY', { encryptedBase64, password });
+    },
 
-    async wipeIdentity() { return this._send('WIPE_IDENTITY', {}); },
+    async wipeIdentity() {
+        return this._send('WIPE_IDENTITY', {});
+    },
 
-    // Estas son utilidades rápidas que no necesitan Worker (no son pesadas ni secretas)
+    async configureRuntimeAlgorithms(specs) {
+        return this._send('CONFIGURE_RUNTIME_SPECS', specs);
+    },
+
+    // Utilidades directas síncronas de la ventana principal
     async exportPublicKey(publicKey) {
         const jwk = await window.crypto.subtle.exportKey("jwk", publicKey);
         return JSON.stringify(jwk);
     },
 
     async importExternalPublicKey(jwkString) {
+        const targetHash = (window.CryptoSpecs && window.CryptoSpecs.hashAlgo) || 'SHA-256';
         return await window.crypto.subtle.importKey(
-            "jwk", JSON.parse(jwkString), { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+            "jwk",
+            JSON.parse(jwkString),
+            { name: "RSA-OAEP", hash: targetHash },
+            true,
+            ["encrypt"]
         );
     }
 };

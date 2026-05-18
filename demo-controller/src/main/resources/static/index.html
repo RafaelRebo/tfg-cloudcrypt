@@ -156,7 +156,7 @@
                 <div class="progress-bar-container">
                     <div class="progress-bar-fill" :style="{ width: quotaPercentage + '%' }"></div>
                 </div>
-                <small>{{ formatSize(stats.totalSize) }} de 100 MB utilizados</small>
+                <small>{{ formatSize(stats.totalSize) }} de {{ formatSize(stats.maxQuota) }} utilizados</small>
             </div>
         </aside>
 

@@ -1,0 +1,121 @@
+:root {
+    --bg-main: #0f172a;
+    --bg-card: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent-blue: #3b82f6;
+    --accent-green: #22c55e;
+    --accent-danger: #ef4444;
+    --border: #334155;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+body { background-color: var(--bg-main); color: var(--text-main); display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+[v-cloak] { display: none; }
+
+.setup-container { background: var(--bg-card); width: 100%; max-width: 650px; border-radius: 12px; border: 1px solid var(--border); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); overflow: hidden; }
+.setup-header { padding: 1.5rem 2rem; background: rgba(0,0,0,0.2); border-bottom: 1px solid var(--border); text-align: center; }
+.setup-logo { height: 42px; margin-bottom: 8px; }
+.setup-title { font-size: 1.4rem; font-weight: 700; color: var(--text-main); }
+.setup-subtitle { color: var(--text-muted); font-size: 0.85rem; margin-top: 5px; }
+
+.setup-tabs { display: flex; background: rgba(0,0,0,0.1); border-bottom: 1px solid var(--border); }
+.tab-item { flex: 1; padding: 14px 5px; text-align: center; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.2s; }
+.tab-item:hover { color: var(--text-main); }
+.tab-item.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); background: rgba(59,130,246,0.05); }
+
+/* ⚡ MEJORA 1: Altura ampliada de 410px a 490px para evitar scroll y dar holgura total */
+.setup-body {
+    padding: 2rem;
+    height: 500px;
+    overflow-y: auto;
+}
+
+.setup-body::-webkit-scrollbar { width: 6px; }
+.setup-body::-webkit-scrollbar-track { background: transparent; }
+.setup-body::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+
+.form-group { margin-bottom: 1.25rem; }
+.form-group label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--text-main); }
+.help-text { color: var(--text-muted); font-size: 0.75rem; display: block; margin-top: 5px; }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+.form-control { width: 100%; padding: 10px 12px; background: rgba(0,0,0,0.3); border: 1px solid var(--border); border-radius: 6px; color: var(--text-main); font-size: 0.9rem; transition: all 0.2s; }
+.form-control:focus { outline: none; border-color: var(--accent-blue); background: rgba(0,0,0,0.4); }
+.form-control::placeholder { color: #475569; }
+
+/* ⚡ MEJORA 3: Exterminio total de flechas nativas de incremento en inputs numéricos */
+.hide-spinners::-webkit-outer-spin-button,
+.hide-spinners::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.hide-spinners {
+    -moz-appearance: textfield;
+}
+
+/* Persianas select oscuras */
+select.form-control {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 16px;
+    padding-right: 40px;
+}
+select.form-control option { background-color: var(--bg-main); color: var(--text-main); }
+
+.input-with-btn { display: flex; gap: 10px; }
+.btn-input { padding: 0 15px; flex-shrink: 0; }
+.input-split { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; }
+.select-unit { text-align: center; padding-right: 25px !important; background-position: right 8px center; }
+
+/* ⚡ MEJORA 2: Estilizado premium del botón "Elegir Archivo" del Administrador */
+.file-input { padding: 6px 10px; cursor: pointer; }
+.file-input::file-selector-button {
+    background: #334155;
+    color: var(--text-main);
+    border: 1px solid var(--border);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-right: 12px;
+    transition: background 0.2s, border-color 0.2s;
+}
+.file-input::file-selector-button:hover {
+    background: #475569;
+    border-color: #4b5563;
+}
+
+.setup-footer { padding: 1.25rem 2rem; background: rgba(0,0,0,0.1); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+
+.btn { padding: 10px 20px; font-size: 0.9rem; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; transition: background 0.2s; display: inline-flex; align-items: center; gap: 8px; user-select: none; }
+.btn-secondary { background: #334155; color: #f8fafc; border: 1px solid var(--border); }
+.btn-secondary:hover { background: #475569; }
+.btn-secondary:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-primary { background: var(--accent-blue); color: white; }
+.btn-primary:hover { background: #2563eb; }
+.btn-success { background: var(--accent-green); color: white; }
+.btn-success:hover { background: #16a34a; }
+
+/* ⚡ MEJORA 2: Mayor separación (margin-bottom: 2rem) para dar un respiro limpio al formulario */
+.alert {
+    padding: 12px 16px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    margin-bottom: 2rem;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    line-height: 1.4;
+    border: 1px solid transparent;
+}
+.alert-info { background: rgba(59,130,246,0.1); border-color: rgba(59,130,246,0.2); color: #93c5fd; }
+.alert-error { background: rgba(239,68,68,0.1); border-color: rgba(239,68,68,0.2); color: #fca5a5; }
+.alert-success { background: rgba(34,197,94,0.1); border-color: rgba(34,197,94,0.2); color: #86efac; }
+
+.spinner { width: 14px; height: 14px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.8s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }

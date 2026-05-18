@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CloudCrypt - Asistente de Instalación</title>
+    <link rel="icon" type="image/png" href="img/favicon.png">
+    <link rel="stylesheet" href="css/setup.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body>
+
+<div id="app" v-cloak class="setup-container">
+    <header class="setup-header">
+        <img src="img/cryptblanco.png" class="setup-logo" alt="CloudCrypt">
+        <h1 class="setup-title">Asistente de Configuración</h1>
+        <p class="setup-subtitle">Despliegue automatizado de infraestructura y gobernanza criptográfica</p>
+    </header>
+
+    <div class="setup-tabs">
+        <div class="tab-item" :class="{active: currentStep === 1}" @click="setStep(1)">1. BASE DE DATOS</div>
+        <div class="tab-item" :class="{active: currentStep === 2}" @click="setStep(2)">2. ALMACENAMIENTO</div>
+        <div class="tab-item" :class="{active: currentStep === 3}" @click="setStep(3)">3. CRIPTOGRAFÍA</div>
+        <div class="tab-item" :class="{active: currentStep === 4}" @click="setStep(4)">4. ADMINISTRADOR</div>
+    </div>
+
+    <div class="setup-body">
+        <div v-if="message" :class="['alert', 'alert-' + messageType]">
+            <span v-if="loading || dbTesting" class="spinner"></span>
+            <span>{{ message }}</span>
+        </div>
+
+        <div v-if="currentStep === 1">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Host del Servidor MySQL</label>
+                    <input type="text" v-model="form.dbHost" class="form-control" placeholder="localhost o IP remota">
+                </div>
+                <div class="form-group">
+                    <label>Puerto</label>
+                    <input type="text" v-model="form.dbPort" class="form-control" placeholder="3306">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Nombre de la Base de Datos</label>
+                <input type="text" v-model="form.dbName" class="form-control" placeholder="cloudcrypt_db">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Usuario de Conexión</label>
+                    <input type="text" v-model="form.dbUser" class="form-control" placeholder="root">
+                </div>
+                <div class="form-group">
+                    <label>Contraseña</label>
+                    <input type="password" v-model="form.dbPass" class="form-control" placeholder="••••••••">
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 5px;">
+                <button type="button" @click="testDatabase" :disabled="loading || dbTesting" class="btn btn-secondary">
+                    Probar Conexión JDBC
+                </button>
+            </div>
+        </div>
+
+        <div v-if="currentStep === 2">
+            <div class="form-group">
+                <label>Ruta Física del Directorio de Almacenamiento</label>
+                <input type="text" v-model="form.uploadDir" class="form-control" placeholder="Ej: C:/Users/rafa-/Pictures/Saved Images">
+                <small class="help-text">Introduzca la ruta absoluta (ej: C:/CloudCrypt/storage) o relativa (ej: uploads) del disco.</small>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Cuota Total por Usuario</label>
+                    <div class="input-split">
+                        <input type="number" v-model="uiQuotaValue" class="form-control hide-spinners" placeholder="100">
+                        <select v-model="uiQuotaUnit" class="form-control select-unit">
+                            <option value="MB">MB</option>
+                            <option value="GB">GB</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Tamaño Máximo por Subida</label>
+                    <div class="input-split">
+                        <input type="number" v-model="uiFileSizeValue" class="form-control hide-spinners" placeholder="2">
+                        <select v-model="uiFileSizeUnit" class="form-control select-unit">
+                            <option value="MB">MB</option>
+                            <option value="GB">GB</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentStep === 3">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Algoritmo de Integridad (Server Hash)</label>
+                    <select v-model="form.hashAlgo" class="form-control">
+                        <option value="SHA-256">SHA-256 (Recomendado)</option>
+                        <option value="SHA-512">SHA-512 (Máxima seguridad)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Algoritmo Simétrico (Web Worker)</label>
+                    <select v-model="form.symAlgo" class="form-control">
+                        <option value="AES/GCM/NoPadding">AES-GCM (Autenticado)</option>
+                        <option value="AES/CBC/PKCS5Padding">AES-CBC (Clásico)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Robustez Asimétrica (Identidades RSA)</label>
+                    <select v-model="form.asymKeySize" class="form-control">
+                        <option value="2048">2048 bits (Estándar Balanceado)</option>
+                        <option value="3072">3072 bits (Cumplimiento ANSSI)</option>
+                        <option value="4048">4048 bits (Grado Militar)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Sufijo de Sal Corporativo (Salt)</label>
+                    <input type="text" v-model="form.saltSuffix" class="form-control" placeholder="-cloudcrypt">
+                </div>
+            </div>
+        </div>
+
+        <div v-if="currentStep === 4">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" v-model="form.adminFullName" class="form-control" placeholder="Super Administrador">
+                </div>
+                <div class="form-group">
+                    <label>Nombre de Usuario (User ID)</label>
+                    <input type="text" v-model="form.adminUsername" class="form-control" placeholder="admin">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Correo Electrónico</label>
+                <input type="email" v-model="form.adminEmail" class="form-control" placeholder="admin@cloudcrypt.com">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Contraseña del Administrador</label>
+                    <input type="password" v-model="form.adminPassword" class="form-control" placeholder="••••••••">
+                </div>
+                <div class="form-group">
+                    <label>Confirmar Contraseña</label>
+                    <input type="password" v-model="adminConfirmPassword" class="form-control" placeholder="••••••••">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Foto de Perfil Primaria (Opcional)</label>
+                <input type="file" ref="avatarInput" accept="image/*" class="form-control file-input">
+            </div>
+        </div>
+    </div>
+
+    <footer class="setup-footer">
+        <button type="button" @click="prevStep" :disabled="currentStep === 1 || loading" class="btn btn-secondary">
+            Atrás
+        </button>
+
+        <button type="button" v-if="currentStep < 4" @click="nextStep" class="btn btn-primary">
+            Siguiente
+        </button>
+
+        <button type="button" v-else @click="submitSetup" :disabled="loading" class="btn btn-success">
+            Finalizar e Instalar
+        </button>
+    </footer>
+</div>
+
+<script src="js/setup/setup.js"></script>
+</body>
+</html>

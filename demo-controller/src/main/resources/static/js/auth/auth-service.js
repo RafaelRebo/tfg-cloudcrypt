@@ -10,14 +10,25 @@ const AuthService = {
             sessionStorage.setItem('fileKey', password);
 
             try {
+                // Intentamos recuperar las llaves del servidor
                 const encryptedPrivKey = await API.getMyPrivateKey();
                 const pubKeyData = await API.getUserPublicKey(username);
 
-                if (encryptedPrivKey && pubKeyData) {
+                if (encryptedPrivKey && pubKeyData && pubKeyData.publicKey) {
+                    // Caso normal: El llavero existe, lo cargamos en el Worker
                     await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, password, username);
+                } else {
+                    // Caso Admin inicial: Autogeneración limpia en primer login
+                    console.warn("Llavero no encontrado. Inicializando auto-aprovisionamiento Zero-Knowledge...");
+                    await this.setupUserCrypto(username, password);
                 }
             } catch (e) {
-                console.error("Error al inicializar identidad en el Worker:", e);
+                // Si la API da un error de recurso no encontrado (404), disparamos la creación
+                try {
+                    await this.setupUserCrypto(username, password);
+                } catch (err) {
+                    console.error("Fallo crítico al inicializar la identidad en el Worker:", err);
+                }
             }
             return true;
         }
@@ -58,7 +69,11 @@ const AuthService = {
     async deriveMasterKey(username, password) {
         const encoder = new TextEncoder();
         const data = encoder.encode(username.toLowerCase() + password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+
+        // ⚡ SOLUCIÓN: Usamos el hash global sintonizado dinámicamente en lugar de 'SHA-256' estático
+        const targetHash = (window.CryptoSpecs && window.CryptoSpecs.hashAlgo) || 'SHA-256';
+        const hashBuffer = await crypto.subtle.digest(targetHash, data);
+
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     }
@@ -79,18 +94,33 @@ const AppAuthMethods = {
                 localStorage.setItem('avatarUrl', data.avatarUrl || '');
                 sessionStorage.setItem('fileKey', secureKey);
 
-                // ⚡ NUEVO: Guardamos en el estado global los datos extendidos que devuelve la API
                 this.userFullName = data.fullName;
                 this.userAvatarUrl = data.avatarUrl;
 
+                let hasCrypto = false;
                 try {
                     const encryptedPrivKey = await API.getMyPrivateKey();
                     const pubKeyData = await API.getUserPublicKey(this.username);
-                    if (encryptedPrivKey && pubKeyData) {
+                    if (encryptedPrivKey && pubKeyData && pubKeyData.publicKey) {
                         await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, secureKey, this.username);
+                        hasCrypto = true;
                     }
                 } catch (cryptoErr) {
-                    console.error("Identidad asimétrica no inicializada en el hilo secundario", cryptoErr);
+                    console.warn("Llavero asimétrico ausente en el servidor. Preparando aprovisionamiento en caliente...");
+                }
+
+                // ⚡ INTERCEPCIÓN MAESTRA: Si no tiene llaves asignadas, las forzamos en caliente
+                if (!hasCrypto) {
+                    this.status = "Generando llavero criptográfico de autoridad raíz...";
+                    try {
+                        await AuthService.setupUserCrypto(this.username, secureKey);
+                        this.showInfo("¡Llavero de Administrador aprovisionado y guardado con éxito!");
+                    } catch (setupErr) {
+                        console.error("Error en el auto-setup del admin:", setupErr);
+                        this.showError("No se pudo firmar la gobernanza criptográfica del administrador.");
+                    } finally {
+                        this.status = "";
+                    }
                 }
 
                 this.password = '';
@@ -163,7 +193,7 @@ const AppAuthMethods = {
             this.userFullName = loginData.fullName;
             this.userAvatarUrl = loginData.avatarUrl;
 
-            this.status = "Configurando sobres e identidad RSA...";
+            this.status = "Configurando sobres e identidad...";
             await AuthService.setupUserCrypto(this.regUsername, masterKey);
 
             this.showInfo("¡Identidad y monedero de claves instanciados con éxito!");

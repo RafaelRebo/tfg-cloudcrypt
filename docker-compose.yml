@@ -5,9 +5,7 @@ services:
     restart: always
     environment:
       - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=demo_db
-      - MYSQL_USER=user_tfg
-      - MYSQL_PASSWORD=pass_tfg
+      - MYSQL_DATABASE=cloudcrypt_db
     ports:
       - "3306:3306"
     volumes:

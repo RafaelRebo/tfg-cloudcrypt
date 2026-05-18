@@ -6,6 +6,7 @@ import com.example.exceptions.UserAlreadyExistsException;
 import com.example.mapper.UserMapper;
 import com.example.model.UserEntity;
 import com.example.repository.user.UserRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,6 +25,9 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+
+    @Value("${app.storage.upload-dir:uploads}")
+    private String uploadDir;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder, UserMapper userMapper) {
         this.userRepository = userRepository;
@@ -79,24 +83,23 @@ public class UserService {
         if (file == null || file.isEmpty()) return null;
 
         try {
-            // Crear el directorio si no existe físicamente en el servidor
+            // ⚡ Construimos la ruta de avatares basándonos en la configuración global
+            Path rootFolder = Paths.get(uploadDir, "avatars");
+
             if (!Files.exists(rootFolder)) {
                 Files.createDirectories(rootFolder);
             }
 
-            // Extraer la extensión original (.png, .jpg)
             String originalName = file.getOriginalFilename();
             String extension = originalName != null && originalName.contains(".")
                     ? originalName.substring(originalName.lastIndexOf(".")) : ".png";
 
-            // Generar un nombre único universal (UUID) para evitar colisiones
             String uniqueFilename = UUID.randomUUID().toString() + extension;
 
-            // Resolver la ruta absoluta final y copiar el flujo de bytes (Stream)
-            Path targetPath = this.rootFolder.resolve(uniqueFilename);
+            Path targetPath = rootFolder.resolve(uniqueFilename);
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Devolvemos la ruta web relativa que guardaremos en la BD
+            // Devolvemos la URI web relativa
             return "/static/avatars/" + uniqueFilename;
 
         } catch (IOException e) {

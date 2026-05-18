@@ -17,7 +17,7 @@ const appInstance = createApp({
             regAcceptZk: false,
             allUserFiles: [], filesInCurrentFolder: [],
             status: '', uploadProgress: 0,
-            stats: { totalSize: 0, fileCount: 0, maxQuota: 104857600 },
+            stats: { totalSize: 0, fileCount: 0, maxQuota: 0 },
             preview: { active: false, url: null, name: '', type: '', content: '' },
             currentPage: 0, isLoadingMore: false, hasMore: true,
             notifications: [], loginError: false, currentCategory: 'all',
@@ -73,6 +73,24 @@ const appInstance = createApp({
         }
     },
     async mounted() {
+         try {
+             const specsRes = await fetch('/api/setup/crypto-specs');
+             if (specsRes.ok) {
+                 const specs = await specsRes.json();
+
+                 // ⚡ SOLUCIÓN: Guardamos las políticas criptográficas globales visibles para todo el JS
+                 window.CryptoSpecs = {
+                     hashAlgo: specs.hashAlgo,
+                     symAlgo: specs.symAlgo.includes("GCM") ? "AES-GCM" : "AES-CBC",
+                     asymAlgo: "RSA-OAEP",
+                     saltSuffix: specs.saltSuffix || "-cloudcrypt"
+                 };
+
+                 await CryptoService.configureRuntimeAlgorithms(specs);
+             }
+         } catch(e) {
+             console.error("No se han podido sincronizar las políticas criptográficas del servidor:", e);
+         }
         const session = AuthService.getSavedSession();
         if (session) {
             this.username = session.username;
