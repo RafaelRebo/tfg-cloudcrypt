@@ -29,11 +29,11 @@ const API = {
         return fetch('/api/users/login', { method: 'POST', body: formData });
     },
 
-    async register(username, password) {
-        const formData = new FormData();
-        formData.append("username", username);
-        formData.append("password", password);
-        return fetch('/api/users/register', { method: 'POST', body: formData });
+    async register(formData) {
+        return fetch('/api/users/register', {
+            method: 'POST',
+            body: formData
+        });
     },
 
     // --- GESTIÓN DE ARCHIVOS ---

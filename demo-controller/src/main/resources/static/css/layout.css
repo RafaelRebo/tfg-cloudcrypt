@@ -267,3 +267,43 @@
     transform: scale(1.02);
     transition: all 0.15s ease;
 }
+
+/* 📁 Control del logo en el menú lateral izquierdo */
+.sidebar-logo {
+    width: 100%;
+    max-width: 180px; /* Se adapta perfectamente al ancho de 260px del sidebar */
+    height: auto;     /* Evita el estiramiento vertical */
+    display: block;
+    object-fit: contain;
+}
+
+/* Reajuste sutil para el contenedor del sidebar */
+.brand {
+    padding: 0.5rem 0;
+    justify-content: center; /* Centra el logo horizontalmente en el panel */
+}
+
+/* Componente de Avatar adaptativo */
+.user-avatar {
+    width: 32px;  /* Tamaño compacto para la cabecera y tablas */
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: white;
+    background: linear-gradient(135deg, var(--accent-blue) 0%, #1e40af 100%);
+    text-transform: uppercase;
+    border: 1.5px solid var(--border-color);
+    flex-shrink: 0;
+}
+
+/* Variante un poco más grande opcional */
+.user-avatar.large {
+    width: 40px;
+    height: 40px;
+    font-size: 1.1rem;
+}

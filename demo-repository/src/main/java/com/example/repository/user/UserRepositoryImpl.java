@@ -11,11 +11,13 @@ public class UserRepositoryImpl implements UserRepositoryCustom {
 
     @Override
     @Transactional
-    public UserEntity createUser(String username, String encodedPassword, String email) {
+    public UserEntity createUser(String username, String encodedPassword, String fullName, String email, String avatar) {
         UserEntity user = new UserEntity();
         user.setUsername(username);
         user.setPassword(encodedPassword);
+        user.setFullName(fullName);
         user.setEmail(email);
+        user.setAvatarUrl(avatar);
         entityManager.persist(user);
         return user;
     }

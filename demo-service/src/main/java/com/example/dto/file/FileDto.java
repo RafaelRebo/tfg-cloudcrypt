@@ -20,6 +20,8 @@ public class FileDto {
     private LocalDateTime deletedAt;
     private String salt;
     private String ownerUsername;
+    private String ownerFullName;
+    private String ownerAvatarUrl;
     private boolean isShared;
     private boolean isStarred;
     private Long parentId;

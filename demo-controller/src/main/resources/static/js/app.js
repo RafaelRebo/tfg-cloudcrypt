@@ -6,6 +6,15 @@ const appInstance = createApp({
             isLoggedIn: false,
             username: '', password: '',
             currentFolder: '/',
+            authMode: 'login',
+            userFullName: '',
+            userAvatarUrl: '',
+            regFullName: '',
+            regEmail: '',
+            regUsername: '',
+            regPassword: '',
+            regConfirmPassword: '',
+            regAcceptZk: false,
             allUserFiles: [], filesInCurrentFolder: [],
             status: '', uploadProgress: 0,
             stats: { totalSize: 0, fileCount: 0, maxQuota: 104857600 },
@@ -68,9 +77,16 @@ const appInstance = createApp({
         if (session) {
             this.username = session.username;
             this.isLoggedIn = true;
-            // AuthService.login se encarga de re-hidratar el Worker con la llave privada
+
+            this.userFullName = localStorage.getItem('fullName') || '';
+            this.userAvatarUrl = localStorage.getItem('avatarUrl') || '';
+
             try {
                 await AuthService.login(session.username, session.password);
+
+                this.userFullName = localStorage.getItem('fullName') || '';
+                this.userAvatarUrl = localStorage.getItem('avatarUrl') || '';
+
                 await this.refreshAppData();
             } catch (e) {
                 console.error("Sesión expirada o llaves corruptas");

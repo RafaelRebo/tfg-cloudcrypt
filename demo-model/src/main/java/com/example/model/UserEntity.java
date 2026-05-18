@@ -24,8 +24,10 @@ public class UserEntity {
 
     private String email;
 
-    // @JsonManagedReference indica que esta es la parte de la relación
-    // que se debe serializar normalmente (el "padre").
+    private String fullName;
+
+    private String avatarUrl;
+
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<FileEntity> files;

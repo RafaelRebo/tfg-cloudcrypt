@@ -30,6 +30,7 @@ public class FileMapper {
                     .orElse(false);
         }
 
+        assert entity.getOwner() != null;
         return new FileDto(
                 entity.getId(),
                 entity.getFileName(),
@@ -41,6 +42,8 @@ public class FileMapper {
                 entity.getDeletedAt(),
                 entity.getSalt(),
                 ownerName,
+                entity.getOwner().getFullName(),
+                entity.getOwner().getAvatarUrl(),
                 isShared,
                 userStarredStatus,
                 entity.getParent() != null ? entity.getParent().getId() : null

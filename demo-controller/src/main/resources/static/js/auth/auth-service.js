@@ -5,6 +5,8 @@ const AuthService = {
             const data = await res.json();
             localStorage.setItem('jwtToken', data.token);
             localStorage.setItem('username', data.username);
+            localStorage.setItem('fullName', data.fullName || '');
+            localStorage.setItem('avatarUrl', data.avatarUrl || '');
             sessionStorage.setItem('fileKey', password);
 
             try {
@@ -41,6 +43,8 @@ const AuthService = {
     logout() {
         localStorage.removeItem('jwtToken');
         localStorage.removeItem('username');
+        localStorage.removeItem('fullName');
+        localStorage.removeItem('avatarUrl');
         sessionStorage.removeItem('fileKey');
     },
 
@@ -60,6 +64,7 @@ const AuthService = {
     }
 };
 
+
 const AppAuthMethods = {
     async handleLogin() {
         try {
@@ -70,7 +75,13 @@ const AppAuthMethods = {
                 const data = await res.json();
                 localStorage.setItem('jwtToken', data.token);
                 localStorage.setItem('username', data.username);
+                localStorage.setItem('fullName', data.fullName || '');
+                localStorage.setItem('avatarUrl', data.avatarUrl || '');
                 sessionStorage.setItem('fileKey', secureKey);
+
+                // ⚡ NUEVO: Guardamos en el estado global los datos extendidos que devuelve la API
+                this.userFullName = data.fullName;
+                this.userAvatarUrl = data.avatarUrl;
 
                 try {
                     const encryptedPrivKey = await API.getMyPrivateKey();
@@ -96,32 +107,75 @@ const AppAuthMethods = {
         }
     },
 
-    async handleRegister() {
+    // ⚡ NUEVO MÉTODO: Gestiona el flujo de registro avanzado con avatares físicos
+    async executeRegister() {
         try {
-            this.status = "Derivando claves criptográficas de seguridad...";
-            const masterKey = await AuthService.deriveMasterKey(this.username, this.password);
+            // 1. Validaciones de interfaz
+            if (!this.regFullName || !this.regEmail || !this.regUsername || !this.regPassword) {
+                this.showError("Por favor, rellena todos los campos obligatorios.");
+                return;
+            }
+            if (this.regPassword !== this.regConfirmPassword) {
+                this.showError("Las contraseñas introducidas no coinciden.");
+                return;
+            }
+            if (!this.regAcceptZk) {
+                this.showError("Debes aceptar el aviso de responsabilidad criptográfica.");
+                return;
+            }
 
-            const res = await API.register(this.username, masterKey);
+            this.status = "Derivando claves criptográficas de seguridad...";
+
+            // 2. Mantenemos el blindaje Zero-Knowledge derivando la Master Key en cliente
+            const masterKey = await AuthService.deriveMasterKey(this.regUsername, this.regPassword);
+
+            // 3. Empaquetamos todo el payload en un FormData Multipart binario
+            const formData = new FormData();
+            formData.append("username", this.regUsername);
+            formData.append("password", masterKey);
+            formData.append("fullName", this.regFullName);
+            formData.append("email", this.regEmail);
+
+            // Si el usuario seleccionó un archivo físico en el input
+            if (this.$refs.avatarInput && this.$refs.avatarInput.files[0]) {
+                formData.append("avatar", this.$refs.avatarInput.files[0]);
+            }
+
+            // 4. Petición al backend
+            const res = await API.register(formData);
             if (!res.ok) {
                 const errorMsg = await API.extractErrorMessage(res);
                 throw new Error(errorMsg);
             }
 
-            const loginRes = await API.login(this.username, masterKey);
+            // 5. Flujo Post-Registro: Autenticación instantánea igual que tenías antes
+            const loginRes = await API.login(this.regUsername, masterKey);
             if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro instantáneo.");
 
             const loginData = await loginRes.json();
             localStorage.setItem('jwtToken', loginData.token);
             localStorage.setItem('username', loginData.username);
+            localStorage.setItem('fullName', loginData.fullName || '');
+            localStorage.setItem('avatarUrl', loginData.avatarUrl || '');
             sessionStorage.setItem('fileKey', masterKey);
 
+            // Guardamos datos de sesión extendidos
+            this.userFullName = loginData.fullName;
+            this.userAvatarUrl = loginData.avatarUrl;
+
             this.status = "Configurando sobres e identidad RSA...";
-            await AuthService.setupUserCrypto(this.username, masterKey);
+            await AuthService.setupUserCrypto(this.regUsername, masterKey);
 
             this.showInfo("¡Identidad y monedero de claves instanciados con éxito!");
-            this.password = '';
+
+            // Purgamos variables de registro de la memoria RAM del cliente
+            this.username = this.regUsername;
+            this.regFullName = ''; this.regEmail = ''; this.regUsername = '';
+            this.regPassword = ''; this.regConfirmPassword = ''; this.regAcceptZk = false;
+
             this.loginError = false;
             this.isLoggedIn = true;
+            this.authMode = 'login'; // Reseteamos el modo para futuras sesiones
             await this.refreshAppData();
 
         } catch (e) {
@@ -139,6 +193,8 @@ const AppAuthMethods = {
         }
         AuthService.logout();
         this.isLoggedIn = false;
+        // Reseteamos el estado de Vue al valor inicial por seguridad
         Object.assign(this.$data, this.$options.data());
+        this.authMode = 'login';
     }
 };

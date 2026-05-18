@@ -1,25 +1,14 @@
 const AppShareMethods = {
-    async openShareModal(f) {
-        this.shareModal.fileId = f.id;
-        this.shareModal.fileName = f.fileName;
-        this.shareModal.isFolder = f.fileType === 'application/x-directory';
-        this.shareModal.selectedUsers = [];
-        this.shareModal.searchQuery = '';
-
-        try {
-            const res = await fetch(`/api/files/${f.id}/shared-users`, { headers: API.getAuthHeader() });
-            if (res.ok) {
-                this.shareModal.selectedUsers = await res.json();
-            } else {
-                const errorMsg = await API.extractErrorMessage(res);
-                this.showError(errorMsg);
-                return;
-            }
-        } catch (e) {
-            this.showError("Error al conectar con la lista de control de acceso.");
-            return;
-        }
+    async openShareModal(file) {
+        this.shareModal.fileId = file.id;
+        this.shareModal.fileName = file.fileName;
+        this.shareModal.isFolder = file.fileType === 'application/x-directory';
+        this.shareModal.searchQuery = ''; // Limpiamos barra
+        this.shareModal.selectedUsers = []; // Vaciamos selección previa
+        this.shareModal.searchResults = [];
         this.shareModal.active = true;
+
+        this.onUserSearchInput();
     },
 
     closeShareModal() {
@@ -167,18 +156,11 @@ const AppShareMethods = {
     },
 
     async onUserSearchInput() {
-        const query = this.shareModal.searchQuery.trim();
-        if (query.length < 1) {
-            this.shareModal.searchResults = [];
-            return;
-        }
         try {
-            const results = await API.searchUsers(query);
-            this.shareModal.searchResults = results.filter(u =>
-                u !== this.username && !this.shareModal.selectedUsers.includes(u)
-            );
+            const users = await API.searchUsers(this.shareModal.searchQuery || '');
+            this.shareModal.searchResults = users;
         } catch (e) {
-            console.error("Error buscando usuarios:", e);
+            console.error("Error en el filtro dinámico de usuarios:", e);
         }
     },
 
