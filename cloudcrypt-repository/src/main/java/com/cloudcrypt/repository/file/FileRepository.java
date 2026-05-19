@@ -12,12 +12,9 @@ import java.util.List;
 import java.util.Optional;
 
 public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRepositoryCustom {
-
-    // --- BÚSQUEDAS BÁSICAS (Se quedan IGUAL, no son paginados) ---
     @EntityGraph(attributePaths = {"fileKeys", "owner"})
     Optional<FileEntity> findByIdAndOwner_Username(Long id, String username);
 
-    // --- CORRECCIÓN 1: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.parent IS NULL AND f.deletedAt IS NULL " +
@@ -32,7 +29,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(String username, String fileName, FileEntity parent);
     Optional<FileEntity> findByOwner_UsernameAndFileNameAndFolderPathAndFileType(String username, String fileName, String folderPath, String fileType);
 
-    // --- CORRECCIÓN 2: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.parent.id = :parentId " +
@@ -53,7 +49,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             @Param("folderId") Long folderId
     );
 
-    // --- CORRECCIÓN 3: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NULL " +
@@ -63,7 +58,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                     @Param("mimePattern") String mimePattern,
                                     Pageable pageable);
 
-    // --- CORRECCIÓN 4: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.fileName LIKE CONCAT('%', :query, '%') " +
@@ -72,7 +66,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
                                   @Param("query") String query,
                                   Pageable pageable);
 
-    // --- CORRECCIÓN 5: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f WHERE f.owner.username = :username " +
             "AND f.deletedAt IS NOT NULL " +
@@ -86,7 +79,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             ")")
     Page<FileEntity> findTrashRoot(@Param("username") String username, Pageable pageable);
 
-    // --- CORRECCIÓN 6: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT DISTINCT f FROM FileEntity f " +
             "JOIN f.fileKeys fk " +

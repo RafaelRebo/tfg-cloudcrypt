@@ -3,7 +3,6 @@ package com.cloudcrypt.controller.setup;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
 import com.cloudcrypt.service.setup.SetupService;
 import com.cloudcrypt.config.CryptoConfig;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,7 +21,6 @@ public class SetupController {
     private final SetupService setupService;
     private final CryptoConfig cryptoConfig;
 
-    // ⚡ Inyección limpia por constructor (Buenas prácticas recomendadas por Spring)
     public SetupController(SetupService setupService, CryptoConfig cryptoConfig) {
         this.setupService = setupService;
         this.cryptoConfig = cryptoConfig;
@@ -52,17 +50,13 @@ public class SetupController {
             @RequestParam(value = "avatar", required = false) MultipartFile avatar) {
 
         try {
-            // 1. Delegamos el tratamiento físico binario de la imagen
             String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
-
-            // 2. Delegamos la persistencia atómica del archivo de propiedades
             setupService.writeConfigurationProperties(request, savedAvatarPath);
 
         } catch (IOException e) {
             return ResponseEntity.internalServerError().body("Fallo de I/O en el aprovisionamiento de configuración: " + e.getMessage());
         }
 
-        // 3. Orquestamos la muerte controlada para que el hilo no congele la respuesta HTTP HTTP
         executeAsynchronousShutdown();
 
         return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando el ecosistema criptográfico...");
@@ -78,9 +72,6 @@ public class SetupController {
         return ResponseEntity.ok(specs);
     }
 
-    /**
-     * Helper asíncrono aislado para no bloquear el hilo principal de Tomcat
-     */
     private void executeAsynchronousShutdown() {
         new Thread(() -> {
             try { Thread.sleep(2000); } catch (InterruptedException ignored) {}

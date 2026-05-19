@@ -49,7 +49,7 @@ public class FileEntity {
     private String checksum;
 
     @ManyToOne
-    @JoinColumn(name = "user_id") // Coincide con tu columna 'user_id'
+    @JoinColumn(name = "user_id")
     @JsonBackReference
     private UserEntity owner;
 

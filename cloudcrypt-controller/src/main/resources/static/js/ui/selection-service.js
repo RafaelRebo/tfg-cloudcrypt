@@ -132,7 +132,6 @@ const AppSelectionMethods = {
 
             } catch (responseError) {
                 this.status = "";
-                // ⚡ TOAST FIX: Extrae el motivo real si el servidor corta la sincronización masiva
                 const msg = await API.extractErrorMessage(responseError);
                 this.showError(msg);
             } finally {
@@ -252,7 +251,6 @@ const AppSelectionMethods = {
                 this.showInfo("Elementos movidos con éxito.");
                 await this.refreshAppData();
             } else {
-                // ⚡ TOAST FIX: Si el arrastre es ilegal o denegado, alertamos al usuario con un globo explícito
                 const errorMsg = await API.extractErrorMessage(res);
                 this.showError(errorMsg);
             }

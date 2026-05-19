@@ -263,7 +263,6 @@ const FileService = {
             generic: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>`
         };
 
-        // Evaluación rápida por extensión o tipo MIME
         if (m === 'application/pdf' || ext === 'pdf') return iconTemplates.pdf;
         if (m.includes('zip') || m.includes('rar') || m.includes('7z') || m.includes('tar') || ['zip','rar','7z','tar','gz'].includes(ext)) return iconTemplates.compressed;
         if (m.includes('excel') || m.includes('spreadsheetml') || m.includes('csv') || ['xls','xlsx','csv'].includes(ext)) return iconTemplates.spreadsheet;

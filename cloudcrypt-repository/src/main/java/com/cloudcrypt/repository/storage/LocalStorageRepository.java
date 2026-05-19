@@ -61,7 +61,6 @@ public class LocalStorageRepository implements IStorageRepository {
         if (Files.exists(path)) {
             Files.delete(path);
 
-            // Borrado recursivo de carpetas vacías
             Path parent = path.getParent();
             while (parent != null && !parent.equals(this.root) && Files.exists(parent)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(parent)) {
@@ -78,7 +77,6 @@ public class LocalStorageRepository implements IStorageRepository {
 
     @Override
     public InputStream loadStream(String relativePath) throws IOException {
-        // Retornamos el chorro de bytes (cifrados) directamente del disco
         return Files.newInputStream(this.root.resolve(relativePath));
     }
 

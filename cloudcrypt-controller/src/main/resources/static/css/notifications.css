@@ -85,15 +85,15 @@
     opacity: 1;
 }
 
-/* Nuevo Toast dedicado para subidas */
+
 .toast.upload {
-    background: var(--sidebar-bg); /* Fondo oscuro como el sidebar */
-    border: 1px solid var(--border-color); /* Un borde sutil */
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border-color);
     color: var(--text-main);
     padding: 20px;
-    width: 400px; /* Un poco más ancho para la barra */
-    pointer-events: auto; /* Permite interactuar con él (por ejemplo, si añadieras un botón cancelar en el futuro) */
-    display: block; /* Diseño en bloque para apilar elementos */
+    width: 400px;
+    pointer-events: auto;
+    display: block;
 }
 
 .upload-header {
@@ -111,7 +111,6 @@
     margin-bottom: 10px;
 }
 
-/* La barra de progreso estilo Drive dentro del Toast */
 .progress-container-toast {
     background: rgba(255, 255, 255, 0.05);
     height: 6px;
@@ -121,15 +120,12 @@
 }
 
 .progress-fill-toast {
-    background: #3b82f6; /* Azul brillante (el color de Info) */
+    background: #3b82f6;
     height: 100%;
-    width: 0%; /* Vue controlará esto */
-    transition: width 0.1s linear; /* Animación suave */
+    width: 0%;
+    transition: width 0.1s linear;
 }
 
-/* --- ESTILOS PARA EL MODAL DE DUPLICADOS --- */
-
-/* Contenedor de botones en modo duplicado para que se vean bien alineados */
 .modal-footer template {
     display: flex;
     gap: 10px;
@@ -137,7 +133,6 @@
     justify-content: flex-end;
 }
 
-/* Botón Sobrescribir: Rojo pero siguiendo tu esquema de color */
 .btn-overwrite {
     background: var(--danger) !important;
     color: white !important;
@@ -149,9 +144,8 @@
     transform: translateY(-1px);
 }
 
-/* Botón Copia: Usamos un azul cian o el azul principal para denotar seguridad */
 .btn-copy {
-    background: #0ea5e9 !important; /* Un azul más claro que el primary */
+    background: #0ea5e9 !important;
     color: white !important;
     box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
 }
@@ -161,7 +155,6 @@
     transform: translateY(-1px);
 }
 
-/* Ajuste para el input dentro del modal */
 .auth-input {
     width: 100%;
     padding: 0.8rem 1rem;
@@ -180,7 +173,6 @@
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
 }
 
-/* Efecto de pulso suave para el icono de advertencia del modal */
 .modal-warning-icon {
     animation: pulse-warn 2s infinite;
 }
@@ -191,7 +183,6 @@
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* Clase de utilidad para el texto de los botones del modal */
 .btn-modal {
     text-transform: none;
     letter-spacing: normal;
@@ -203,7 +194,6 @@
     transition: all 0.2s ease;
 }
 
-/* Estilo específico para el botón de cancelar en el Toast de subida */
 .upload-cancel-btn {
     margin-left: auto;
     background: rgba(255, 255, 255, 0.1);
@@ -223,14 +213,12 @@
     transform: rotate(90deg);
 }
 
-/* Grupo del título para alinear spinner y texto */
 .upload-title-group {
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
-/* Spinner pequeño para el toast de subida */
 .upload-spinner {
     width: 14px;
     height: 14px;
@@ -245,41 +233,31 @@
     100% { transform: rotate(360deg); }
 }
 
-/* Mejoras en el toast de subida */
 .toast.upload {
-    border-left: 4px solid #3b82f6; /* Línea azul de acento */
-    backdrop-filter: blur(10px);   /* Efecto cristal si el fondo lo permite */
+    border-left: 4px solid #3b82f6;
+    backdrop-filter: blur(10px);
 }
 
 .upload-stats {
     display: block;
     margin-top: -5px;
     margin-bottom: 12px;
-    font-family: monospace; /* Estilo más "técnico" para las estadísticas */
+    font-family: monospace;
     letter-spacing: 0.5px;
 }
-
-/* css/notifications.css -> Añade estas reglas en la sección del modal de duplicados */
-
-/* css/notifications.css -> Reemplaza por completo el bloque de #applyAll y su ::after */
 
 #applyAll {
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
-
-    /* 🛡️ RESETEO ANTIFRAGMENTACIÓN: Forzamos el tamaño real y destruimos el padding heredado */
-    width: 14px !important;        /* Machaca el 'width: auto' del estilo en línea del HTML */
+    width: 14px !important;
     height: 14px !important;
-    padding: 0 !important;          /* Extirpa el colchón de 0.8rem de los inputs de texto */
-    margin-bottom: 0 !important;    /* Elimina el margen inferior que descuadraba la línea */
-
+    padding: 0 !important;
+    margin-bottom: 0 !important;
     background: rgba(15, 23, 42, 0.6);
     border: 1.5px solid var(--border-color);
     border-radius: 3px;
     cursor: pointer;
-
-    /* Centrado absoluto del check vectorizado interno */
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -288,19 +266,16 @@
     outline: none;
 }
 
-/* Efecto focus interactivo */
 #applyAll:focus {
     border-color: var(--accent-blue);
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
 }
 
-/* Estado Activo (Cuando está marcado) */
 #applyAll:checked {
     background-color: var(--accent-blue);
     border-color: var(--accent-blue);
 }
 
-/* El check interno adaptado milimétricamente al contenedor de 14px libre de padding */
 #applyAll:checked::after {
     content: "";
     width: 3px;

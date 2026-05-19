@@ -55,11 +55,8 @@ public class CloudCryptApplication {
                     admin.setPassword(passwordEncoder.encode(secureBcryptInput));
 
                     userRepository.save(admin);
-                    System.out.println("=================================================");
-                    System.out.println("🛡️ CONFIGURACIÓN DE SEGURIDAD: Cuenta de Administrador Zero-Knowledge creada.");
-                    System.out.println("=================================================");
                 } catch (Exception e) {
-                    System.err.println("ERROR CRÍTICO al derivar la clave del admin: " + e.getMessage());
+                    System.err.println("Error al derivar la clave del admin: " + e.getMessage());
                 }
             }
         };

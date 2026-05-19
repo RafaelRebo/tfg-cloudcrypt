@@ -14,10 +14,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
-        // Resolvemos la ruta absoluta real elegida por el administrador en el disco
         String absolutePath = Paths.get(uploadDir).toAbsolutePath().normalize().toString().replace("\\", "/");
 
-        // ⚡ MAPEO MAESTRO: Enlazamos la URL web con la carpeta física de avatares del disco real
         registry.addResourceHandler("/static/avatars/**")
                 .addResourceLocations("file:" + absolutePath + "/avatars/");
     }

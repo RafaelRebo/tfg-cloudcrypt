@@ -12,20 +12,16 @@ const AuthService = {
             sessionStorage.setItem('fileKey', password);
 
             try {
-                // Intentamos recuperar las llaves del servidor
                 const encryptedPrivKey = await API.getMyPrivateKey();
                 const pubKeyData = await API.getUserPublicKey(username);
 
                 if (encryptedPrivKey && pubKeyData && pubKeyData.publicKey) {
-                    // Caso normal: El llavero existe, lo cargamos en el Worker
                     await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, password, username);
                 } else {
-                    // Caso Admin inicial: Autogeneración limpia en primer login
                     console.warn("Llavero no encontrado. Inicializando auto-aprovisionamiento Zero-Knowledge...");
                     await this.setupUserCrypto(username, password);
                 }
             } catch (e) {
-                // Si la API da un error de recurso no encontrado (404), disparamos la creación
                 try {
                     await this.setupUserCrypto(username, password);
                 } catch (err) {
@@ -37,19 +33,13 @@ const AuthService = {
         return false;
     },
 
-    // --- CORRECCIÓN CRÍTICA: Des-silenciar errores del servidor ---
     async setupUserCrypto(username, password) {
         const cryptoPackage = await CryptoService.generateAndPackageKeys(password, username);
-
-        // Esperamos la respuesta del fetch
         const res = await API.registerUserKeys(cryptoPackage.publicKeyStr, cryptoPackage.encryptedPrivateKeyBase64);
-
-        // Si el controlador de Spring Boot da un error, lo lanzamos para que vaya al catch de la UI
         if (!res.ok) {
             const serverErrorText = await res.text();
             throw new Error(`El servidor rechazó las llaves (Código ${res.status}): ${serverErrorText}`);
         }
-
         return res;
     },
 
@@ -74,7 +64,6 @@ const AuthService = {
         const encoder = new TextEncoder();
         const data = encoder.encode(username.toLowerCase() + password);
 
-        // ⚡ SOLUCIÓN: Usamos el hash global sintonizado dinámicamente en lugar de 'SHA-256' estático
         const targetHash = (window.CryptoSpecs && window.CryptoSpecs.hashAlgo) || 'SHA-256';
         const hashBuffer = await crypto.subtle.digest(targetHash, data);
 
@@ -102,7 +91,7 @@ const AppAuthMethods = {
 
                 this.userFullName = data.fullName;
                 this.userAvatarUrl = data.avatarUrl;
-                this.userRole = data.role || 'USER'; // Asignación reactiva en el objeto principal
+                this.userRole = data.role || 'USER';
                 this.userEmail = data.email || '';
 
                 let hasCrypto = false;
@@ -117,7 +106,6 @@ const AppAuthMethods = {
                     console.warn("Llavero asimétrico ausente en el servidor. Preparando aprovisionamiento en caliente...");
                 }
 
-                // ⚡ INTERCEPCIÓN MAESTRA: Si no tiene llaves asignadas, las forzamos en caliente
                 if (!hasCrypto) {
                     this.status = "Generando llavero criptográfico de autoridad raíz...";
                     try {
@@ -145,7 +133,6 @@ const AppAuthMethods = {
         }
     },
 
-    // ⚡ NUEVO MÉTODO: Gestiona el flujo de registro avanzado con avatares físicos
     async executeRegister() {
         try {
             // 1. Validaciones de interfaz
@@ -164,29 +151,24 @@ const AppAuthMethods = {
 
             this.status = "Derivando claves criptográficas de seguridad...";
 
-            // 2. Mantenemos el blindaje Zero-Knowledge derivando la Master Key en cliente
             const masterKey = await AuthService.deriveMasterKey(this.regUsername, this.regPassword);
 
-            // 3. Empaquetamos todo el payload en un FormData Multipart binario
             const formData = new FormData();
             formData.append("username", this.regUsername);
             formData.append("password", masterKey);
             formData.append("fullName", this.regFullName);
             formData.append("email", this.regEmail);
 
-            // Si el usuario seleccionó un archivo físico en el input
             if (this.$refs.avatarInput && this.$refs.avatarInput.files[0]) {
                 formData.append("avatar", this.$refs.avatarInput.files[0]);
             }
 
-            // 4. Petición al backend
             const res = await API.register(formData);
             if (!res.ok) {
                 const errorMsg = await API.extractErrorMessage(res);
                 throw new Error(errorMsg);
             }
 
-            // 5. Flujo Post-Registro: Autenticación instantánea igual que tenías antes
             const loginRes = await API.login(this.regUsername, masterKey);
             if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro instantáneo.");
 
@@ -199,7 +181,6 @@ const AppAuthMethods = {
             localStorage.setItem('email', loginData.email || '');
             sessionStorage.setItem('fileKey', masterKey);
 
-            // Guardamos datos de sesión extendidos
             this.userFullName = loginData.fullName;
             this.userAvatarUrl = loginData.avatarUrl;
             this.userRole = loginData.role || 'USER';
@@ -210,14 +191,13 @@ const AppAuthMethods = {
 
             this.showInfo("¡Identidad y monedero de claves instanciados con éxito!");
 
-            // Purgamos variables de registro de la memoria RAM del cliente
             this.username = this.regUsername;
             this.regFullName = ''; this.regEmail = ''; this.regUsername = '';
             this.regPassword = ''; this.regConfirmPassword = ''; this.regAcceptZk = false;
 
             this.loginError = false;
             this.isLoggedIn = true;
-            this.authMode = 'login'; // Reseteamos el modo para futuras sesiones
+            this.authMode = 'login';
             await this.refreshAppData();
 
         } catch (e) {
@@ -235,7 +215,6 @@ const AppAuthMethods = {
         }
         AuthService.logout();
         this.isLoggedIn = false;
-        // Reseteamos el estado de Vue al valor inicial por seguridad
         Object.assign(this.$data, this.$options.data());
         this.authMode = 'login';
     }

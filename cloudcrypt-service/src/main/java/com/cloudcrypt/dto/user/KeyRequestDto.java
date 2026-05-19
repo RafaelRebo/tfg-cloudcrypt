@@ -4,7 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Data // Esto genera Getters, Setters, toString, equals y hashCode automáticamente
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class KeyRequestDto {

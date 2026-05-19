@@ -11,7 +11,6 @@ import java.io.File;
 import java.io.IOException;
 
 @Component
-// ⚡ JUGADA MAESTRA: Prioridad máxima absoluta. Se ejecuta ANTES que Spring Security
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class SetupGuardFilter implements Filter {
 

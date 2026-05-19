@@ -1,7 +1,6 @@
 let privateKey = null;
 let publicKey = null;
 
-// Variables de entorno criptográfico sincronizadas desde el Setup
 let currentHashAlgo = "SHA-256";
 let currentSymAlgo = "AES-GCM";
 let currentAsymKeySize = 2048;
@@ -38,7 +37,6 @@ self.onmessage = async (e) => {
                 const pubJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
                 const publicKeyStr = JSON.stringify(pubJwk);
 
-                // Aquí ya no fallará porque la función ya existe abajo
                 const encryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(pair.privateKey, payload.password, payload.username);
                 self.postMessage({ id, status: 'OK', payload: { publicKeyStr, encryptedPrivateKeyBase64 } });
                 break;
@@ -101,8 +99,6 @@ self.onmessage = async (e) => {
         self.postMessage({ id, status: 'ERROR', error: error.message });
     }
 };
-
-// --- PROCEDIMIENTOS INTERNOS (CORREGIDOS SIN COMAS EXCESIVAS) ---
 
 async function encryptFileInternal(file, aesKey) {
     const chunkSize = 1024 * 1024;

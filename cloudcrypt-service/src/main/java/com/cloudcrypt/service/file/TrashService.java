@@ -30,7 +30,6 @@ public class TrashService {
 
     @Transactional(rollbackFor = Exception.class)
     public void deleteFile(Long id, String username, boolean forcePermanent){
-        // 1. Intentamos buscar como dueño
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
         if (entityOpt.isPresent()) {
@@ -106,7 +105,6 @@ public class TrashService {
             }
         }
 
-        // 2. Finalmente, eliminamos el registro de la entidad principal de la BD
         fileRepository.delete(entity);
     }
 }

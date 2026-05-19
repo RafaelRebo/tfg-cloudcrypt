@@ -1,5 +1,4 @@
 const NavigationService = {
-    // Gestiona el historial sin duplicados
     updateHistory(ctx) {
         if (ctx.isHistoryMoving || ctx.currentCategory !== 'all') return;
         const currentPosition = { folder: ctx.currentFolder, folderId: ctx.currentFolderId };
@@ -66,7 +65,6 @@ const AppNavigationMethods = {
             }
         } catch (responseError) {
             this.status = "";
-            // Extraemos el error empaquetado del Response de la API de forma reactiva
             const msg = await API.extractErrorMessage(responseError);
             this.showError(msg);
         }

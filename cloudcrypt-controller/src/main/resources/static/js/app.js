@@ -50,7 +50,7 @@ const appInstance = createApp({
                 fileName: '',
                 isFolder: false,
                 searchQuery: '',
-                searchResults: [], // Para la lista desplegable
+                searchResults: [],
                 selectedUsers: [],
                 isProcessing: false
             },
@@ -65,12 +65,12 @@ const appInstance = createApp({
                 active: false,
                 x: 0,
                 y: 0,
-                type: 'blank', // Puede ser: 'file' (uno solo), 'multiple' (selección masiva) o 'blank' (fondo vacío)
-                target: null   // Guardará el objeto f de la fila pulsada
+                type: 'blank',
+                target: null
             },
             clipboard: {
-                action: null, // Puede ser 'cut', 'copy' o null
-                items: []     // Almacenará los objetos de los archivos/carpetas en tránsito
+                action: null,
+                items: []
             },
             profileModal: {
                 active: false,
@@ -93,8 +93,6 @@ const appInstance = createApp({
              const specsRes = await fetch('/api/setup/crypto-specs');
              if (specsRes.ok) {
                  const specs = await specsRes.json();
-
-                 // ⚡ SOLUCIÓN: Guardamos las políticas criptográficas globales visibles para todo el JS
                  window.CryptoSpecs = {
                      hashAlgo: specs.hashAlgo,
                      symAlgo: specs.symAlgo.includes("GCM") ? "AES-GCM" : "AES-CBC",

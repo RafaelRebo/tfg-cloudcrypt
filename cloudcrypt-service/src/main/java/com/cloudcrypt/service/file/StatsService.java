@@ -36,7 +36,6 @@ public class StatsService {
         stats.put("fileCount", fileCount);
         stats.put("maxQuota", maxQuota);
 
-        // Recalculamos el porcentaje basándonos en la nueva capacidad real de su disco virtual
         double usagePercentage = maxQuota > 0 ? (double) totalSize / maxQuota * 100 : 0;
         stats.put("usagePercentage", Math.round(usagePercentage * 100.0) / 100.0);
 

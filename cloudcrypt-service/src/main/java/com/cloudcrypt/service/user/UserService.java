@@ -4,6 +4,7 @@ import com.cloudcrypt.dto.user.UserDto;
 import com.cloudcrypt.exceptions.InvalidCredentialsException;
 import com.cloudcrypt.exceptions.UserAlreadyExistsException;
 import com.cloudcrypt.mapper.UserMapper;
+import com.cloudcrypt.model.FileEntity;
 import com.cloudcrypt.model.UserEntity;
 import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.UserKeyRepository;
@@ -76,28 +77,23 @@ public class UserService {
     public List<UserDto> searchOtherUsers(String query, String currentUsername) {
         List<UserEntity> users;
 
-        // 🛡️ Si la query está vacía, recuperamos todos los usuarios del sistema
         if (query == null || query.trim().isEmpty()) {
             users = userRepository.findAll();
         } else {
-            // Si hay texto, filtramos por username o fullName usando el nuevo método
             users = userRepository.findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(query, query);
         }
 
         return users.stream()
-                .filter(u -> !u.getUsername().equals(currentUsername)) // Te excluye a ti de la lista
+                .filter(u -> !u.getUsername().equals(currentUsername))
                 .map(u -> new UserDto(u.getId(), u.getUsername(), u.getEmail(), u.getFullName(), u.getAvatarUrl(), u.getRole(), u.getQuotaBytes()))
-                .limit(50) // Evita saturar la memoria si la base de datos crece
+                .limit(50)
                 .collect(Collectors.toList());
     }
-
-    private final Path rootFolder = Paths.get("uploads/avatars");
 
     public String storeAvatar(MultipartFile file) {
         if (file == null || file.isEmpty()) return null;
 
         try {
-            // ⚡ Construimos la ruta de avatares basándonos en la configuración global
             Path rootFolder = Paths.get(uploadDir, "avatars");
 
             if (!Files.exists(rootFolder)) {
@@ -113,7 +109,6 @@ public class UserService {
             Path targetPath = rootFolder.resolve(uniqueFilename);
             Files.copy(file.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
 
-            // Devolvemos la URI web relativa
             return "/static/avatars/" + uniqueFilename;
 
         } catch (IOException e) {
@@ -157,9 +152,8 @@ public class UserService {
         UserEntity user = userRepository.findById(userId)
                 .orElseThrow(() -> new com.cloudcrypt.exceptions.InstanceNotFoundException("Usuario inexistente en la plataforma."));
 
-        // FASE 1: Limpieza del almacenamiento de archivos binarios cifrados en el disco del servidor
-        List<com.cloudcrypt.model.FileEntity> userFiles = fileRepository.findByOwnerUsername(user.getUsername());
-        for (com.cloudcrypt.model.FileEntity file : userFiles) {
+        List<FileEntity> userFiles = fileRepository.findByOwnerUsername(user.getUsername());
+        for (FileEntity file : userFiles) {
             try {
                 if (file.getStoragePath() != null) {
                     storageUtils.deletePhysicalFile(file.getStoragePath());
@@ -169,21 +163,19 @@ public class UserService {
             }
         }
 
-        // FASE 2: Eliminación física de la imagen del avatar en disco si existía una vinculada
         if (user.getAvatarUrl() != null && user.getAvatarUrl().startsWith("/static/avatars/")) {
             try {
                 String filename = user.getAvatarUrl().substring(user.getAvatarUrl().lastIndexOf("/") + 1);
-                java.nio.file.Path avatarPath = java.nio.file.Paths.get(uploadDir, "avatars", filename);
-                java.nio.file.Files.deleteIfExists(avatarPath);
+                Path avatarPath = java.nio.file.Paths.get(uploadDir, "avatars", filename);
+                Files.deleteIfExists(avatarPath);
             } catch (java.io.IOException e) {
                 System.err.println("Advertencia de I/O: No se pudo purgar la imagen de avatar en disco: " + e.getMessage());
             }
         }
 
-        // FASE 3: Purga relacional en cascada atómica en MySQL
-        fileRepository.deleteByOwnerId(userId);       // Limpieza en tabla de ficheros
-        userKeyRepository.deleteById(userId);         // Desaprovisionamiento del llavero PKI
-        userRepository.delete(user);                  // Borrado definitivo de la entidad de usuario
+        fileRepository.deleteByOwnerId(userId);
+        userKeyRepository.deleteById(userId);
+        userRepository.delete(user);
     }
 
     private String preHash(String input) {

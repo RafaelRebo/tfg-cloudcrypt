@@ -24,13 +24,11 @@ const AppUserMethods = {
             try {
                 const stats = await API.getAdminStorageStats();
 
-                // ⚡ SINTONIZACIÓN INTELIGENTE: Evaluamos la unidad óptima por defecto
                 stats.users.forEach(u => {
                     const baseBytes = u.quotaBytes || this.stats.maxQuota;
                     const bytesInGb = 1024 * 1024 * 1024;
                     const bytesInMb = 1024 * 1024;
 
-                    // Si es un número redondo divisible por un Gigabyte, lo ponemos en GB
                     if (baseBytes >= bytesInGb && baseBytes % bytesInGb === 0) {
                         u.uiQuotaValue = Math.floor(baseBytes / bytesInGb);
                         u.uiQuotaUnit = 'GB';
@@ -50,13 +48,11 @@ const AppUserMethods = {
         }
     },
 
-    // ⚡ NUEVO: Procesador masivo unificado (Batch Process) abajo a la derecha
     async executeBatchAdminUpdate() {
         this.profileModal.isProcessing = true;
         this.status = "Iniciando transacciones de gobernanza en bloque...";
 
         try {
-            // Excluimos la fila propia del administrador para evitar la auto-revocación accidental
             const filterUsers = this.profileModal.adminStats.users.filter(u => u.username !== this.username);
             const taskWorklist = [];
 
@@ -65,11 +61,9 @@ const AppUserMethods = {
                     throw new Error(`La cuota para el usuario ${userStat.username} debe ser mayor que 0.`);
                 }
 
-                // Traducimos el par elástico (Valor + Unidad) a bytes puros antes de mandarlo a Spring
                 const multiplier = userStat.uiQuotaUnit === 'GB' ? (1024 * 1024 * 1024) : (1024 * 1024);
                 const totalBytes = userStat.uiQuotaValue * multiplier;
 
-                // Empaquetamos la promesa en caliente en nuestro pool concurrente
                 taskWorklist.push((async () => {
                     const res = await API.updateUserParameters(userStat.userId, totalBytes, userStat.role);
                     if (!res.ok) {
@@ -78,7 +72,6 @@ const AppUserMethods = {
                 })());
             }
 
-            // Disparamos todas las peticiones HTTP en paralelo sobre el conector de Tomcat
             if (taskWorklist.length > 0) {
                 await Promise.all(taskWorklist);
             }
@@ -191,7 +184,6 @@ const AppUserMethods = {
             return this.profileModal.adminStats.users;
         }
 
-        // Filtra reactivamente en caliente buscando coincidencias por Nombre Completo o Username
         return this.profileModal.adminStats.users.filter(u => {
             const nameMatch = u.fullName ? u.fullName.toLowerCase().includes(query) : false;
             const userMatch = u.username ? u.username.toLowerCase().includes(query) : false;
@@ -223,7 +215,6 @@ const AppUserMethods = {
             const res = await API.deleteUser(userId);
             if (res.ok) {
                 this.showInfo(`El usuario @${targetUsername} y toda su infraestructura han sido eliminados.`);
-                // Recargamos la pestaña de administración para refrescar la lista y el tamaño global ocupado
                 await this.setProfileTab(3);
             } else {
                 throw new Error(await API.extractErrorMessage(res));

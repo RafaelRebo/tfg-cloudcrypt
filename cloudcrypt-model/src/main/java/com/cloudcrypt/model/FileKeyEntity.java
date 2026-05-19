@@ -18,14 +18,14 @@ public class FileKeyEntity {
 
     @ManyToOne
     @JoinColumn(name = "file_id", nullable = false)
-    private FileEntity file; // El archivo al que pertenece la llave
+    private FileEntity file;
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private UserEntity user; // El usuario que posee esta copia de la llave
+    private UserEntity user;
 
     @Column(columnDefinition = "TEXT", nullable = false)
-    private String encryptedKey; // La clave AES cifrada con la RSA Pública del usuario (Base64)
+    private String encryptedKey;
 
     @Column(name = "is_starred", nullable = false, columnDefinition = "boolean default false")
     private boolean starred = false;

@@ -3,7 +3,6 @@ const AppModalMethods = {
         this.confirmModal.active = false;
 
         setTimeout(() => {
-            // Limpiamos los estados antiguos de forma segura
             this.confirmModal.isDuplicateMode = false;
             this.confirmModal.isInput = false;
             this.confirmModal.applyToAll = false;
@@ -46,14 +45,12 @@ const AppModalMethods = {
                         if (!proceed) return;
                     }
 
-                    // Dejamos que las excepciones viajen al catch de forma natural
                     await this.handleCreateFolder(name, targetId);
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
                 } catch (e) {
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
-                    // ⚡ TOAST FIX: Extrae el error semántico si vino de un rechazo de la Fetch API
                     const msg = e instanceof Response ? await API.extractErrorMessage(e) : (e.message || "Error al procesar la carpeta");
                     this.showError(msg);
                 }

@@ -27,8 +27,6 @@ const CryptoService = {
         });
     },
 
-    // --- PASARELA DE CONTROL MULTI-MÓDULO ---
-
     async generateAndPackageKeys(password, username) {
         return this._send('GENERATE_AND_PACKAGE_KEYS', { password, username });
     },
@@ -89,7 +87,6 @@ const CryptoService = {
         return this._send('CONFIGURE_RUNTIME_SPECS', specs);
     },
 
-    // Utilidades directas síncronas de la ventana principal
     async exportPublicKey(publicKey) {
         const jwk = await window.crypto.subtle.exportKey("jwk", publicKey);
         return JSON.stringify(jwk);

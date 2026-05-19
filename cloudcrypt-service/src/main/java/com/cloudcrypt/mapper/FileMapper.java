@@ -13,14 +13,12 @@ public class FileMapper {
 
         String ownerName = (entity.getOwner() != null) ? entity.getOwner().getUsername() : "Desconocido";
 
-        // 1. Cálculo de compartido (optimizado en memoria RAM sobre la colección prefetched)
         boolean isShared = false;
         if (entity.getFileKeys() != null) {
             isShared = entity.getFileKeys().stream()
                     .anyMatch(k -> !k.getUser().getUsername().equals(ownerName));
         }
 
-        // 2. Estado privado de la estrella utilizando el parámetro inyectado de forma limpia
         boolean userStarredStatus = false;
         if (entity.getFileKeys() != null && currentLoggedUser != null) {
             userStarredStatus = entity.getFileKeys().stream()

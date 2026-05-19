@@ -17,11 +17,8 @@ import java.util.Optional;
 @Repository
 public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
-    // NUEVO: Buscar llave por ID de archivo y NOMBRE de usuario
     Optional<FileKeyEntity> findByFileIdAndUser_Username(Long fileId, String username);
 
-
-    // El que ya tenías (mantenlo si quieres, pero usaremos el de arriba)
     Optional<FileKeyEntity> findByFileIdAndUserId(Long fileId, Long userId);
 
     @Modifying(clearAutomatically = true, flushAutomatically = true)
@@ -32,7 +29,6 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
     @Query("SELECT fk.user.username FROM FileKeyEntity fk WHERE fk.file.id = :fileId")
     List<String> findUsernamesByFileId(@Param("fileId") Long fileId);
 
-    // Dentro de FileKeyRepository.java añade estos métodos
     @Query("SELECT fk.starred FROM FileKeyEntity fk WHERE fk.file.id = :fileId AND fk.user.username = :username")
     Optional<Boolean> isFileStarredByUser(@Param("fileId") Long fileId, @Param("username") String username);
 

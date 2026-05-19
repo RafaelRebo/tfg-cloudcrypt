@@ -26,13 +26,8 @@ public class SecurityConfig {
                 .cors(Customizer.withDefaults())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Permitimos el index.html y los recursos estáticos (CSS, JS, imágenes)
                         .requestMatchers("/", "/api/setup/**", "/setup.html", "/index.html", "/css/**", "/img/**", "/js/**", "/static/avatars/**", "/favicon.ico").permitAll()
-
-                        // 2. Permitimos login y registro de la API
                         .requestMatchers("/api/users/login", "/api/users/register").permitAll()
-
-                        // 3. Cualquier otra petición a la API requiere TOKEN
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

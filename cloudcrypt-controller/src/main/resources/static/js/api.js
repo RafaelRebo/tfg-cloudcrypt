@@ -20,8 +20,6 @@ const API = {
         return token ? { 'Authorization': `Bearer ${token}` } : {};
     },
 
-    // --- AUTENTICACIÓN ---
-
     async login(username, password) {
         const formData = new FormData();
         formData.append("username", username);
@@ -36,11 +34,9 @@ const API = {
         });
     },
 
-    // --- GESTIÓN DE ARCHIVOS ---
 
     async getFiles(folderId = null, category = 'all', page = 0, size = 20) {
         const fId = (folderId && !isNaN(folderId)) ? folderId : '';
-        // Ya no enviamos el usuario, Spring Security lo sabe por el token
         const url = `/api/files?page=${page}&size=${size}&category=${category}&folderId=${fId}`;
 
         const res = await fetch(url, { headers: this.getAuthHeader() });
@@ -151,8 +147,6 @@ const API = {
         });
     },
 
-    // --- CARPETAS ---
-
     async createFolder(folderName, parentId, sessionKey) {
         const formData = new FormData();
         formData.append("folderName", folderName);
@@ -187,7 +181,6 @@ const API = {
 
     async checkExists(fileName, parentId) {
         const pId = (parentId && !isNaN(parentId)) ? parentId : '';
-        // Ya NO incluimos &username=...
         let url = `/api/files/check-exists?fileName=${encodeURIComponent(fileName)}&parentId=${pId}`;
 
         const res = await fetch(url, { headers: this.getAuthHeader() });
@@ -197,8 +190,6 @@ const API = {
         }
         return res.json();
     },
-
-    // --- UTILIDADES ---
 
     async getStats() {
         const res = await fetch(`/api/files/stats?t=${Date.now()}`, {
@@ -222,17 +213,8 @@ const API = {
         });
     },
 
-
-    // --- INFRAESTRUCTURA DE CLAVES (PKI) ---
-
-    /**
-     * Registra las llaves del usuario.
-     * @param {string} publicKeyStr - El String JSON de la llave pública.
-     * @param {string} encryptedPrivateKey - La llave privada en Base64.
-     */
     async registerUserKeys(publicKeyStr, encryptedPrivateKey) {
         const payload = {
-            // Parseamos el String JSON a Objeto para evitar el doble escapado
             publicKey: publicKeyStr,
             encryptedPrivateKey: encryptedPrivateKey
         };
@@ -263,7 +245,6 @@ const API = {
        return res.json();
    },
 
-   // Buscar usuarios por nombre (para el buscador del modal)
    async searchUsers(query) {
        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
            headers: this.getAuthHeader()

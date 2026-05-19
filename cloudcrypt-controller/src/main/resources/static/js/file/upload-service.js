@@ -20,7 +20,6 @@ const UploadService = {
                 isDirectoryElement = true;
             }
 
-            // Para archivos individuales o el nodo raíz de la carpeta en su primera comprobación
             if (!isFolder || (isFolder && finalFilesToUpload.length === 0)) {
                 const checkRes = await API.checkExists(checkName, currentTargetId);
 
@@ -37,9 +36,8 @@ const UploadService = {
                         currentAction = userChoice.action;
                     }
 
-                    // 💥 EJECUCIÓN TRIPARTITA DEL CRITERIO DE CONFLICTO
                     if (currentAction === 'skip') {
-                        if (isFolder) return false; // Si el usuario omite la carpeta, cancelamos la subida completa
+                        if (isFolder) return false;
                         continue;
                     }
 
@@ -52,7 +50,6 @@ const UploadService = {
                             let counter = 1;
                             let candidateName = `${nameNoExt} (Copia)${ext}`;
 
-                            // 🔄 Bucle reactivo: preguntamos al servidor si la copia ya existe
                             let nestedCheck = await API.checkExists(candidateName, currentTargetId);
                             while (nestedCheck.exists) {
                                 counter++;
@@ -60,13 +57,11 @@ const UploadService = {
                                 nestedCheck = await API.checkExists(candidateName, currentTargetId);
                             }
 
-                            // Asignamos el nombre final libre (ej: "foto (Copia 3).png")
                             file.customName = candidateName;
                         } else {
                             let counter = 1;
                             let candidateRootName = `${checkName} (Copia)`;
 
-                            // Mismo algoritmo incremental aplicado al nodo raíz de la carpeta
                             let nestedCheck = await API.checkExists(candidateRootName, currentTargetId);
                             while (nestedCheck.exists) {
                                 counter++;
@@ -88,7 +83,6 @@ const UploadService = {
                     }
                 }
             } else {
-                // Herencia de nombres para sub-ficheros dentro de carpetas renombradas como copia
                 const rootItem = files[0];
                 if (applyAllAction === 'skip') continue;
                 if (rootItem.customRootName) {
@@ -101,7 +95,6 @@ const UploadService = {
 
         if (finalFilesToUpload.length === 0) return false;
 
-        // FASE 2: 🚀 ARRANQUE MULTIHILO CONCURRENTE (Con el espacio ya saneado)
         const totalEncryptedSize = finalFilesToUpload.reduce((acc, f) => acc + f.size + 12, 0);
         const fileProgressMap = new Map();
 
@@ -133,7 +126,6 @@ const UploadService = {
                 const parts = file.webkitRelativePath.split('/');
                 finalName = parts.pop();
 
-                // Si la raíz de la carpeta se renombró a "Carpeta (Copia)", inyectamos la mutación en la ruta
                 if (file.customRootName && parts.length > 0) {
                     parts[0] = file.customRootName;
                 }

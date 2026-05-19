@@ -3,8 +3,8 @@ const AppShareMethods = {
         this.shareModal.fileId = file.id;
         this.shareModal.fileName = file.fileName;
         this.shareModal.isFolder = file.fileType === 'application/x-directory';
-        this.shareModal.searchQuery = ''; // Limpiamos barra
-        this.shareModal.selectedUsers = []; // Vaciamos selección previa
+        this.shareModal.searchQuery = '';
+        this.shareModal.selectedUsers = [];
         this.shareModal.searchResults = [];
         this.shareModal.active = true;
 
@@ -32,8 +32,6 @@ const AppShareMethods = {
         this.onUserSearchInput();
     },
 
-    // js/file/share-service.js -> Reemplaza por completo tu función executeShare por esta:
-
     async executeShare() {
         this.shareModal.isProcessing = true;
         this.status = "Preparando archivos...";
@@ -42,7 +40,6 @@ const AppShareMethods = {
             const targetsWorklist = this.shareModal.fileId ? [this.shareModal.fileId] : [...this.selectedIds];
             let flatItemsToShare = [];
 
-            // FASE 1: Recolección de archivos
             for (const id of targetsWorklist) {
                 const currentFile = this.allUserFiles.find(f => f.id === id);
                 if (!currentFile) continue;
@@ -54,10 +51,7 @@ const AppShareMethods = {
                         throw new Error(errorMsg);
                     }
                     const children = await res.json();
-
-                    // Metemos la carpeta base de forma explícita
                     flatItemsToShare.push({ id, fileType: 'application/x-directory', fileName: currentFile.fileName });
-                    // Metemos todo el árbol recursivo devuelto por el servidor
                     flatItemsToShare.push(...children);
                 } else {
                     flatItemsToShare.push({ id, fileType: currentFile.fileType, fileName: currentFile.fileName });
@@ -101,7 +95,6 @@ const AppShareMethods = {
 
                 const batchRequests = [];
 
-                // FASE 3: Bucle de protección asimétrica libre de duplicados
                 for (const item of flatItemsToShare) {
                     this.status = `Dando acceso seguro a: ${item.fileName}...`;
 

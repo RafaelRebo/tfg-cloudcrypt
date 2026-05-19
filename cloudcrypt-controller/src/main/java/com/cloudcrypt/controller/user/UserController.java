@@ -45,7 +45,6 @@ public class UserController {
         response.put("username", userDto.getUsername());
         response.put("fullName", fullName);
         response.put("avatarUrl", avatarUrl);
-        // ⚡ NUEVO: Propagamos el rol de registro (por defecto USER)
         response.put("email", userDto.getEmail());
         response.put("role", userDto.getRole());
         return ResponseEntity.ok(response);
@@ -62,7 +61,6 @@ public class UserController {
         response.put("fullName", user.getFullName());
         response.put("avatarUrl", user.getAvatarUrl());
 
-        // ⚡ NUEVO: Enviamos el rol y email reales al cliente al iniciar sesión
         response.put("email", user.getEmail());
         response.put("role", user.getRole());
 
@@ -112,7 +110,6 @@ public class UserController {
         response.put("fullName", updatedUser.getFullName());
         response.put("avatarUrl", updatedUser.getAvatarUrl());
 
-        // ⚡ NUEVO: Devolvemos el email actualizado y el rol de sesión persistente
         response.put("email", updatedUser.getEmail());
         response.put("role", updatedUser.getRole());
 

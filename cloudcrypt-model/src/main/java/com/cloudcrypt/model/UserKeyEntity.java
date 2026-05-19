@@ -12,8 +12,6 @@ public class UserKeyEntity {
 
     @Id
     private Long userId;
-
-    // Usamos ColumnDefinition TEXT para que quepan las llaves RSA
     @Lob
     @Column(name = "public_key", columnDefinition = "LONGTEXT")
     private String publicKey;
@@ -23,8 +21,7 @@ public class UserKeyEntity {
     private String encryptedPrivateKey;
 
     @OneToOne
-    @MapsId // Esto hace que el id de esta tabla sea el mismo que el de User
+    @MapsId
     @JoinColumn(name = "user_id")
     private UserEntity user;
-    // ^ Cambia UserEntity por el nombre de tu clase de usuario
 }

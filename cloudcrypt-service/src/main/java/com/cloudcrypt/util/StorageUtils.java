@@ -17,7 +17,7 @@ import java.util.UUID;
 public class StorageUtils {
 
     private final IStorageRepository storageRepository;
-    private final CryptoConfig cryptoConfig; // ⚡ CAMBIO: Inyectamos el lector de propiedades
+    private final CryptoConfig cryptoConfig;
 
     public StorageUtils(IStorageRepository storageRepository, CryptoConfig cryptoConfig) {
         this.storageRepository = storageRepository;

@@ -1,7 +1,3 @@
-/* ==========================================================================
-   ESTILOS DE AUTENTICACIÓN Y COMPONENTES GLOBALES (CLOUD CRYPT)
-   ========================================================================== */
-
 .auth-wrapper {
     height: 100vh;
     display: flex;
@@ -23,7 +19,6 @@
     transition: max-width 0.3s ease;
 }
 
-/* Modificador específico para la tarjeta de registro */
 .register-card {
     max-width: 440px;
 }
@@ -45,7 +40,6 @@
     font-size: 0.9rem;
 }
 
-/* INPUTS DE TEXTO AUTOMÁTICOS */
 .auth-card input:not([type="checkbox"]):not([type="file"]) {
     width: 100%;
     padding: 0.8rem 1rem;
@@ -89,7 +83,6 @@
 
 .link-action:hover { text-decoration: underline; }
 
-/* REPARACIÓN DEL BOTÓN DE ACCIÓN */
 .btn-primary.full-width {
     width: 100%;
     padding: 0.8rem;
@@ -118,10 +111,6 @@
     margin: 0 auto 1.5rem auto;
     display: block;
 }
-
-/* ==========================================================================
-   SECCIÓN DE CAPTURA DE AVATAR (FOTO DE PERFIL)
-   ========================================================================== */
 
 .avatar-upload-group {
     margin-bottom: 1rem;
@@ -170,10 +159,6 @@ input[type="file"].auth-input::file-selector-button:hover {
     background: var(--accent-hover);
 }
 
-/* ==========================================================================
-   BLOQUE DE CONTROL DE SEGURIDAD (AVISO ZERO-KNOWLEDGE)
-   ========================================================================== */
-
 .zk-warning-notice {
     display: flex;
     gap: 10px;
@@ -199,7 +184,6 @@ input[type="file"].auth-input::file-selector-button:hover {
     font-weight: 700;
 }
 
-/* CHECKBOXES CUSTOM PREMIUM (appearance: none) */
 input[type="checkbox"]#zkNotice,
 input[type="checkbox"].share-user-checkbox {
     -webkit-appearance: none;

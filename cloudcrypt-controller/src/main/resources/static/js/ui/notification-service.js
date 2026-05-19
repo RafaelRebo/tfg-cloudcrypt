@@ -1,10 +1,8 @@
 const NotificationService = {
-    // Toasts normales (Error/Info)
     create(msg, notifications, type = 'error') {
         const id = Date.now();
         const icon = type === 'error' ? '✕' : 'ℹ';
 
-        // Evitamos saturar la pantalla
         if (notifications.filter(n => !n.isUpload).length >= 3) {
             const oldest = notifications.find(n => !n.leaving && !n.isUpload);
             if (oldest) this.animateOut(oldest.id, notifications);
@@ -17,11 +15,8 @@ const NotificationService = {
         setTimeout(() => this.animateOut(id, notifications), 4500);
     },
 
-    // --- NUEVO: Crea y actualiza la notificación de subida ---
     updateUploadProgress(context) {
         let uploadToast = context.notifications.find(n => n.isUpload);
-
-        // CAMBIO: Permitimos que se cree desde el 1% para cubrir la fase de cifrado
         if (!uploadToast && context.uploadProgress > 0 && context.uploadProgress < 100) {
             uploadToast = {
                 id: 'upload-process',
@@ -33,7 +28,6 @@ const NotificationService = {
         }
 
         if (context.uploadProgress >= 100) {
-            // Damos un segundo para que el usuario vea el "100%" antes de borrar
             setTimeout(() => this.animateOut('upload-process', context.notifications, true), 1000);
         }
 
@@ -49,7 +43,7 @@ const NotificationService = {
             setTimeout(() => {
                 const index = notifications.findIndex(n => n.id === id);
                 if (index > -1) notifications.splice(index, 1);
-            }, immediate ? 0 : 500); // Borrado inmediato o con animación
+            }, immediate ? 0 : 500);
         }
     }
 };

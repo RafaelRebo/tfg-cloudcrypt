@@ -6,7 +6,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.web.multipart.MultipartFile;
 
 
-@Data // Esto genera Getters, Setters, toString, equals y hashCode automáticamente
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class FileUploadRequestDto {

@@ -1,14 +1,14 @@
 .main-layout {
     display: grid;
     grid-template-columns: 260px 1fr;
-    height: 100vh; /* Altura de la ventana */
-    overflow: hidden; /* Evita que la estructura entera se mueva */
+    height: 100vh;
+    overflow: hidden;
 }
 
 .content {
     display: flex;
     flex-direction: column;
-    height: 100vh; /* Obliga al contenido a no estirarse más que la pantalla */
+    height: 100vh;
     overflow: hidden;
 }
 
@@ -19,8 +19,8 @@
     flex-direction: column;
     padding: 1.5rem;
     height: 100vh;
-    box-sizing: border-box; /* Crucial para que el padding no sume al alto */
-    overflow-y: auto; /* Por si acaso hay muchos ítems, que salga scroll interno */
+    box-sizing: border-box;
+    overflow-y: auto;
 }
 
 .brand {
@@ -29,7 +29,6 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    /* No tocamos el margen del logo para que se quede arriba */
 }
 
 .upload-zone {
@@ -40,7 +39,7 @@
 .side-nav {
     display: flex;
     flex-direction: column;
-    gap: 0.5rem; /* Un pelín más compacto para dejar sitio abajo */
+    gap: 0.5rem;
 }
 
 .side-nav a {
@@ -65,7 +64,7 @@
     flex-shrink: 0;
     display: inline-block;
     vertical-align: middle;
-    margin-right: 0 !important; /* Reseteamos márgenes antiguos inválidos */
+    margin-right: 0 !important;
 }
 
 .top-header {
@@ -128,12 +127,12 @@
 
 .modal-footer {
     display: flex;
-    justify-content: flex-end; /* Alinea a la derecha */
+    justify-content: flex-end;
     gap: 12px;
 }
 
 .btn-modal {
-    padding: 8px 20px; /* Tamaño más contenido */
+    padding: 8px 20px;
     border-radius: 8px;
     font-size: 0.9rem;
     font-weight: 600;
@@ -173,13 +172,11 @@
     transform: translateY(-1px);
 }
 
-/* --- COMPONENTES DE HISTORIAL Y BREADCRUMBS --- */
-
 .header-navigation-zone {
     display: flex;
     align-items: center;
     gap: 12px;
-    overflow: hidden; /* Control total del ancho */
+    overflow: hidden;
     flex: 1;
 }
 
@@ -191,7 +188,7 @@
     padding: 4px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
-    flex-shrink: 0; /* Impide que los botones se aplasten */
+    flex-shrink: 0;
 }
 
 .history-btn {
@@ -215,20 +212,19 @@
     opacity: 0.5;
 }
 
-/* REDUCCIÓN DE TAMAÑO EN BREADCRUMBS */
 .breadcrumbs {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 0.82rem; /* Letra más pequeña y compacta */
+    font-size: 0.82rem;
     color: var(--text-main);
-    overflow-x: auto; /* Permite scroll horizontal si la ruta es kilométrica */
+    overflow-x: auto;
     white-space: nowrap;
     padding-bottom: 2px;
 }
 
 .breadcrumbs::-webkit-scrollbar {
-    height: 3px; /* Scroll discreto e invisible casi */
+    height: 3px;
 }
 
 .crumb-item {
@@ -246,7 +242,7 @@
 }
 
 .crumb-wrapper:last-child .crumb-item {
-    color: #ffffff; /* El directorio actual resalta más */
+    color: #ffffff;
     font-weight: 600;
     cursor: default;
 }
@@ -258,7 +254,6 @@
     margin: 0 2px;
 }
 
-/* --- FEEDBACK VISUAL PARA BREADCRUMBS RECEPTORES --- */
 .breadcrumbs .crumb-item.drag-target {
     background: rgba(59, 130, 246, 0.2) !important;
     outline: 2px dashed var(--accent-blue) !important;
@@ -268,24 +263,22 @@
     transition: all 0.15s ease;
 }
 
-/* 📁 Control del logo en el menú lateral izquierdo */
 .sidebar-logo {
     width: 100%;
-    max-width: 180px; /* Se adapta perfectamente al ancho de 260px del sidebar */
-    height: auto;     /* Evita el estiramiento vertical */
+    max-width: 180px;
+    height: auto;
     display: block;
     object-fit: contain;
 }
 
-/* Reajuste sutil para el contenedor del sidebar */
+
 .brand {
     padding: 0.5rem 0;
-    justify-content: center; /* Centra el logo horizontalmente en el panel */
+    justify-content: center;
 }
 
-/* Componente de Avatar adaptativo */
 .user-avatar {
-    width: 32px;  /* Tamaño compacto para la cabecera y tablas */
+    width: 32px;
     height: 32px;
     border-radius: 50%;
     object-fit: cover;
@@ -301,7 +294,6 @@
     flex-shrink: 0;
 }
 
-/* Variante un poco más grande opcional */
 .user-avatar.large {
     width: 40px;
     height: 40px;

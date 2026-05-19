@@ -1,33 +1,24 @@
 package com.cloudcrypt.dto.setup;
 
 public class SetupRequestDto {
-    // Base de Datos
     private String dbHost;
     private String dbPort;
     private String dbName;
     private String dbUser;
     private String dbPass;
-
-    // Almacenamiento y Cuotas
     private String maxQuotaBytes;
     private String maxFileSizeGb;
 
     private String uploadDir;
-
-    // Gobernanza Criptográfica
     private String hashAlgo;
     private String symAlgo;
     private String asymKeySize;
 
     private String saltSuffix;
-
-    // Cuenta del Administrador Inicial
     private String adminUsername;
     private String adminPassword;
     private String adminFullName;
     private String adminEmail;
-
-    // Getters y Setters (o usa @Data si tienes Lombok)
     public String getDbHost() { return dbHost; }
     public void setDbHost(String dbHost) { this.dbHost = dbHost; }
     public String getDbPort() { return dbPort; }
@@ -58,7 +49,6 @@ public class SetupRequestDto {
     public void setAdminFullName(String adminFullName) { this.adminFullName = adminFullName; }
     public String getAdminEmail() { return adminEmail; }
     public void setAdminEmail(String adminEmail) { this.adminEmail = adminEmail; }
-
     public String getSaltSuffix() { return saltSuffix; }
     public void setSaltSuffix(String saltSuffix) { this.saltSuffix = saltSuffix; }
 }

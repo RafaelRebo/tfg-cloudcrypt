@@ -27,7 +27,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             String token = authHeader.substring(7);
             if (jwtUtils.validateToken(token)) {
                 String username = jwtUtils.getUsernameFromToken(token);
-                // Creamos el objeto de autenticación que Spring Security entiende
+
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         username, null, new ArrayList<>());
                 SecurityContextHolder.getContext().setAuthentication(auth);

@@ -12,7 +12,6 @@ const UIService = {
         return safeText.replace(regex, '<span class="highlight">$1</span>');
     },
 
-    // Cálculos del cuadro de selección azul
     getSelectionBoxStyle(startX, startY, currentX, currentY) {
         return {
             left: Math.min(startX, currentX) + 'px',
@@ -55,13 +54,11 @@ const UIService = {
     },
 
     handleContextMenu(event, item) {
-        // 1. Almacenamos temporalmente las coordenadas puras del clic del ratón
         const clickX = event.clientX;
         const clickY = event.clientY;
 
         this.contextMenu.target = item;
 
-        // 2. Evaluamos reactivamente el tipo de menú (Fichero, Múltiple o Vacío)
         if (item) {
             const isAlreadySelected = this.selectedIds.includes(item.id);
             if (!isAlreadySelected) {
@@ -107,15 +104,13 @@ const UIService = {
         if (isCtrlOrCmd) {
             const key = event.key.toLowerCase();
 
-            // 🌟 CORRECCIÓN 1: Restauramos el atajo de seleccionar todo
             if (key === 'a') {
-                event.preventDefault(); // Evitamos la selección de texto nativa del navegador
+                event.preventDefault();
                 if (typeof this.selectAllFiles === 'function') {
                     this.selectAllFiles();
                 }
             }
 
-            // ✂️ Cortar
             else if (key === 'x') {
                 if (this.selectedIds && this.selectedIds.length > 0) {
                     event.preventDefault();
@@ -123,7 +118,6 @@ const UIService = {
                 }
             }
 
-            // 📋 Copiar
             else if (key === 'c') {
                 if (this.selectedIds && this.selectedIds.length > 0) {
                     event.preventDefault();
@@ -131,7 +125,6 @@ const UIService = {
                 }
             }
 
-            // 📥 Pegar
             else if (key === 'v') {
                 if (this.clipboard && this.clipboard.items.length > 0) {
                     event.preventDefault();
@@ -147,7 +140,6 @@ const UIService = {
     },
 
     handleCut() {
-        // Capturamos el mapa de objetos seleccionados actualmente en la UI
         this.clipboard.items = this.selectedIds.map(id => this.allUserFiles.find(f => f.id === id)).filter(Boolean);
         this.clipboard.action = 'cut';
         this.showInfo(`${this.clipboard.items.length} elemento(s) listos para mover.`);
@@ -169,7 +161,6 @@ const UIService = {
             for (const item of this.clipboard.items) {
                 const isSameFolder = item.parentId === this.currentFolderId;
 
-                // No-Op seguro si se corta y pega en la misma ubicación
                 if (isSameFolder && this.clipboard.action === 'cut') {
                     continue;
                 }
@@ -194,7 +185,6 @@ const UIService = {
 
                 if (action === 'overwrite') {
                     const delRes = await API.deleteFile(checkRes.existingId, true);
-                    // ⚡ TOAST FIX: Si falla la purga por falta de permisos o integridad, extraemos el error semántico
                     if (!delRes.ok) throw new Error(await API.extractErrorMessage(delRes));
                 }
 
@@ -214,7 +204,6 @@ const UIService = {
                     }
                 }
 
-                // ⚡ TOAST FIXES: Validamos el .ok de cada operación de red y disparamos el extractor si el servidor rechaza la acción
                 if (this.clipboard.action === 'cut') {
                     const moveRes = await API.moveFiles([item.id], this.currentFolderId);
                     if (!moveRes.ok) throw new Error(await API.extractErrorMessage(moveRes));
@@ -240,7 +229,6 @@ const UIService = {
             await this.refreshAppData();
 
         } catch (e) {
-            // Canalaea el mensaje exacto inyectado en el throw new Error()
             this.showError(e.message || "Hubo un fallo al pegar los elementos");
         } finally {
             this.status = "";

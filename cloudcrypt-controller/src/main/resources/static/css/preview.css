@@ -4,7 +4,7 @@
     left: 0;
     width: 100%;
     height: 100%;
-    background: rgba(15, 23, 42, 0.5); /* Azul muy oscuro traslúcido */
+    background: rgba(15, 23, 42, 0.5);
     backdrop-filter: blur(0.5px);
     display: flex;
     align-items: center;
@@ -96,7 +96,6 @@
     border: 1px solid var(--border-color);
 }
 
-/* Asegura que el contenedor de PDF ocupe todo el espacio */
 .preview-body object,
 .preview-body embed {
     width: 100%;
@@ -104,7 +103,6 @@
     min-height: 70vh;
 }
 
-/* Mejora para el reproductor de audio */
 .audio-player {
     background: var(--sidebar-bg);
     padding: 3rem;
@@ -118,7 +116,7 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 1.2rem; /* Separación simétrica entre el texto y el botón */
+    gap: 1.2rem;
     text-align: center;
     padding: 2rem;
 }
@@ -133,13 +131,13 @@
     background-color: var(--accent-blue);
     color: white;
     border: none;
-    padding: 0.8rem 1.8rem; /* Padding horizontal generoso para que respire */
-    border-radius: 0.75rem; /* Mismo radio de curvatura que tus inputs */
+    padding: 0.8rem 1.8rem;
+    border-radius: 0.75rem;
     font-weight: 600;
     font-size: 0.95rem;
     cursor: pointer;
     transition: background 0.2s ease, transform 0.1s ease;
-    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); /* Sutil brillo azul */
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -151,7 +149,7 @@
 }
 
 .btn-primary:active {
-    transform: scale(0.98); /* Efecto elástico de pulsación nativa */
+    transform: scale(0.98);
 }
 
 .preview-body,
@@ -160,21 +158,18 @@
     scrollbar-color: var(--sidebar-bg) transparent;
 }
 
-/* 2️⃣ Estilo para motores Webkit (Chrome, Safari, Edge) */
 .preview-body::-webkit-scrollbar,
 .preview-body pre::-webkit-scrollbar {
-    width: 6px;  /* Barra fina de 6px igual que en el gestor principal */
-    height: 6px; /* Por si apareciera scroll horizontal en líneas de código muy largas */
+    width: 6px;
+    height: 6px;
 }
 
-/* 3️⃣ Diseño del tirador (Thumb) */
 .preview-body::-webkit-scrollbar-thumb,
 .preview-body pre::-webkit-scrollbar-thumb {
-    background-color: var(--sidebar-bg); /* El mismo color gris azulado del sidebar */
+    background-color: var(--sidebar-bg);
     border-radius: 10px;
 }
 
-/* Opcional: Evita que el fondo del scroll parpadee en blanco */
 .preview-body::-webkit-scrollbar-track,
 .preview-body pre::-webkit-scrollbar-track {
     background: transparent;

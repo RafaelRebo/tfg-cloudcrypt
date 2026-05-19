@@ -7,7 +7,6 @@ import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.service.user.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -46,13 +45,13 @@ public class AdminController {
             totalGlobalBytes += bytesUsed;
 
             metrics.add(new AdminStatsDto.UserDiskMetric(
-                    user.getId(), // ⚡ Inyectamos el ID relacional
+                    user.getId(),
                     user.getUsername(),
                     user.getFullName(),
                     filesOwned,
                     bytesUsed,
-                    user.getQuotaBytes(), // ⚡ Mapeado de cuota específica
-                    user.getRole()        // ⚡ Mapeado de rol actual
+                    user.getQuotaBytes(),
+                    user.getRole()
             ));
         }
 
@@ -91,20 +90,17 @@ public class AdminController {
     public ResponseEntity<?> deleteUserAndData(Authentication auth, @PathVariable Long id) {
         UserEntity requester = userRepository.findByUsername(auth.getName());
 
-        // Verificación de rango de autoridad operativa
         if (requester == null || !"ADMIN".equalsIgnoreCase(requester.getRole())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN)
                     .body("Acceso restringido: Se requieren credenciales de Administrador Maestro.");
         }
 
-        // 🛡️ FILTRO DE CONTENCIÓN: Bloquea intentos de auto-eliminación desde el panel
         if (requester.getId().equals(id)) {
             return ResponseEntity.badRequest()
                     .body("Fallo de seguridad: Un Administrador no puede invocar una purga sobre su propia sesión de control.");
         }
 
         try {
-            // Delegamos la secuencia atómica de borrado físico e institucional al Service Layer
             userService.purgeUserFully(id);
             return ResponseEntity.ok().build();
         } catch (Exception e) {
