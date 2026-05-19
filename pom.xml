@@ -10,20 +10,22 @@
 		<relativePath/>
 	</parent>
 
-	<groupId>com.example</groupId>
-	<artifactId>demo</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
-	<packaging>pom</packaging> <properties>
-	<java.version>21</java.version>
-	<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-</properties>
+	<groupId>com.cloudcrypt</groupId>
+	<artifactId>cloudcrypt</artifactId>
+	<version>1.0</version>
+	<packaging>pom</packaging>
+
+	<properties>
+		<java.version>21</java.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+	</properties>
 
 	<modules>
-		<module>demo-model</module>
-		<module>demo-repository</module>
-		<module>demo-service</module>
-		<module>demo-controller</module>
-		<module>demo-config</module>
+		<module>cloudcrypt-model</module>
+		<module>cloudcrypt-repository</module>
+		<module>cloudcrypt-service</module>
+		<module>cloudcrypt-controller</module>
+		<module>cloudcrypt-config</module>
 	</modules>
 
 	<dependencies>

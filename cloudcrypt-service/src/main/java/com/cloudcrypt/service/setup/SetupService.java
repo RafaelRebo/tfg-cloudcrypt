@@ -1,0 +1,110 @@
+package com.cloudcrypt.service.setup;
+
+import com.cloudcrypt.dto.setup.SetupRequestDto;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.util.Base64;
+import java.util.UUID;
+
+@Service
+public class SetupService {
+
+    /**
+     * Valida la conectividad cruda contra el socket TCP del motor MySQL
+     */
+    public void testDatabaseConnection(SetupRequestDto request) throws SQLException {
+        String url = "jdbc:mysql://" + request.getDbHost() + ":" + request.getDbPort() + "/?serverTimezone=UTC";
+        try (Connection conn = DriverManager.getConnection(url, request.getDbUser(), request.getDbPass())) {
+            // Conexión exitosa, auto-close del socket
+        }
+    }
+
+    /**
+     * Procesa de forma aislada el almacenamiento físico del avatar inicial del Administrador
+     */
+    public String storeAdminAvatar(String uploadDir, MultipartFile avatar) throws IOException {
+        if (avatar == null || avatar.isEmpty()) {
+            return "";
+        }
+
+        Path avatarDir = Paths.get(uploadDir, "avatars");
+        if (!Files.exists(avatarDir)) {
+            Files.createDirectories(avatarDir);
+        }
+
+        String originalName = avatar.getOriginalFilename();
+        String extension = originalName != null && originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf(".")) : ".png";
+
+        String uniqueFilename = UUID.randomUUID().toString() + extension;
+        Path targetPath = avatarDir.resolve(uniqueFilename);
+
+        Files.copy(avatar.getInputStream(), targetPath, StandardCopyOption.REPLACE_EXISTING);
+        return "/static/avatars/" + uniqueFilename;
+    }
+
+    /**
+     * Consolida de forma atómica y en UTF-8 las especificaciones en el fichero properties
+     */
+    public void writeConfigurationProperties(SetupRequestDto request, String savedAvatarPath) throws IOException {
+        File configDir = new File("./config");
+        if (!configDir.exists()) {
+            configDir.mkdirs();
+        }
+
+        File propertiesFile = new File(configDir, "application-prod.properties");
+
+        try (BufferedWriter writer = Files.newBufferedWriter(propertiesFile.toPath(), StandardCharsets.UTF_8)) {
+            writer.write("# ARCHIVO GENERADO DINÁMICAMENTE POR CLOUDCRYPT\n");
+
+            // Infraestructura Relacional
+            writer.write("spring.datasource.url=jdbc:mysql://" + request.getDbHost() + ":" + request.getDbPort() + "/" + request.getDbName() + "?createDatabaseIfNotExist=true&serverTimezone=UTC\n");
+            writer.write("spring.datasource.username=" + request.getDbUser() + "\n");
+            writer.write("spring.datasource.password=" + request.getDbPass() + "\n");
+            writer.write("spring.datasource.driverClassName=com.mysql.cj.jdbc.Driver\n");
+            writer.write("spring.jpa.database-platform=org.hibernate.dialect.MySQL8Dialect\n");
+
+            // Capacidad de Almacenamiento Local (Limpieza preventiva de contrabarras)
+            String safePath = request.getUploadDir().replace("\\", "/");
+            writer.write("app.storage.max-quota=" + request.getMaxQuotaBytes() + "\n");
+            writer.write("spring.servlet.multipart.max-file-size=" + request.getMaxFileSizeGb() + "GB\n");
+            writer.write("spring.servlet.multipart.max-request-size=" + request.getMaxFileSizeGb() + "GB\n");
+            writer.write("app.storage.upload-dir=" + safePath + "\n");
+
+            // Configuración de Suite Criptográfica
+            writer.write("app.crypto.hash-algorithm=" + request.getHashAlgo() + "\n");
+            writer.write("app.crypto.symmetric-algorithm=" + request.getSymAlgo() + "\n");
+            writer.write("app.crypto.asymmetric-key-size=" + request.getAsymKeySize() + "\n");
+            writer.write("app.crypto.salt-suffix=" + request.getSaltSuffix() + "\n");
+
+            // Servidor de Tokens JWT Autónomo
+            byte[] jwtBytes = new byte[64];
+            new java.security.SecureRandom().nextBytes(jwtBytes);
+            String secureRandomJwtSecret = Base64.getEncoder().encodeToString(jwtBytes);
+            writer.write("app.jwt.secret=" + secureRandomJwtSecret + "\n");
+            writer.write("app.jwt.expiration-ms=7200000\n");
+            writer.write("spring.jpa.properties.hibernate.default_batch_fetch_size=20\n");
+
+            // Inicialización de Credenciales Maestras
+            writer.write("app.setup.admin-username=" + request.getAdminUsername() + "\n");
+            writer.write("app.setup.admin-password=" + request.getAdminPassword() + "\n");
+            writer.write("app.setup.admin-fullname=" + request.getAdminFullName() + "\n");
+            writer.write("app.setup.admin-email=" + request.getAdminEmail() + "\n");
+            writer.write("app.setup.admin-avatar=" + savedAvatarPath + "\n");
+
+            writer.flush();
+        }
+    }
+}
