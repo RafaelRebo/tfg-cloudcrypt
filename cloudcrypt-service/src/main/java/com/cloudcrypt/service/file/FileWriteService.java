@@ -52,7 +52,7 @@ public class FileWriteService {
         String storagePathCancel = null;
 
         try (InputStream is = request.getFile().getInputStream()) {
-            var storage = storageUtils.saveEncryptedPackage(is, username, logicalPath);
+            var storage = storageUtils.saveEncryptedPackage(is, owner.getId(), logicalPath);
             storagePathCancel = storage.get("storagePath");
 
             FileEntity file = new FileEntity();

@@ -271,4 +271,37 @@ const API = {
        if (!res.ok) return [];
        return res.json();
    },
+
+   async updateProfile(formData) {
+       return fetch('/api/users/profile', {
+           method: 'POST',
+           headers: this.getAuthHeader(),
+           body: formData
+       });
+   },
+
+   async getAdminStorageStats() {
+       const res = await fetch('/api/admin/stats', { headers: this.getAuthHeader() });
+       if (!res.ok) throw res;
+       return res.json();
+   },
+
+   async updateUserParameters(userId, quotaBytes, role) {
+       const formData = new FormData();
+       formData.append("quotaBytes", quotaBytes);
+       formData.append("role", role);
+
+       return fetch(`/api/admin/users/${userId}/manage`, {
+           method: 'POST',
+           headers: this.getAuthHeader(),
+           body: formData
+       });
+   },
+
+   async deleteUser(userId) {
+       return fetch(`/api/admin/users/${userId}`, {
+           method: 'DELETE',
+           headers: this.getAuthHeader()
+       });
+   },
 };

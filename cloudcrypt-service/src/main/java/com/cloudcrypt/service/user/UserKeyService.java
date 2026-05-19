@@ -58,4 +58,16 @@ public class UserKeyService {
                 .map(UserKeyEntity::getEncryptedPrivateKey)
                 .orElseThrow(() -> new InstanceNotFoundException("El usuario no tiene llaves registradas"));
     }
+
+    @Transactional
+    public void updatePrivateKey(String username, String newEncryptedPrivateKey) {
+        UserEntity user = userRepository.findByUsername(username);
+        if (user == null) throw new InstanceNotFoundException("Usuario no encontrado");
+
+        UserKeyEntity userKeys = userKeyRepository.findById(user.getId())
+                .orElseThrow(() -> new InstanceNotFoundException("El usuario no posee un llavero relacional instanciado"));
+
+        userKeys.setEncryptedPrivateKey(newEncryptedPrivateKey);
+        userKeyRepository.save(userKeys);
+    }
 }

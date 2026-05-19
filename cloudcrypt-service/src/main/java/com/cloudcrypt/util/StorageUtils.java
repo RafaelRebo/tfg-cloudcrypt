@@ -24,12 +24,11 @@ public class StorageUtils {
         this.cryptoConfig = cryptoConfig;
     }
 
-    public Map<String, String> saveEncryptedPackage(InputStream is, String username, String folderPath) throws IOException, NoSuchAlgorithmException {
-        // ⚡ REFACTORIZADO: Lee dinámicamente el algoritmo de hash configurado (SHA-256 / SHA-512)
+    public Map<String, String> saveEncryptedPackage(InputStream is, Long userId, String folderPath) throws IOException, NoSuchAlgorithmException {
         MessageDigest md = MessageDigest.getInstance(cryptoConfig.getHashAlgorithm());
 
         String sanitizedFolder = folderPath.replaceAll("^/|/$", "");
-        String physicalFolder = sanitizedFolder.isEmpty() ? username : username + "/" + sanitizedFolder;
+        String physicalFolder = sanitizedFolder.isEmpty() ? String.valueOf(userId) : userId + "/" + sanitizedFolder;
         String storageName = UUID.randomUUID().toString();
 
         try (DigestInputStream dis = new DigestInputStream(is, md)) {

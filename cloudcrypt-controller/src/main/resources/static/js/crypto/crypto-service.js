@@ -77,6 +77,10 @@ const CryptoService = {
         return this._send('DECRYPT_PRIVATE_KEY', { encryptedBase64, password });
     },
 
+    async rotateIdentityKeys(newPassword, newUsername) {
+        return this._send('ROTATE_IDENTITY_KEYS', { newPassword, newUsername });
+    },
+
     async wipeIdentity() {
         return this._send('WIPE_IDENTITY', {});
     },

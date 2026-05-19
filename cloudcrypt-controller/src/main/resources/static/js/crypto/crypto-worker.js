@@ -86,6 +86,10 @@ self.onmessage = async (e) => {
                 const decryptedBuffer = await decryptFileInternal(payload.encryptedBlob, importedAes);
                 self.postMessage({ id, status: 'OK', payload: decryptedBuffer });
                 break;
+            case 'ROTATE_IDENTITY_KEYS':
+                const reEncryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(privateKey, payload.newPassword, payload.newUsername);
+                self.postMessage({ id, status: 'OK', payload: { reEncryptedPrivateKeyBase64 } });
+                break;
 
             case 'WIPE_IDENTITY':
                 privateKey = null;

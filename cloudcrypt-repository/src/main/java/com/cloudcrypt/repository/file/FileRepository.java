@@ -5,6 +5,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
@@ -120,4 +121,12 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findStarred(@Param("username") String username, Pageable pageable);
 
     List<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId);
+
+    @Modifying
+    @Query("UPDATE FileEntity f SET f.storagePath = REPLACE(f.storagePath, :oldPrefix, :newPrefix) WHERE f.owner.id = :ownerId AND f.storagePath LIKE CONCAT(:oldPrefix, '%')")
+    void updateStoragePaths(@Param("ownerId") Long ownerId, @Param("oldPrefix") String oldPrefix, @Param("newPrefix") String newPrefix);
+
+    void deleteByOwnerId(Long ownerId);
+
+    List<FileEntity> findByOwnerUsername(String username);
 }

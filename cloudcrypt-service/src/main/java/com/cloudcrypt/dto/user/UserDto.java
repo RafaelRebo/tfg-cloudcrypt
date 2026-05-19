@@ -13,4 +13,6 @@ public class UserDto {
     private String email;
     private String fullName;
     private String avatarUrl;
+    private String role;
+    private Long quotaBytes;
 }

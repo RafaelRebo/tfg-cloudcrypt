@@ -1,6 +1,8 @@
 package com.cloudcrypt.controller.user;
 
+import com.cloudcrypt.dto.user.KeyRequestDto;
 import com.cloudcrypt.dto.user.UserDto;
+import com.cloudcrypt.service.user.UserKeyService;
 import com.cloudcrypt.service.user.UserService;
 import com.cloudcrypt.config.JwtUtils;
 import org.springframework.http.ResponseEntity;
@@ -18,10 +20,12 @@ public class UserController {
 
     private final UserService userService;
     private final JwtUtils jwtUtils;
+    private final UserKeyService userKeyService;
 
-    public UserController(UserService userService, JwtUtils jwtUtils) {
+    public UserController(UserService userService, JwtUtils jwtUtils, UserKeyService userKeyService) {
         this.userService = userService;
         this.jwtUtils = jwtUtils;
+        this.userKeyService = userKeyService;
     }
 
     @PostMapping(value = "/register", consumes = {"multipart/form-data"})
@@ -33,22 +37,23 @@ public class UserController {
             @RequestPart(value = "avatar", required = false) MultipartFile avatarFile) {
 
         String avatarUrl = userService.storeAvatar(avatarFile);
-        // Cambiamos el retorno para enviar un mapa idéntico al del login con la sesión inicializada
         UserDto userDto = userService.register(username, password, fullName, email, avatarUrl);
         String token = jwtUtils.generateToken(userDto.getUsername());
 
         Map<String, Object> response = new HashMap<>();
         response.put("token", token);
         response.put("username", userDto.getUsername());
-        response.put("fullName", fullName);   // ⚡ Directo del parámetro para evitar fallos del mapper
-        response.put("avatarUrl", avatarUrl); // ⚡ Directo de la subida
+        response.put("fullName", fullName);
+        response.put("avatarUrl", avatarUrl);
+        // ⚡ NUEVO: Propagamos el rol de registro (por defecto USER)
+        response.put("email", userDto.getEmail());
+        response.put("role", userDto.getRole());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestParam String username, @RequestParam String password) {
         UserDto user = userService.authenticate(username, password);
-
         String token = jwtUtils.generateToken(user.getUsername());
 
         Map<String, Object> response = new HashMap<>();
@@ -57,11 +62,60 @@ public class UserController {
         response.put("fullName", user.getFullName());
         response.put("avatarUrl", user.getAvatarUrl());
 
+        // ⚡ NUEVO: Enviamos el rol y email reales al cliente al iniciar sesión
+        response.put("email", user.getEmail());
+        response.put("role", user.getRole());
+
         return ResponseEntity.ok(response);
     }
 
     @GetMapping("/search")
     public ResponseEntity<List<UserDto>> searchUsers(@RequestParam(required = false, defaultValue = "") String q, Authentication auth) {
         return ResponseEntity.ok(userService.searchOtherUsers(q, auth.getName()));
+    }
+
+    @PostMapping(value = "/profile", consumes = {"multipart/form-data"})
+    public ResponseEntity<Map<String, Object>> updateProfile(
+            Authentication auth,
+            @RequestParam String fullName,
+            @RequestParam String removeAvatar,
+            @RequestParam(required = false) String newUsername,
+            @RequestParam(required = false) String newPassword,
+            @RequestParam(required = false) String newEncryptedPrivateKey,
+            @RequestPart(value = "avatar", required = false) MultipartFile avatarFile,
+            @RequestParam(required = false) String email) {
+
+        String oldUsername = auth.getName();
+
+        if (newEncryptedPrivateKey != null && !newEncryptedPrivateKey.isEmpty()) {
+            KeyRequestDto keyDto = new KeyRequestDto();
+            Map<String, Object> publicInfo = userKeyService.getPublicInfo(oldUsername);
+            keyDto.setPublicKey((String) publicInfo.get("publicKey"));
+            keyDto.setEncryptedPrivateKey(newEncryptedPrivateKey);
+            userKeyService.registerKeys(oldUsername, keyDto);
+        }
+
+        String avatarUrl = null;
+        if (avatarFile != null && !avatarFile.isEmpty()) {
+            avatarUrl = userService.storeAvatar(avatarFile);
+        }
+
+        UserDto updatedUser = userService.updateProfile(
+                oldUsername, fullName, newUsername, newPassword, removeAvatar, avatarUrl, email
+        );
+
+        String token = jwtUtils.generateToken(updatedUser.getUsername());
+
+        Map<String, Object> response = new HashMap<>();
+        response.put("token", token);
+        response.put("username", updatedUser.getUsername());
+        response.put("fullName", updatedUser.getFullName());
+        response.put("avatarUrl", updatedUser.getAvatarUrl());
+
+        // ⚡ NUEVO: Devolvemos el email actualizado y el rol de sesión persistente
+        response.put("email", updatedUser.getEmail());
+        response.put("role", updatedUser.getRole());
+
+        return ResponseEntity.ok(response);
     }
 }

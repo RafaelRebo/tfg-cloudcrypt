@@ -7,6 +7,8 @@ const AuthService = {
             localStorage.setItem('username', data.username);
             localStorage.setItem('fullName', data.fullName || '');
             localStorage.setItem('avatarUrl', data.avatarUrl || '');
+            localStorage.setItem('userRole', data.role || 'USER');
+            localStorage.setItem('email', data.email || '');
             sessionStorage.setItem('fileKey', password);
 
             try {
@@ -56,6 +58,8 @@ const AuthService = {
         localStorage.removeItem('username');
         localStorage.removeItem('fullName');
         localStorage.removeItem('avatarUrl');
+        localStorage.removeItem('userRole');
+        localStorage.removeItem('email');
         sessionStorage.removeItem('fileKey');
     },
 
@@ -92,10 +96,14 @@ const AppAuthMethods = {
                 localStorage.setItem('username', data.username);
                 localStorage.setItem('fullName', data.fullName || '');
                 localStorage.setItem('avatarUrl', data.avatarUrl || '');
+                localStorage.setItem('userRole', data.role || 'USER');
+                localStorage.setItem('email', data.email || '');
                 sessionStorage.setItem('fileKey', secureKey);
 
                 this.userFullName = data.fullName;
                 this.userAvatarUrl = data.avatarUrl;
+                this.userRole = data.role || 'USER'; // Asignación reactiva en el objeto principal
+                this.userEmail = data.email || '';
 
                 let hasCrypto = false;
                 try {
@@ -187,11 +195,15 @@ const AppAuthMethods = {
             localStorage.setItem('username', loginData.username);
             localStorage.setItem('fullName', loginData.fullName || '');
             localStorage.setItem('avatarUrl', loginData.avatarUrl || '');
+            localStorage.setItem('userRole', loginData.role || 'USER');
+            localStorage.setItem('email', loginData.email || '');
             sessionStorage.setItem('fileKey', masterKey);
 
             // Guardamos datos de sesión extendidos
             this.userFullName = loginData.fullName;
             this.userAvatarUrl = loginData.avatarUrl;
+            this.userRole = loginData.role || 'USER';
+            this.userEmail = loginData.email || '';
 
             this.status = "Configurando sobres e identidad...";
             await AuthService.setupUserCrypto(this.regUsername, masterKey);

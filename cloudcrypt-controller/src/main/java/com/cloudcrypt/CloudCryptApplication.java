@@ -47,11 +47,10 @@ public class CloudCryptApplication {
                 admin.setFullName(adminName);
                 admin.setEmail(adminEmail);
                 admin.setAvatarUrl(adminAvatar.isEmpty() ? null : adminAvatar);
+                admin.setRole("ADMIN");
 
                 try {
                     String clientSideDerivedKey = javaDeriveMasterKey(adminUser, adminPass, hashAlgo);
-
-                    // ⚡ SOLUCIÓN: Pre-hasheamos el resultado largo de SHA-512 antes de mandarlo a BCrypt
                     String secureBcryptInput = internalSha256(clientSideDerivedKey);
                     admin.setPassword(passwordEncoder.encode(secureBcryptInput));
 
@@ -80,9 +79,6 @@ public class CloudCryptApplication {
         return hexString.toString();
     }
 
-    /**
-     * Helper local para el pre-hash del admin
-     */
     private String internalSha256(String input) throws Exception {
         MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));

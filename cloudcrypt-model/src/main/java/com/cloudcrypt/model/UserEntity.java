@@ -28,6 +28,12 @@ public class UserEntity {
 
     private String avatarUrl;
 
+    @Column(nullable = false)
+    private String role = "USER";
+
+    @Column(name = "quota_bytes")
+    private Long quotaBytes;
+
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<FileEntity> files;

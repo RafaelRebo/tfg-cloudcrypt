@@ -9,6 +9,8 @@ const appInstance = createApp({
             authMode: 'login',
             userFullName: '',
             userAvatarUrl: '',
+            userRole: 'USER',
+            userEmail: '',
             regFullName: '',
             regEmail: '',
             regUsername: '',
@@ -70,6 +72,20 @@ const appInstance = createApp({
                 action: null, // Puede ser 'cut', 'copy' o null
                 items: []     // Almacenará los objetos de los archivos/carpetas en tránsito
             },
+            profileModal: {
+                active: false,
+                activeTab: 1,
+                isProcessing: false,
+                fullName: '',
+                email: '',
+                newUsername: '',
+                newPassword: '',
+                confirmNewPassword: '',
+                currentPassword: '',
+                removeAvatar: false,
+                adminSearchQuery: '',
+                adminStats: { globalUsedBytes: 0, users: [] }
+            },
         }
     },
     async mounted() {
@@ -98,12 +114,16 @@ const appInstance = createApp({
 
             this.userFullName = localStorage.getItem('fullName') || '';
             this.userAvatarUrl = localStorage.getItem('avatarUrl') || '';
+            this.userRole = localStorage.getItem('userRole') || 'USER';
+            this.userEmail = localStorage.getItem('email') || '';
 
             try {
                 await AuthService.login(session.username, session.password);
 
                 this.userFullName = localStorage.getItem('fullName') || '';
                 this.userAvatarUrl = localStorage.getItem('avatarUrl') || '';
+                this.userRole = localStorage.getItem('userRole') || 'USER';
+                this.userEmail = localStorage.getItem('email') || '';
 
                 await this.refreshAppData();
             } catch (e) {
@@ -142,6 +162,7 @@ const appInstance = createApp({
         ...AppModalMethods,
         ...AppSelectionMethods,
         ...AppShareMethods,
+        ...AppUserMethods,
         ...UIService,
     },
     watch: {
