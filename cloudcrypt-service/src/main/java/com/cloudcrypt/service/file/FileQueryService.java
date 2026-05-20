@@ -16,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -73,6 +74,18 @@ public class FileQueryService {
                     log.warn("OPERACIÓN: Violación de acceso para el recurso ID: {} por [@{}].", fileId, username);
                     return new InstanceNotFoundException("Sin acceso a la llave criptográfica.");
                 });
+    }
+
+    public Map<Long, String> getEncryptedFileKeysBatch(List<Long> fileIds, String username) {
+        if (fileIds == null || fileIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        log.debug("OPERACIÓN: Recuperando claves en bloque para {} elementos del usuario [{}].", fileIds.size(), username);
+        List<FileKeyEntity> keys = fileKeyRepository.findByFileIdInAndUser_Username(fileIds, username);
+        return keys.stream().collect(Collectors.toMap(
+                k -> k.getFile().getId(),
+                FileKeyEntity::getEncryptedKey
+        ));
     }
 
     public InputStream getFileDownloadStream(Long id, String username) {

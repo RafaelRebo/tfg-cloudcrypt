@@ -34,7 +34,6 @@ const API = {
         });
     },
 
-
     async getFiles(folderId = null, category = 'all', page = 0, size = 20) {
         const fId = (folderId && !isNaN(folderId)) ? folderId : '';
         const url = `/api/files?page=${page}&size=${size}&category=${category}&folderId=${fId}`;
@@ -237,52 +236,81 @@ const API = {
         return res.text();
     },
 
-   async getUserPublicKey(username) {
-       const res = await fetch(`/api/keys/public/${username}`, {
-           headers: this.getAuthHeader()
-       });
-       if (!res.ok) return null;
-       return res.json();
-   },
+    async getUserPublicKey(username) {
+        const res = await fetch(`/api/keys/public/${username}`, {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) return null;
+        return res.json();
+    },
 
-   async searchUsers(query) {
-       const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
-           headers: this.getAuthHeader()
-       });
-       if (!res.ok) return [];
-       return res.json();
-   },
+    async searchUsers(query) {
+        const res = await fetch(`/api/users/search?q=${encodeURIComponent(query)}`, {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) return [];
+        return res.json();
+    },
 
-   async updateProfile(formData) {
-       return fetch('/api/users/profile', {
-           method: 'POST',
-           headers: this.getAuthHeader(),
-           body: formData
-       });
-   },
+    async updateProfile(formData) {
+        return fetch('/api/users/profile', {
+            method: 'POST',
+            headers: this.getAuthHeader(),
+            body: formData
+        });
+    },
 
-   async getAdminStorageStats() {
-       const res = await fetch('/api/admin/stats', { headers: this.getAuthHeader() });
-       if (!res.ok) throw res;
-       return res.json();
-   },
+    async getAdminStorageStats() {
+        const res = await fetch('/api/admin/stats', { headers: this.getAuthHeader() });
+        if (!res.ok) throw res;
+        return res.json();
+    },
 
-   async updateUserParameters(userId, quotaBytes, role) {
-       const formData = new FormData();
-       formData.append("quotaBytes", quotaBytes);
-       formData.append("role", role);
+    async updateUserParameters(userId, quotaBytes, role) {
+        const formData = new FormData();
+        formData.append("quotaBytes", quotaBytes);
+        formData.append("role", role);
 
-       return fetch(`/api/admin/users/${userId}/manage`, {
-           method: 'POST',
-           headers: this.getAuthHeader(),
-           body: formData
-       });
-   },
+        return fetch(`/api/admin/users/${userId}/manage`, {
+            method: 'POST',
+            headers: this.getAuthHeader(),
+            body: formData
+        });
+    },
 
-   async deleteUser(userId) {
-       return fetch(`/api/admin/users/${userId}`, {
-           method: 'DELETE',
-           headers: this.getAuthHeader()
-       });
-   },
+    async deleteUser(userId) {
+        return fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE',
+            headers: this.getAuthHeader()
+        });
+    },
+
+    async getFileKeysBatch(fileIds) {
+        return fetch('/api/files/keys/batch', {
+            method: 'POST',
+            headers: {
+                ...this.getAuthHeader(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(fileIds)
+        });
+    },
+
+    async getRecursiveContent(folderId) {
+        return fetch(`/api/files/folder-content-recursive/${folderId}`, {
+            method: 'GET',
+            headers: this.getAuthHeader()
+        });
+    },
+
+    async shareFilesBatch(sharePayload) {
+        return fetch('/api/files/share/batch', {
+            method: 'POST',
+            headers: {
+                ...this.getAuthHeader(),
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(sharePayload)
+        });
+    }
 };

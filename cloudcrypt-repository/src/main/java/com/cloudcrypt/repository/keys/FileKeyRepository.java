@@ -26,4 +26,6 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
     @Query("SELECT fk.user.username FROM FileKeyEntity fk WHERE fk.file.id = :fileId")
     List<String> findUsernamesByFileId(@Param("fileId") Long fileId);
+
+    List<FileKeyEntity> findByFileIdInAndUser_Username(List<Long> fileIds, String username);
 }

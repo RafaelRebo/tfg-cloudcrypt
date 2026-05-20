@@ -10,6 +10,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/files")
@@ -43,6 +44,12 @@ public class ShareController {
         log.debug("COMPARTIDOS: El usuario [{}] solicitó la clave del recurso ID: {}.", auth.getName(), id);
         String key = queryService.getEncryptedFileKey(id, auth.getName());
         return ResponseEntity.ok(Collections.singletonMap("encryptedFileKey", key));
+    }
+
+    @PostMapping("/keys/batch")
+    public ResponseEntity<Map<Long, String>> getFileKeysBatch(@RequestBody List<Long> fileIds, Authentication auth) {
+        log.debug("COMPARTIDOS: Solicitud de claves por lote de {} elementos por el usuario [{}].", fileIds.size(), auth.getName());
+        return ResponseEntity.ok(queryService.getEncryptedFileKeysBatch(fileIds, auth.getName()));
     }
 
     @GetMapping("/{id}/shared-users")

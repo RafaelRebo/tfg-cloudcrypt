@@ -9,19 +9,18 @@ import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.util.*;
+import jakarta.persistence.EntityManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.InputStream;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class FileWriteService {
 
     private static final Logger log = LoggerFactory.getLogger(FileWriteService.class);
-
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
     private final UserRepository userRepository;
@@ -29,10 +28,12 @@ public class FileWriteService {
     private final QuotaUtils quotaUtils;
     private final FileMapper fileMapper;
     private final FolderService folderService;
+    private final EntityManager entityManager;
 
     public FileWriteService(FileRepository fileRepository, FileKeyRepository fileKeyRepository,
                             UserRepository userRepository, StorageUtils storageUtils,
-                            QuotaUtils quotaUtils, FileMapper fileMapper, FolderService folderService) {
+                            QuotaUtils quotaUtils, FileMapper fileMapper, FolderService folderService,
+                            EntityManager entityManager) {
         this.fileRepository = fileRepository;
         this.fileKeyRepository = fileKeyRepository;
         this.userRepository = userRepository;
@@ -40,6 +41,7 @@ public class FileWriteService {
         this.quotaUtils = quotaUtils;
         this.fileMapper = fileMapper;
         this.folderService = folderService;
+        this.entityManager = entityManager;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -197,11 +199,10 @@ public class FileWriteService {
         return fileRepository.save(file);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void copyFiles(List<Long> fileIds, Long targetParentId, String newName, String username){
         UserEntity owner = userRepository.findByUsername(username);
         FileEntity targetParent = (targetParentId != null) ? fileRepository.findById(targetParentId).orElse(null) : null;
-        log.info("Operación: Duplicando lote de {} elementos para el búnker de [{}].", fileIds.size(), username);
 
         String targetFolderPath = "/";
         if (targetParent != null) {
@@ -210,47 +211,89 @@ public class FileWriteService {
                     : targetParent.getFolderPath() + "/" + targetParent.getFileName();
         }
 
+        List<FileEntity> allClonesToSave = new ArrayList<>();
+        List<FileKeyEntity> allKeysToSave = new ArrayList<>();
+
+        log.info("OPERACIÓN: Iniciando copiado masivo para el usuario [{}].", username);
+
         for (Long id : fileIds) {
             FileEntity source = fileRepository.findByIdAndOwner_Username(id, username)
                     .orElseThrow(() -> new InputValidationException("Elemento de origen no encontrado."));
 
-            cloneEntityRecursive(source, targetParent, targetFolderPath, newName, owner, username);
-        }
-    }
+            List<FileEntity> sourceDescendants = new ArrayList<>();
+            if ("application/x-directory".equals(source.getFileType())) {
+                String sourceFullPath = source.getFolderPath().equals("/") ? "/" + source.getFileName() : source.getFolderPath() + "/" + source.getFileName();
+                sourceDescendants = fileRepository.findAllByOwnerAndRecursivePathList(username, sourceFullPath, source.getId());
+            }
 
-    private void cloneEntityRecursive(FileEntity source, FileEntity targetParent, String targetFolderPath, String customName, UserEntity owner, String username) {
-        FileEntity clone = new FileEntity();
-        String finalName = (customName != null && !customName.isEmpty()) ? customName : source.getFileName();
+            Map<Long, FileEntity> uniqueNodesMap = new LinkedHashMap<>();
+            uniqueNodesMap.put(source.getId(), source);
+            for (FileEntity desc : sourceDescendants) {
+                uniqueNodesMap.put(desc.getId(), desc);
+            }
+            Collection<FileEntity> sourceTree = uniqueNodesMap.values();
 
-        clone.setFileName(finalName);
-        clone.setFileType(source.getFileType());
-        clone.setFileSize(source.getFileSize());
-        clone.setStoragePath(source.getStoragePath());
-        clone.setChecksum(source.getChecksum());
-        clone.setOwner(owner);
-        clone.setParent(targetParent);
-        clone.setFolderPath(targetFolderPath);
+            Map<Long, FileEntity> oldIdToNewCloneMap = new HashMap<>();
+            long totalBatchSizeEstimator = 0;
 
-        FileEntity savedClone = fileRepository.save(clone);
-        log.debug("Clonación: Copiado nodo de metadatos lógicos. Antiguo ID: {} -> Nuevo ID: {}.", source.getId(), savedClone.getId());
+            for (FileEntity srcNode : sourceTree) {
+                FileEntity clone = new FileEntity();
+                String finalName = (srcNode.getId().equals(source.getId()) && newName != null && !newName.isEmpty())
+                        ? newName : srcNode.getFileName();
 
-        fileKeyRepository.findByFileIdAndUser_Username(source.getId(), username).ifPresent(oldKey -> {
-            FileKeyEntity newKey = new FileKeyEntity();
-            newKey.setFile(savedClone);
-            newKey.setUser(owner);
-            newKey.setEncryptedKey(oldKey.getEncryptedKey());
-            newKey.setStarred(false);
-            fileKeyRepository.save(newKey);
-        });
+                clone.setFileName(finalName);
+                clone.setFileType(srcNode.getFileType());
+                clone.setFileSize(srcNode.getFileSize());
+                clone.setStoragePath(srcNode.getStoragePath());
+                clone.setChecksum(srcNode.getChecksum());
+                clone.setOwner(owner);
 
-        if ("application/x-directory".equals(source.getFileType())) {
-            String newFullPath = targetFolderPath.equals("/") ? "/" + finalName : targetFolderPath + "/" + finalName;
-            List<FileEntity> children = fileRepository.findByOwner_UsernameAndParentIdAndDeletedAtIsNull(username, source.getId());
+                totalBatchSizeEstimator += clone.getFileSize();
 
-            for (FileEntity child : children) {
-                cloneEntityRecursive(child, savedClone, newFullPath, "", owner, username);
+                if (srcNode.getId().equals(source.getId())) {
+                    clone.setParent(targetParent);
+                    clone.setFolderPath(targetFolderPath);
+                } else {
+                    String sourceRootPath = source.getFolderPath().equals("/") ? "/" + source.getFileName() : source.getFolderPath() + "/" + source.getFileName();
+                    String targetRootPath = targetFolderPath.equals("/") ? "/" + finalName : targetFolderPath + "/" + finalName;
+
+                    String relativeSubPath = srcNode.getFolderPath().substring(sourceRootPath.length());
+                    clone.setFolderPath(targetRootPath + relativeSubPath);
+                }
+
+                oldIdToNewCloneMap.put(srcNode.getId(), clone);
+                allClonesToSave.add(clone);
+            }
+
+            quotaUtils.checkQuota(username, totalBatchSizeEstimator);
+
+            for (FileEntity srcNode : sourceTree) {
+                FileEntity currentClone = oldIdToNewCloneMap.get(srcNode.getId());
+                if (!srcNode.getId().equals(source.getId()) && srcNode.getParent() != null) {
+                    FileEntity newParentClone = oldIdToNewCloneMap.get(srcNode.getParent().getId());
+                    if (newParentClone != null) {
+                        currentClone.setParent(newParentClone);
+                    }
+                }
+
+                final Long oldSourceId = srcNode.getId();
+                fileKeyRepository.findByFileIdAndUser_Username(oldSourceId, username).ifPresent(oldKey -> {
+                    FileKeyEntity newKey = new FileKeyEntity();
+                    newKey.setFile(currentClone);
+                    newKey.setUser(owner);
+                    newKey.setEncryptedKey(oldKey.getEncryptedKey());
+                    newKey.setStarred(false);
+                    allKeysToSave.add(newKey);
+                });
             }
         }
+
+        log.info("OPERACIÓN: Guardando {} metadatos y {} claves.", allClonesToSave.size(), allKeysToSave.size());
+
+        fileRepository.saveAll(allClonesToSave);
+        fileKeyRepository.saveAll(allKeysToSave);
+
+        log.info("OPERACIÓN: Copiado finalizado. Duplicados {} elementos.", allClonesToSave.size());
     }
 
     private String buildPath(FileEntity p) {

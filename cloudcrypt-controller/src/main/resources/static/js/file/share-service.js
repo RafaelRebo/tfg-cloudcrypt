@@ -34,116 +34,76 @@ const AppShareMethods = {
 
     async executeShare() {
         this.shareModal.isProcessing = true;
-        this.status = "Preparando archivos...";
+        this.status = "Analizando dependencias y jerarquías lógicas...";
 
         try {
-            const targetsWorklist = this.shareModal.fileId ? [this.shareModal.fileId] : [...this.selectedIds];
-            let flatItemsToShare = [];
+            let fileIdsToShare = [];
 
-            for (const id of targetsWorklist) {
-                const currentFile = this.allUserFiles.find(f => f.id === id);
-                if (!currentFile) continue;
-
-                if (currentFile.fileType === 'application/x-directory') {
-                    const res = await fetch(`/api/files/folder-content-recursive/${id}`, { headers: API.getAuthHeader() });
-                    if (!res.ok) {
-                        const errorMsg = await API.extractErrorMessage(res);
-                        throw new Error(errorMsg);
-                    }
-                    const children = await res.json();
-                    flatItemsToShare.push({ id, fileType: 'application/x-directory', fileName: currentFile.fileName });
-                    flatItemsToShare.push(...children);
-                } else {
-                    flatItemsToShare.push({ id, fileType: currentFile.fileType, fileName: currentFile.fileName });
-                }
+            if (this.shareModal.isFolder) {
+                const recursiveRes = await API.getRecursiveContent(this.shareModal.fileId);
+                if (!recursiveRes.ok) throw new Error("Fallo al escanear la estructura de la carpeta.");
+                const children = await recursiveRes.json();
+                fileIdsToShare = children.map(f => f.id);
+                fileIdsToShare.push(this.shareModal.fileId);
+            } else {
+                fileIdsToShare = [this.shareModal.fileId];
             }
 
-            const seenIds = new Set();
-            flatItemsToShare = flatItemsToShare.filter(item => {
-                if (seenIds.has(item.id)) return false;
-                seenIds.add(item.id);
-                return true;
-            });
+            fileIdsToShare = [...new Set(fileIdsToShare)];
 
-            this.status = "Configurando nuevos accesos...";
-            for (const itemId of targetsWorklist) {
-                const currentRes = await fetch(`/api/files/${itemId}/shared-users`, { headers: API.getAuthHeader() });
-                if (!currentRes.ok) {
-                    const errorMsg = await API.extractErrorMessage(currentRes);
-                    throw new Error(errorMsg);
+            this.status = `Descargando paquete masivo de llaves del propietario (${fileIdsToShare.length} unidades)...`;
+
+            const batchKeysRes = await API.getFileKeysBatch(fileIdsToShare);
+            if (!batchKeysRes.ok) throw new Error("El búnker de CloudCrypt rechazó la descarga en bloque de las llaves raíz.");
+            const ownerKeysMap = await batchKeysRes.json();
+
+            const sharePayload = [];
+            const targetUsers = this.shareModal.selectedUsers;
+
+            for (const targetUser of targetUsers) {
+                const targetUsername = targetUser.username || targetUser;
+
+                this.status = `Descargando credencial pública de @${targetUsername}...`;
+
+                const pubKeyData = await API.getUserPublicKey(targetUsername);
+                if (!pubKeyData || !pubKeyData.publicKey) {
+                    throw new Error(`No se pudo obtener la clave pública del usuario @${targetUsername}`);
                 }
-                const originalUsers = await currentRes.json();
 
-                for (const userToken of originalUsers) {
-                    const targetName = typeof userToken === 'object' ? userToken.username : userToken;
-                    const revokeRes = await fetch(`/api/files/${itemId}/share/revoke?target=${encodeURIComponent(targetName)}`, {
-                        method: 'DELETE', headers: API.getAuthHeader()
+                this.status = `Cifrando sobres digitales en Web Worker para @${targetUsername}...`;
+
+                for (const fileId of fileIdsToShare) {
+                    const ownerEncryptedKey = ownerKeysMap[fileId];
+                    if (!ownerEncryptedKey) continue;
+
+                    let rewrappedKeyBase64 = ownerEncryptedKey;
+                    if (ownerEncryptedKey !== "FOLDER_PERMISSION") {
+                        rewrappedKeyBase64 = await CryptoService.reWrapKeyForUser(ownerEncryptedKey, pubKeyData.publicKey);
+                    }
+
+                    sharePayload.push({
+                        fileId: fileId,
+                        targetUsername: targetUsername,
+                        encryptedKey: rewrappedKeyBase64
                     });
-                    if (!revokeRes.ok) {
-                        const errorMsg = await API.extractErrorMessage(revokeRes);
-                        throw new Error(errorMsg);
-                    }
                 }
             }
 
-            if (this.shareModal.selectedUsers.length > 0) {
-                const recipientKeys = {};
-                for (const user of this.shareModal.selectedUsers) {
-                    const data = await API.getUserPublicKey(user);
-                    if (data) recipientKeys[user] = data.publicKey;
-                }
-
-                const batchRequests = [];
-
-                for (const item of flatItemsToShare) {
-                    this.status = `Dando acceso seguro a: ${item.fileName}...`;
-
-                    if (item.fileType === 'application/x-directory') {
-                        for (const targetUser of this.shareModal.selectedUsers) {
-                            batchRequests.push({
-                                fileId: item.id, targetUsername: targetUser, encryptedKey: "FOLDER_PERMISSION"
-                            });
-                        }
-                    } else {
-                        const keyRes = await fetch(`/api/files/${item.id}/key`, { headers: API.getAuthHeader() });
-                        if (!keyRes.ok) {
-                            const errorMsg = await API.extractErrorMessage(keyRes);
-                            throw new Error(errorMsg);
-                        }
-                        const { encryptedFileKey } = await keyRes.json();
-
-                        for (const targetUser of this.shareModal.selectedUsers) {
-                            const pubKeyJwk = recipientKeys[targetUser];
-                            if (!pubKeyJwk) continue;
-
-                            const wrappedKey = await CryptoService.reWrapKeyForUser(encryptedFileKey, pubKeyJwk);
-                            batchRequests.push({
-                                fileId: item.id, targetUsername: targetUser, encryptedKey: wrappedKey
-                            });
-                        }
-                    }
-                }
-
-                if (batchRequests.length > 0) {
-                    this.status = "Guardando cambios en el servidor...";
-                    const batchRes = await fetch('/api/files/share/batch', {
-                        method: 'POST',
-                        headers: { ...API.getAuthHeader(), 'Content-Type': 'application/json' },
-                        body: JSON.stringify(batchRequests)
-                    });
-                    if (!batchRes.ok) {
-                        const errorMsg = await API.extractErrorMessage(batchRes);
-                        throw new Error(errorMsg);
-                    }
-                }
+            if (sharePayload.length === 0) {
+                throw new Error("No hay llaves válidas para procesar en la transacción.");
             }
 
-            this.showInfo("Elemento compartido correctamente.");
+            this.status = "Transmitiendo transacción masiva de gobernanza al búnker...";
+
+            const saveRes = await API.shareFilesBatch(sharePayload);
+            if (!saveRes.ok) throw new Error("El servidor rechazó el lote de compartición masivo.");
+
+            this.showInfo("¡Recurso compartido con éxito!");
             this.closeShareModal();
-            this.clearSelection();
             await this.refreshAppData();
+
         } catch (e) {
-            this.showError(e.message);
+            this.showError(e.message || "Fallo crítico en la delegación de accesos compartidos.");
         } finally {
             this.shareModal.isProcessing = false;
             this.status = "";
