@@ -14,41 +14,6 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
     private EntityManager entityManager;
 
     @Override
-    @Transactional
-    public FileEntity createFile(String name, String folderPath, String type, long size,
-                                 String checksum, String storagePath, UserEntity owner) {
-        FileEntity entity = new FileEntity();
-        entity.setFileName(name);
-        entity.setFolderPath(folderPath);
-        entity.setFileType(type);
-        entity.setFileSize(size);
-        entity.setChecksum(checksum);
-        entity.setStoragePath(storagePath);
-        entity.setOwner(owner);
-        entityManager.persist(entity);
-        return entity;
-    }
-
-    @Override
-    @Transactional
-    public FileEntity createFolder(String name, String folderPath, String username) {
-        UserEntity owner = entityManager.createQuery(
-                        "SELECT u FROM UserEntity u WHERE u.username = :username", UserEntity.class)
-                .setParameter("username", username)
-                .getSingleResult();
-
-        FileEntity entity = new FileEntity();
-        entity.setFileName(name);
-        entity.setFolderPath(folderPath);
-        entity.setFileType("application/x-directory");
-        entity.setFileSize(0L);
-        entity.setOwner(owner);
-
-        entityManager.persist(entity);
-        return entity;
-    }
-
-    @Override
     public long getTotalUsageByUser(String username) {
         String query = "SELECT COALESCE(SUM(f.fileSize), 0) FROM FileEntity f WHERE f.owner.username = :username";
         return entityManager.createQuery(query, Long.class)
@@ -118,14 +83,5 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
             return "/" + name;
         }
         return path + "/" + name;
-    }
-
-    @Override
-    @Transactional
-    public void hardDelete(Long id) {
-        FileEntity entity = entityManager.find(FileEntity.class, id);
-        if (entity != null) {
-            entityManager.remove(entity);
-        }
     }
 }
