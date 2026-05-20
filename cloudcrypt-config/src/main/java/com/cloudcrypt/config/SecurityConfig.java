@@ -28,6 +28,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/", "/api/setup/**", "/setup.html", "/index.html", "/css/**", "/img/**", "/js/**", "/static/avatars/**", "/favicon.ico").permitAll()
                         .requestMatchers("/api/users/login", "/api/users/register").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/api-docs", "/api-docs/**", "/v3/api-docs/**"
+                        ).permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);

@@ -4,7 +4,7 @@ import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
 @Data
-public class UpdateProfileRequest {
+public class UpdateProfileRequestDto {
     private String fullName;
     private String removeAvatar;
     private String newUsername;

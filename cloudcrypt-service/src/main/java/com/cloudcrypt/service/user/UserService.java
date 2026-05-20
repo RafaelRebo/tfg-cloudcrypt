@@ -1,5 +1,6 @@
 package com.cloudcrypt.service.user;
 
+import com.cloudcrypt.dto.user.UpdateProfileRequestDto;
 import com.cloudcrypt.dto.user.UserDto;
 import com.cloudcrypt.exceptions.InvalidCredentialsException;
 import com.cloudcrypt.exceptions.UserAlreadyExistsException;
@@ -74,7 +75,7 @@ public class UserService {
     }
 
     @Transactional(rollbackFor = Exception.class)
-    public UserDto updateProfile(String oldUsername, com.cloudcrypt.dto.user.UpdateProfileRequest request, String newAvatarUrl) {
+    public UserDto updateProfile(String oldUsername, UpdateProfileRequestDto request, String newAvatarUrl) {
         UserEntity user = userRepository.findByUsername(oldUsername);
         if (user == null) {
             throw new com.cloudcrypt.exceptions.InstanceNotFoundException("Usuario inexistente.");

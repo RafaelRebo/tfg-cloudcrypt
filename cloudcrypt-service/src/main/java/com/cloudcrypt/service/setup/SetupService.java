@@ -99,6 +99,9 @@ public class SetupService {
             writer.write("logging.logback.rollingpolicy.max-file-size=10MB\n");
             writer.write("logging.logback.rollingpolicy.max-history=7\n");
 
+            writer.write("springdoc.api-docs.path=/api-docs\n");
+            writer.write("springdoc.swagger-ui.path=/swagger-ui.html\n");
+
             writer.flush();
             log.info("INSTALACIÓN: Archivo properties generado.");
         }

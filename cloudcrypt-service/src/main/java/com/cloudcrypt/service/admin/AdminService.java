@@ -1,6 +1,7 @@
 package com.cloudcrypt.service.admin;
 
 import com.cloudcrypt.dto.admin.AdminStatsDto;
+import com.cloudcrypt.dto.admin.UserDiskMetricDto;
 import com.cloudcrypt.model.UserEntity;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.repository.file.FileRepository;
@@ -28,7 +29,7 @@ public class AdminService {
     public AdminStatsDto getSystemVolumeStats() {
         log.debug("ADMIN: Recolectando métricas globales de almacenamiento...");
         List<UserEntity> allUsers = userRepository.findAll();
-        List<AdminStatsDto.UserDiskMetric> metrics = new ArrayList<>();
+        List<UserDiskMetricDto> metrics = new ArrayList<>();
         long totalGlobalBytes = 0;
 
         for (UserEntity user : allUsers) {
@@ -36,7 +37,7 @@ public class AdminService {
             long filesOwned = fileRepository.countFilesByUser(user.getUsername());
             totalGlobalBytes += bytesUsed;
 
-            metrics.add(new AdminStatsDto.UserDiskMetric(
+            metrics.add(new UserDiskMetricDto(
                     user.getId(),
                     user.getUsername(),
                     user.getFullName(),

@@ -1,7 +1,7 @@
 package com.cloudcrypt.controller.user;
 
 import com.cloudcrypt.dto.user.KeyRequestDto;
-import com.cloudcrypt.dto.user.UpdateProfileRequest;
+import com.cloudcrypt.dto.user.UpdateProfileRequestDto;
 import com.cloudcrypt.dto.user.UserDto;
 import com.cloudcrypt.service.user.AvatarService;
 import com.cloudcrypt.service.user.UserKeyService;
@@ -86,7 +86,7 @@ public class UserController {
     @PostMapping(value = "/profile", consumes = {"multipart/form-data"})
     public ResponseEntity<Map<String, Object>> updateProfile(
             Authentication auth,
-            @ModelAttribute UpdateProfileRequest request) {
+            @ModelAttribute UpdateProfileRequestDto request) {
 
         String oldUsername = auth.getName();
         log.warn("OPERACIÓN: El usuario [{}] ha modificado su perfil", oldUsername);
