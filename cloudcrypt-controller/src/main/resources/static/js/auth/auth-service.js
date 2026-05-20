@@ -5,10 +5,7 @@ const AuthService = {
             const data = await res.json();
             localStorage.setItem('jwtToken', data.token);
             localStorage.setItem('username', data.username);
-            localStorage.setItem('fullName', data.fullName || '');
-            localStorage.setItem('avatarUrl', data.avatarUrl || '');
-            localStorage.setItem('userRole', data.role || 'USER');
-            localStorage.setItem('email', data.email || '');
+            localStorage.setItem('userSalt', data.salt);
             sessionStorage.setItem('fileKey', password);
 
             try {
@@ -16,30 +13,22 @@ const AuthService = {
                 const pubKeyData = await API.getUserPublicKey(username);
 
                 if (encryptedPrivKey && pubKeyData && pubKeyData.publicKey) {
-                    await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, password, username);
+                    await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, password, data.salt);
                 } else {
-                    console.warn("Llavero no encontrado. Inicializando auto-aprovisionamiento Zero-Knowledge...");
-                    await this.setupUserCrypto(username, password);
+                    await this.setupUserCrypto(username, password, data.salt);
                 }
             } catch (e) {
-                try {
-                    await this.setupUserCrypto(username, password);
-                } catch (err) {
-                    console.error("Fallo crítico al inicializar la identidad en el Worker:", err);
-                }
+                console.error("Fallo al inicializar la identidad en el Worker:", e);
             }
             return true;
         }
         return false;
     },
 
-    async setupUserCrypto(username, password) {
-        const cryptoPackage = await CryptoService.generateAndPackageKeys(password, username);
+    async setupUserCrypto(username, password, userSalt) {
+        const cryptoPackage = await CryptoService.generateAndPackageKeys(password, userSalt);
         const res = await API.registerUserKeys(cryptoPackage.publicKeyStr, cryptoPackage.encryptedPrivateKeyBase64);
-        if (!res.ok) {
-            const serverErrorText = await res.text();
-            throw new Error(`El servidor rechazó las llaves (Código ${res.status}): ${serverErrorText}`);
-        }
+        if (!res.ok) throw new Error("El servidor rechazó las llaves asimétricas.");
         return res;
     },
 
@@ -87,19 +76,21 @@ const AppAuthMethods = {
                 localStorage.setItem('avatarUrl', data.avatarUrl || '');
                 localStorage.setItem('userRole', data.role || 'USER');
                 localStorage.setItem('email', data.email || '');
+                localStorage.setItem('userSalt', data.salt);
                 sessionStorage.setItem('fileKey', secureKey);
 
                 this.userFullName = data.fullName;
                 this.userAvatarUrl = data.avatarUrl;
                 this.userRole = data.role || 'USER';
                 this.userEmail = data.email || '';
+                this.userSalt = data.salt || '';
 
                 let hasCrypto = false;
                 try {
                     const encryptedPrivKey = await API.getMyPrivateKey();
                     const pubKeyData = await API.getUserPublicKey(this.username);
                     if (encryptedPrivKey && pubKeyData && pubKeyData.publicKey) {
-                        await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, secureKey, this.username);
+                        await CryptoService.initializeIdentity(encryptedPrivKey, pubKeyData.publicKey, secureKey, data.salt);
                         hasCrypto = true;
                     }
                 } catch (cryptoErr) {
@@ -109,7 +100,7 @@ const AppAuthMethods = {
                 if (!hasCrypto) {
                     this.status = "Generando llavero criptográfico de autoridad raíz...";
                     try {
-                        await AuthService.setupUserCrypto(this.username, secureKey);
+                        await AuthService.setupUserCrypto(this.username, secureKey, data.salt);
                         this.showInfo("¡Llavero de Administrador aprovisionado y guardado con éxito!");
                     } catch (setupErr) {
                         console.error("Error en el auto-setup del admin:", setupErr);
@@ -135,7 +126,6 @@ const AppAuthMethods = {
 
     async executeRegister() {
         try {
-            // 1. Validaciones de interfaz
             if (!this.regFullName || !this.regEmail || !this.regUsername || !this.regPassword) {
                 this.showError("Por favor, rellena todos los campos obligatorios.");
                 return;
@@ -144,12 +134,12 @@ const AppAuthMethods = {
                 this.showError("Las contraseñas introducidas no coinciden.");
                 return;
             }
-            if (!this.regAcceptZk) {
-                this.showError("Debes aceptar el aviso de responsabilidad criptográfica.");
-                return;
-            }
 
-            this.status = "Derivando claves criptográficas de seguridad...";
+            this.status = "Generando entropía y sal de seguridad única...";
+
+            const entropyBuffer = new Uint8Array(16);
+            window.crypto.getRandomValues(entropyBuffer);
+            const generatedUserSalt = Array.from(entropyBuffer).map(b => b.toString(16).padStart(2, '0')).join('');
 
             const masterKey = await AuthService.deriveMasterKey(this.regUsername, this.regPassword);
 
@@ -158,50 +148,47 @@ const AppAuthMethods = {
             formData.append("password", masterKey);
             formData.append("fullName", this.regFullName);
             formData.append("email", this.regEmail);
+            formData.append("salt", generatedUserSalt);
 
             if (this.$refs.avatarInput && this.$refs.avatarInput.files[0]) {
                 formData.append("avatar", this.$refs.avatarInput.files[0]);
             }
 
             const res = await API.register(formData);
-            if (!res.ok) {
-                const errorMsg = await API.extractErrorMessage(res);
-                throw new Error(errorMsg);
-            }
+            if (!res.ok) throw new Error(await API.extractErrorMessage(res));
 
             const loginRes = await API.login(this.regUsername, masterKey);
-            if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro instantáneo.");
+            if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro.");
 
             const loginData = await loginRes.json();
+
             localStorage.setItem('jwtToken', loginData.token);
             localStorage.setItem('username', loginData.username);
             localStorage.setItem('fullName', loginData.fullName || '');
             localStorage.setItem('avatarUrl', loginData.avatarUrl || '');
             localStorage.setItem('userRole', loginData.role || 'USER');
             localStorage.setItem('email', loginData.email || '');
+            localStorage.setItem('userSalt', loginData.salt);
             sessionStorage.setItem('fileKey', masterKey);
 
-            this.userFullName = loginData.fullName;
-            this.userAvatarUrl = loginData.avatarUrl;
+            this.username = loginData.username;
+            this.userFullName = loginData.fullName || '';
+            this.userAvatarUrl = loginData.avatarUrl || '';
             this.userRole = loginData.role || 'USER';
             this.userEmail = loginData.email || '';
+            this.userSalt = loginData.salt || '';
 
-            this.status = "Configurando sobres e identidad...";
-            await AuthService.setupUserCrypto(this.regUsername, masterKey);
-
-            this.showInfo("¡Identidad y monedero de claves instanciados con éxito!");
-
-            this.username = this.regUsername;
             this.regFullName = ''; this.regEmail = ''; this.regUsername = '';
             this.regPassword = ''; this.regConfirmPassword = ''; this.regAcceptZk = false;
 
-            this.loginError = false;
+            this.status = "Configurando sobres e identidad criptográfica...";
+            await AuthService.setupUserCrypto(this.regUsername, masterKey, loginData.salt);
+
             this.isLoggedIn = true;
             this.authMode = 'login';
             await this.refreshAppData();
-
         } catch (e) {
-            this.showError(e.message || "Fallo crítico en el proceso de registro.");
+            this.showError(e.message || "Fallo en el proceso de registro.");
         } finally {
             this.status = "";
         }

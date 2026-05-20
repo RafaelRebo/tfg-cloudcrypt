@@ -15,14 +15,9 @@ public class CryptoConfig {
     @Value("${app.crypto.asymmetric-key-size:2048}")
     private int asymmetricKeySize;
 
-    @Value("${app.crypto.salt-suffix:-cloudcrypt}")
-    private String saltSuffix;
 
     public String getHashAlgorithm() { return hashAlgorithm; }
     public String getSymmetricAlgorithm() { return symmetricAlgorithm; }
     public int getAsymmetricKeySize() { return asymmetricKeySize; }
 
-    public String getSaltSuffix() {
-        return saltSuffix;
-    }
 }

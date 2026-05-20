@@ -1,7 +1,7 @@
 // com/cloudcrypt/util/StorageUtils.java
 package com.cloudcrypt.util;
 
-import com.cloudcrypt.config.CryptoConfig; // ⚡ NUEVO IMPORT
+import com.cloudcrypt.config.CryptoConfig;
 import com.cloudcrypt.repository.storage.IStorageRepository;
 import org.springframework.stereotype.Service;
 import java.io.IOException;

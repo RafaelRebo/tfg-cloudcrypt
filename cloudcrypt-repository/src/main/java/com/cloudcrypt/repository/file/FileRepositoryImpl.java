@@ -16,7 +16,7 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
     @Override
     @Transactional
     public FileEntity createFile(String name, String folderPath, String type, long size,
-                                 String checksum, String storagePath, UserEntity owner, String salt) {
+                                 String checksum, String storagePath, UserEntity owner) {
         FileEntity entity = new FileEntity();
         entity.setFileName(name);
         entity.setFolderPath(folderPath);
@@ -24,9 +24,7 @@ public class FileRepositoryImpl implements FileRepositoryCustom {
         entity.setFileSize(size);
         entity.setChecksum(checksum);
         entity.setStoragePath(storagePath);
-        entity.setOwner(owner); // Asignación directa
-        entity.setSalt(salt);
-
+        entity.setOwner(owner);
         entityManager.persist(entity);
         return entity;
     }

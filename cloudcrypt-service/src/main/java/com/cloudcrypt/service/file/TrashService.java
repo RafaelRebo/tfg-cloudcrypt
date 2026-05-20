@@ -9,10 +9,12 @@ import com.cloudcrypt.util.StorageUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class TrashService {
+
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
     private final StorageUtils storageUtils;
@@ -28,7 +30,6 @@ public class TrashService {
         this.folderService = folderService;
     }
 
-    @Transactional(rollbackFor = Exception.class)
     public void deleteFile(Long id, String username, boolean forcePermanent){
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
@@ -36,33 +37,49 @@ public class TrashService {
             FileEntity entity = entityOpt.get();
 
             if (forcePermanent || entity.getDeletedAt() != null) {
-                processPhysicalDelete(entity);
+                // --- FASE 1: RECOLECCIÓN EN MEMORIA ---
+                List<FileEntity> descendants = new ArrayList<>();
+                List<String> pathsToDelete = new ArrayList<>();
+
+                if ("application/x-directory".equals(entity.getFileType())) {
+                    String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
+                    descendants = fileRepository.findAllByOwnerAndRecursivePathList(
+                            entity.getOwner().getUsername(), subPath, entity.getId());
+
+                    for (FileEntity child : descendants) {
+                        if (child.getStoragePath() != null && !"application/x-directory".equals(child.getFileType())) {
+                            pathsToDelete.add(child.getStoragePath());
+                        }
+                    }
+                } else {
+                    if (entity.getStoragePath() != null) {
+                        pathsToDelete.add(entity.getStoragePath());
+                    }
+                }
+
+                executePhysicalDeleteTransaction(entity, descendants);
+
+                for (String storagePath : pathsToDelete) {
+                    try {
+                        storageUtils.deletePhysicalFile(storagePath);
+                    } catch (IOException e) {
+                        System.err.println("Advertencia de consistencia de disco: Paquete huérfano omitido en: " + storagePath);
+                    }
+                }
             } else {
-                processLogicalDelete(entity);
+                executeLogicalDeleteTransaction(entity);
             }
             return;
         }
 
-        FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
-                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
-
-        fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
-
-        if ("application/x-directory".equals(sharedEntity.getFileType())) {
-            String subPath = pathUtils.join(sharedEntity.getFolderPath(), sharedEntity.getFileName());
-
-            List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
-                    sharedEntity.getOwner().getUsername(), subPath, sharedEntity.getId());
-
-            for (FileEntity child : descendants) {
-                fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
-            }
-        }
+        executeSharedRevocationTransaction(id, username);
     }
 
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public void restoreFile(Long id, String username){
-        FileEntity entity = fileRepository.findByIdAndHasAccess(id, username).orElseThrow();
+        FileEntity entity = fileRepository.findByIdAndHasAccess(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("No se encontró el recurso para restaurar."));
+
         folderService.restoreParentHierarchy(entity.getOwner().getUsername(), entity.getFolderPath());
         fileRepository.restoreFile(entity.getId());
 
@@ -73,7 +90,8 @@ public class TrashService {
         }
     }
 
-    private void processLogicalDelete(FileEntity entity) {
+    @Transactional(rollbackFor = Exception.class)
+    protected void executeLogicalDeleteTransaction(FileEntity entity) {
         fileRepository.markAsDeleted(entity.getId());
         if ("application/x-directory".equals(entity.getFileType())) {
             String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
@@ -83,28 +101,29 @@ public class TrashService {
         }
     }
 
-    private void processPhysicalDelete(FileEntity entity) {
-        if ("application/x-directory".equals(entity.getFileType())) {
-            String subPath = pathUtils.join(entity.getFolderPath(), entity.getFileName());
+    @Transactional(rollbackFor = Exception.class)
+    protected void executePhysicalDeleteTransaction(FileEntity entity, List<FileEntity> descendants) {
+        if (!descendants.isEmpty()) {
+            fileRepository.deleteAllInBatch(descendants);
+        }
+        fileRepository.delete(entity);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    protected void executeSharedRevocationTransaction(Long id, String username) {
+        FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
+                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
+
+        fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
+
+        if ("application/x-directory".equals(sharedEntity.getFileType())) {
+            String subPath = pathUtils.join(sharedEntity.getFolderPath(), sharedEntity.getFileName());
             List<FileEntity> descendants = fileRepository.findAllByOwnerAndRecursivePathList(
-                    entity.getOwner().getUsername(), subPath, entity.getId());
+                    sharedEntity.getOwner().getUsername(), subPath, sharedEntity.getId());
 
             for (FileEntity child : descendants) {
-                if (child.getStoragePath() != null && !"application/x-directory".equals(child.getFileType())) {
-                    try {
-                        storageUtils.deletePhysicalFile(child.getStoragePath());
-                    } catch (IOException ignored) {}
-                }
-                fileRepository.delete(child);
-            }
-        } else {
-            if (entity.getStoragePath() != null) {
-                try {
-                    storageUtils.deletePhysicalFile(entity.getStoragePath());
-                } catch (IOException ignored) {}
+                fileKeyRepository.deleteByFileIdAndUser_Username(child.getId(), username);
             }
         }
-
-        fileRepository.delete(entity);
     }
 }

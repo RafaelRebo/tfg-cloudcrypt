@@ -38,7 +38,6 @@ public class FileMapper {
                 entity.getChecksum(),
                 entity.getUpdatedAt(),
                 entity.getDeletedAt(),
-                entity.getSalt(),
                 ownerName,
                 entity.getOwner().getFullName(),
                 entity.getOwner().getAvatarUrl(),

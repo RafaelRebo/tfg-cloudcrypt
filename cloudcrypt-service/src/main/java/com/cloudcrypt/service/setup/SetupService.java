@@ -1,5 +1,6 @@
 package com.cloudcrypt.service.setup;
 
+import com.cloudcrypt.config.ConfigPathResolver;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -49,12 +50,12 @@ public class SetupService {
     }
 
     public void writeConfigurationProperties(SetupRequestDto request, String savedAvatarPath) throws IOException {
-        File configDir = new File("./config");
+        File configDir = ConfigPathResolver.getConfigDir();
         if (!configDir.exists()) {
             configDir.mkdirs();
         }
 
-        File propertiesFile = new File(configDir, "application-prod.properties");
+        File propertiesFile = ConfigPathResolver.getConfigFile();
 
         try (BufferedWriter writer = Files.newBufferedWriter(propertiesFile.toPath(), StandardCharsets.UTF_8)) {
             writer.write("# ARCHIVO GENERADO POR CLOUDCRYPT\n");
@@ -74,7 +75,6 @@ public class SetupService {
             writer.write("app.crypto.hash-algorithm=" + request.getHashAlgo() + "\n");
             writer.write("app.crypto.symmetric-algorithm=" + request.getSymAlgo() + "\n");
             writer.write("app.crypto.asymmetric-key-size=" + request.getAsymKeySize() + "\n");
-            writer.write("app.crypto.salt-suffix=" + request.getSaltSuffix() + "\n");
 
             byte[] jwtBytes = new byte[64];
             new java.security.SecureRandom().nextBytes(jwtBytes);

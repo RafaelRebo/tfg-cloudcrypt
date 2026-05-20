@@ -1,5 +1,6 @@
 package com.cloudcrypt.controller.setup;
 
+import com.cloudcrypt.config.ConfigPathResolver;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
 import com.cloudcrypt.service.setup.SetupService;
 import com.cloudcrypt.config.CryptoConfig;
@@ -7,10 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.File;
-import java.io.IOException;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,37 +26,26 @@ public class SetupController {
 
     @GetMapping("/status")
     public ResponseEntity<Map<String, Boolean>> checkStatus() {
-        File prodConfig = new File("./config/application-prod.properties");
+        File prodConfig = ConfigPathResolver.getConfigFile();
         Map<String, Boolean> response = new HashMap<>();
         response.put("installed", prodConfig.exists());
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/test-db")
-    public ResponseEntity<String> testDatabaseConnection(@RequestBody SetupRequestDto request) {
-        try {
-            setupService.testDatabaseConnection(request);
-            return ResponseEntity.ok("Conexión con el motor MySQL establecida con éxito.");
-        } catch (SQLException e) {
-            return ResponseEntity.badRequest().body("Error de infraestructura: " + e.getMessage());
-        }
+    public ResponseEntity<String> testDatabaseConnection(@RequestBody SetupRequestDto request) throws java.sql.SQLException {
+        setupService.testDatabaseConnection(request);
+        return ResponseEntity.ok("Conexión con el motor MySQL establecida con éxito.");
     }
 
     @PostMapping(value = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> finalizeInstallation(
             @ModelAttribute SetupRequestDto request,
-            @RequestParam(value = "avatar", required = false) MultipartFile avatar) {
-
-        try {
-            String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
-            setupService.writeConfigurationProperties(request, savedAvatarPath);
-
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body("Fallo de I/O en el aprovisionamiento de configuración: " + e.getMessage());
-        }
+            @RequestParam(value = "avatar", required = false) MultipartFile avatar) throws java.io.IOException {
+        String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
+        setupService.writeConfigurationProperties(request, savedAvatarPath);
 
         executeAsynchronousShutdown();
-
         return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando el ecosistema criptográfico...");
     }
 
@@ -68,7 +55,6 @@ public class SetupController {
         specs.put("hashAlgo", cryptoConfig.getHashAlgorithm());
         specs.put("symAlgo", cryptoConfig.getSymmetricAlgorithm());
         specs.put("asymKeySize", cryptoConfig.getAsymmetricKeySize());
-        specs.put("saltSuffix", cryptoConfig.getSaltSuffix());
         return ResponseEntity.ok(specs);
     }
 

@@ -5,95 +5,114 @@ let currentHashAlgo = "SHA-256";
 let currentSymAlgo = "AES-GCM";
 let currentAsymKeySize = 2048;
 let currentAesLength = 256;
-let currentSaltSuffix = "-cloudcrypt";
+
+const handlers = {
+    'CONFIGURE_RUNTIME_SPECS': async (payload) => {
+        currentHashAlgo = payload.hashAlgo;
+        currentAsymKeySize = parseInt(payload.asymKeySize);
+        currentSymAlgo = payload.symAlgo.includes("GCM") ? "AES-GCM" : "AES-CBC";
+        currentAesLength = parseInt(payload.symLength || payload.aesLength || 256);
+        currentSaltSuffix = payload.saltSuffix || "-cloudcrypt";
+    },
+
+    'GENERATE_AND_PACKAGE_KEYS': async (payload) => {
+        const pair = await crypto.subtle.generateKey(
+            {
+                name: "RSA-OAEP",
+                modulusLength: currentAsymKeySize,
+                publicExponent: new Uint8Array([1, 0, 1]),
+                hash: currentHashAlgo
+            },
+            true, ["encrypt", "decrypt"]
+        );
+        privateKey = pair.privateKey;
+        publicKey = pair.publicKey;
+
+        const pubJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
+        const publicKeyStr = JSON.stringify(pubJwk);
+
+        const encryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(pair.privateKey, payload.password, payload.username);
+        return { payload: { publicKeyStr, encryptedPrivateKeyBase64 } };
+    },
+
+    'INITIALIZE_IDENTITY': async (payload) => {
+        privateKey = await decryptPrivateKeyInternal(payload.encryptedBase64, payload.password, payload.username);
+        const jwk = typeof payload.publicKeyStr === 'string' ? JSON.parse(payload.publicKeyStr) : payload.publicKeyStr;
+
+        publicKey = await crypto.subtle.importKey(
+            "jwk", jwk, { name: "RSA-OAEP", hash: currentHashAlgo }, true, ["encrypt"]
+        );
+
+        try {
+            const testPayload = new TextEncoder().encode("test");
+            const encryptedCheck = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, testPayload);
+            const decryptedCheck = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, encryptedCheck);
+            const decodedCheck = new TextDecoder().decode(decryptedCheck);
+
+            if (decodedCheck !== "test") {
+                throw new Error("No se ha podido verificar la integridad de las claves");
+            }
+        } catch (cryptoError) {
+            privateKey = null;
+            publicKey = null;
+            throw new Error(`La identidad criptográfica está corrupta`);
+        }
+    },
+
+    'ENCRYPT_FILE_FOR_UPLOAD': async (payload) => {
+        const aesKey = await crypto.subtle.generateKey(
+            { name: currentSymAlgo, length: currentAesLength },
+            true,
+            ["encrypt", "decrypt"]
+        );
+        const encryptedBlob = await encryptFileInternal(payload.file, aesKey);
+        const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
+        const encryptedFileKey = await wrapKeyInternal(rawAesKey, publicKey);
+        return { payload: { encryptedBlob, encryptedFileKey } };
+    },
+
+    'REWRAP_KEY': async (payload) => {
+        const encryptedKeyBuffer = Uint8Array.from(atob(payload.encryptedAesKeyBase64), c => c.charCodeAt(0));
+        const rawAesBuffer = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, encryptedKeyBuffer);
+
+        const targetPubKey = await crypto.subtle.importKey("jwk", JSON.parse(payload.targetPublicKeyJwk), { name: "RSA-OAEP", hash: currentHashAlgo }, true, ["encrypt"]);
+        const rewrappedBuffer = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, targetPubKey, rawAesBuffer);
+        const rewrappedBase64 = btoa(String.fromCharCode(...new Uint8Array(rewrappedBuffer)));
+        return { payload: rewrappedBase64 };
+    },
+
+    'UNWRAP_KEY': async (payload) => {
+        const unwrapped = await unwrapKeyInternal(payload.encryptedAesKeyBase64);
+        const exportedAes = await crypto.subtle.exportKey("raw", unwrapped);
+        return { payload: exportedAes };
+    },
+
+    'DECRYPT_FILE': async (payload) => {
+        const importedAes = await crypto.subtle.importKey("raw", payload.aesKey, { name: currentSymAlgo }, true, ["decrypt"]);
+        const decryptedBuffer = await decryptFileInternal(payload.encryptedBlob, importedAes);
+        return { payload: decryptedBuffer };
+    },
+
+    'ROTATE_IDENTITY_KEYS': async (payload) => {
+        const reEncryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(privateKey, payload.newPassword, payload.newUsername);
+        return { payload: { reEncryptedPrivateKeyBase64 } };
+    },
+
+    'WIPE_IDENTITY': async () => {
+        privateKey = null;
+        publicKey = null;
+    }
+};
 
 self.onmessage = async (e) => {
     const { type, payload, id } = e.data;
 
     try {
-        switch (type) {
-            case 'CONFIGURE_RUNTIME_SPECS':
-                currentHashAlgo = payload.hashAlgo;
-                currentAsymKeySize = parseInt(payload.asymKeySize);
-                currentSymAlgo = payload.symAlgo.includes("GCM") ? "AES-GCM" : "AES-CBC";
-                currentAesLength = parseInt(payload.symLength || payload.aesLength || 256);
-                currentSaltSuffix = payload.saltSuffix || "-cloudcrypt";
-                self.postMessage({ id, status: 'OK' });
-                break;
-
-            case 'GENERATE_AND_PACKAGE_KEYS':
-                const pair = await crypto.subtle.generateKey(
-                    {
-                        name: "RSA-OAEP",
-                        modulusLength: currentAsymKeySize,
-                        publicExponent: new Uint8Array([1, 0, 1]),
-                        hash: currentHashAlgo
-                    },
-                    true, ["encrypt", "decrypt"]
-                );
-                privateKey = pair.privateKey;
-                publicKey = pair.publicKey;
-
-                const pubJwk = await crypto.subtle.exportKey("jwk", pair.publicKey);
-                const publicKeyStr = JSON.stringify(pubJwk);
-
-                const encryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(pair.privateKey, payload.password, payload.username);
-                self.postMessage({ id, status: 'OK', payload: { publicKeyStr, encryptedPrivateKeyBase64 } });
-                break;
-
-            case 'INITIALIZE_IDENTITY':
-                privateKey = await decryptPrivateKeyInternal(payload.encryptedBase64, payload.password, payload.username);
-                const jwk = typeof payload.publicKeyStr === 'string' ? JSON.parse(payload.publicKeyStr) : payload.publicKeyStr;
-
-                publicKey = await crypto.subtle.importKey(
-                    "jwk", jwk, { name: "RSA-OAEP", hash: currentHashAlgo }, true, ["encrypt"]
-                );
-                self.postMessage({ id, status: 'OK' });
-                break;
-
-            case 'ENCRYPT_FILE_FOR_UPLOAD':
-                const aesKey = await crypto.subtle.generateKey(
-                    { name: currentSymAlgo, length: currentAesLength },
-                    true,
-                    ["encrypt", "decrypt"]
-                );
-                const encryptedBlob = await encryptFileInternal(payload.file, aesKey);
-                const rawAesKey = await crypto.subtle.exportKey("raw", aesKey);
-                const encryptedFileKey = await wrapKeyInternal(rawAesKey, publicKey);
-                self.postMessage({ id, status: 'OK', payload: { encryptedBlob, encryptedFileKey } });
-                break;
-
-            case 'REWRAP_KEY':
-                const encryptedKeyBuffer = Uint8Array.from(atob(payload.encryptedAesKeyBase64), c => c.charCodeAt(0));
-                const rawAesBuffer = await crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, encryptedKeyBuffer);
-
-                const targetPubKey = await crypto.subtle.importKey("jwk", JSON.parse(payload.targetPublicKeyJwk), { name: "RSA-OAEP", hash: currentHashAlgo }, true, ["encrypt"]);
-                const rewrappedBuffer = await crypto.subtle.encrypt({ name: "RSA-OAEP" }, targetPubKey, rawAesBuffer);
-                const rewrappedBase64 = btoa(String.fromCharCode(...new Uint8Array(rewrappedBuffer)));
-                self.postMessage({ id, status: 'OK', payload: rewrappedBase64 });
-                break;
-
-            case 'UNWRAP_KEY':
-                const unwrapped = await unwrapKeyInternal(payload.encryptedAesKeyBase64);
-                const exportedAes = await crypto.subtle.exportKey("raw", unwrapped);
-                self.postMessage({ id, status: 'OK', payload: exportedAes });
-                break;
-
-            case 'DECRYPT_FILE':
-                const importedAes = await crypto.subtle.importKey("raw", payload.aesKey, { name: currentSymAlgo }, true, ["decrypt"]);
-                const decryptedBuffer = await decryptFileInternal(payload.encryptedBlob, importedAes);
-                self.postMessage({ id, status: 'OK', payload: decryptedBuffer });
-                break;
-            case 'ROTATE_IDENTITY_KEYS':
-                const reEncryptedPrivateKeyBase64 = await encryptPrivateKeyInternal(privateKey, payload.newPassword, payload.newUsername);
-                self.postMessage({ id, status: 'OK', payload: { reEncryptedPrivateKeyBase64 } });
-                break;
-
-            case 'WIPE_IDENTITY':
-                privateKey = null;
-                publicKey = null;
-                self.postMessage({ id, status: 'OK' });
-                break;
+        if (handlers[type]) {
+            const result = await handlers[type](payload);
+            self.postMessage({ id, status: 'OK', ...(result || {}) });
+        } else {
+            throw new Error(`Operación criptográfica no soportada en el hilo del Worker: ${type}`);
         }
     } catch (error) {
         self.postMessage({ id, status: 'ERROR', error: error.message });
@@ -169,13 +188,14 @@ async function unwrapKeyInternal(encryptedBase64) {
     );
 }
 
-async function deriveKey(password, usernameSalt) {
+async function deriveKey(password, userSalt) {
     const encoder = new TextEncoder();
-    const salt = encoder.encode(usernameSalt.toLowerCase() + currentSaltSuffix);
+    const saltBytes = new Uint8Array(userSalt.match(/.{1,2}/g).map(byte => parseInt(byte, 16)));
+
     const baseKey = await crypto.subtle.importKey("raw", encoder.encode(password), "PBKDF2", false, ["deriveKey"]);
 
     return await crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt, iterations: 100000, hash: currentHashAlgo },
+        { name: "PBKDF2", salt: saltBytes, iterations: 100000, hash: currentHashAlgo },
         baseKey, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
     );
 }

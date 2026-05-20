@@ -18,7 +18,6 @@ public class FileDto {
     private String checksum;
     private LocalDateTime updatedAt;
     private LocalDateTime deletedAt;
-    private String salt;
     private String ownerUsername;
     private String ownerFullName;
     private String ownerAvatarUrl;

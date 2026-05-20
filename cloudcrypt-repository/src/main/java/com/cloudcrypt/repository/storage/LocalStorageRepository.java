@@ -1,5 +1,6 @@
 package com.cloudcrypt.repository.storage;
 
+import com.cloudcrypt.config.ConfigPathResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
@@ -23,8 +24,7 @@ public class LocalStorageRepository implements IStorageRepository {
     @PostConstruct
     public void init() {
         this.root = Paths.get(uploadDir);
-        boolean isInstalled = new File("./cloudcrypt-controller/config/application-prod.properties").exists()
-                || new File("./config/application-prod.properties").exists();
+        boolean isInstalled = ConfigPathResolver.getConfigFile().exists();
         if (!isInstalled && "uploads".equals(uploadDir)) {
             return;
         }
@@ -32,7 +32,6 @@ public class LocalStorageRepository implements IStorageRepository {
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
             }
-            // Permisos restringidos: solo el dueño puede leer/escribir/ejecutar
             root.toFile().setReadable(true, false);
             root.toFile().setWritable(true, false);
             root.toFile().setExecutable(true, false);

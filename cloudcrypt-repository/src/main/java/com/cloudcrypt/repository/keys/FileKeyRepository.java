@@ -19,8 +19,6 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
     Optional<FileKeyEntity> findByFileIdAndUser_Username(Long fileId, String username);
 
-    Optional<FileKeyEntity> findByFileIdAndUserId(Long fileId, Long userId);
-
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Transactional
     @Query("DELETE FROM FileKeyEntity fk WHERE fk.file.id = :fileId AND fk.user.username = :username")
@@ -28,10 +26,4 @@ public interface FileKeyRepository extends JpaRepository<FileKeyEntity, Long> {
 
     @Query("SELECT fk.user.username FROM FileKeyEntity fk WHERE fk.file.id = :fileId")
     List<String> findUsernamesByFileId(@Param("fileId") Long fileId);
-
-    @Query("SELECT fk.starred FROM FileKeyEntity fk WHERE fk.file.id = :fileId AND fk.user.username = :username")
-    Optional<Boolean> isFileStarredByUser(@Param("fileId") Long fileId, @Param("username") String username);
-
-    @Query("SELECT fk.file FROM FileKeyEntity fk WHERE fk.user.username = :username AND fk.starred = true AND fk.file.deletedAt IS NULL")
-    Page<FileEntity> findStarredFilesByUser(@Param("username") String username, Pageable pageable);
 }

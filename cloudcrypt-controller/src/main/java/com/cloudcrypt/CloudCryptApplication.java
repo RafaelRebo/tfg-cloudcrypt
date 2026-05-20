@@ -1,5 +1,6 @@
 package com.cloudcrypt;
 
+import com.cloudcrypt.config.ConfigPathResolver;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -22,9 +23,10 @@ public class CloudCryptApplication {
 
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(CloudCryptApplication.class);
-        File prodConfig = new File("./config/application-prod.properties");
+
+        File prodConfig = ConfigPathResolver.getConfigFile();
         if (prodConfig.exists()) {
-            System.setProperty("spring.config.additional-location", "file:./config/application-prod.properties");
+            System.setProperty("spring.config.additional-location", "file:" + prodConfig.getAbsolutePath());
         }
         app.run(args);
     }
@@ -48,6 +50,8 @@ public class CloudCryptApplication {
                 admin.setEmail(adminEmail);
                 admin.setAvatarUrl(adminAvatar.isEmpty() ? null : adminAvatar);
                 admin.setRole("ADMIN");
+                String dynamicAdminSalt = java.util.UUID.randomUUID().toString().replace("-", "");
+                admin.setSalt(dynamicAdminSalt);
 
                 try {
                     String clientSideDerivedKey = javaDeriveMasterKey(adminUser, adminPass, hashAlgo);

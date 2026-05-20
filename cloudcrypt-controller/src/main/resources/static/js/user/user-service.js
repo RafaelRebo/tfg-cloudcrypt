@@ -135,7 +135,7 @@ const AppUserMethods = {
                 newMasterKey = await AuthService.deriveMasterKey(this.profileModal.newUsername, updatedClearPassword);
 
                 this.status = "Recifrando clave privada RSA en el Web Worker...";
-                const { reEncryptedPrivateKeyBase64 } = await CryptoService.rotateIdentityKeys(newMasterKey, this.profileModal.newUsername);
+                const { reEncryptedPrivateKeyBase64 } = await CryptoService.rotateIdentityKeys(newMasterKey, localStorage.getItem('userSalt'));
 
                 formData.append("newUsername", this.profileModal.newUsername);
                 formData.append("newPassword", newMasterKey);

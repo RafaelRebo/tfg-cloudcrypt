@@ -34,6 +34,9 @@ public class UserEntity {
     @Column(name = "quota_bytes")
     private Long quotaBytes;
 
+    @Column(name = "salt", length = 64)
+    private String salt;
+
     @OneToMany(mappedBy = "owner", cascade = CascadeType.ALL)
     @JsonManagedReference
     private List<FileEntity> files;

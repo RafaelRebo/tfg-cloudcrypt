@@ -102,7 +102,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
             "AND (f.owner.username = :username OR fk.user.username = :username)")
     Optional<FileEntity> findByIdAndHasAccess(@Param("fileId") Long fileId, @Param("username") String username);
 
-    // --- CORRECCIÓN 7: Cambiado a {"owner"} ---
     @EntityGraph(attributePaths = {"owner"})
     @Query("SELECT f FROM FileEntity f " +
             "JOIN f.fileKeys fk " +
@@ -113,10 +112,6 @@ public interface FileRepository extends JpaRepository<FileEntity, Long>, FileRep
     Page<FileEntity> findStarred(@Param("username") String username, Pageable pageable);
 
     List<FileEntity> findByOwner_UsernameAndParentIdAndDeletedAtIsNull(String username, Long parentId);
-
-    @Modifying
-    @Query("UPDATE FileEntity f SET f.storagePath = REPLACE(f.storagePath, :oldPrefix, :newPrefix) WHERE f.owner.id = :ownerId AND f.storagePath LIKE CONCAT(:oldPrefix, '%')")
-    void updateStoragePaths(@Param("ownerId") Long ownerId, @Param("oldPrefix") String oldPrefix, @Param("newPrefix") String newPrefix);
 
     void deleteByOwnerId(Long ownerId);
 

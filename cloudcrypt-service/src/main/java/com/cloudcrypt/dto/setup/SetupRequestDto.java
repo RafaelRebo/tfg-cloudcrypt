@@ -14,7 +14,6 @@ public class SetupRequestDto {
     private String symAlgo;
     private String asymKeySize;
 
-    private String saltSuffix;
     private String adminUsername;
     private String adminPassword;
     private String adminFullName;
@@ -49,6 +48,4 @@ public class SetupRequestDto {
     public void setAdminFullName(String adminFullName) { this.adminFullName = adminFullName; }
     public String getAdminEmail() { return adminEmail; }
     public void setAdminEmail(String adminEmail) { this.adminEmail = adminEmail; }
-    public String getSaltSuffix() { return saltSuffix; }
-    public void setSaltSuffix(String saltSuffix) { this.saltSuffix = saltSuffix; }
 }

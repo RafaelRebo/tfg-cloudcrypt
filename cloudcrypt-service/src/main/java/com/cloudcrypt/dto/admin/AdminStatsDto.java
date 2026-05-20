@@ -23,5 +23,6 @@ public class AdminStatsDto {
         private long usedBytes;
         private Long quotaBytes;
         private String role;
+        private String avatarUrl;
     }
 }

@@ -22,7 +22,7 @@ public class SetupGuardFilter implements Filter {
         HttpServletResponse res = (HttpServletResponse) response;
         String path = req.getRequestURI();
 
-        boolean isInstalled = new File("./config/application-prod.properties").exists();
+        boolean isInstalled = ConfigPathResolver.getConfigFile().exists();
 
         if (!isInstalled) {
             boolean isSetupRequest = path.equals("/setup.html")

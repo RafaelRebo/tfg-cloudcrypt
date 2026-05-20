@@ -43,8 +43,6 @@ public class FileEntity {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
-    private String salt;
-
     @Column(name = "checksum", length = 255, nullable = false)
     private String checksum;
 

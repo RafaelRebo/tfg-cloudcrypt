@@ -15,4 +15,5 @@ public class UserDto {
     private String avatarUrl;
     private String role;
     private Long quotaBytes;
+    private String salt;
 }

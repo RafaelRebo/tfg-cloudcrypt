@@ -9,9 +9,5 @@ import java.util.List;
 @Repository
 public interface UserRepository extends JpaRepository<UserEntity, Long>, UserRepositoryCustom {
     UserEntity findByUsername(String username);
-    boolean existsByUsername(String username);
-
-    List<UserEntity> findByUsernameContainingIgnoreCase(String username);
-
     List<UserEntity> findByUsernameContainingIgnoreCaseOrFullNameContainingIgnoreCase(String username, String fullName);
 }

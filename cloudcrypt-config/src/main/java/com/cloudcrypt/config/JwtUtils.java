@@ -16,13 +16,22 @@ public class JwtUtils {
     @Value("${app.jwt.expiration-ms}")
     private long expiration;
 
-    public String generateToken(String username) {
+    public String generateToken(String username, String role) {
         return Jwts.builder()
-                .setSubject(username)
-                .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(SignatureAlgorithm.HS256, secret)
-                .compact();
+            .setSubject(username)
+            .claim("role", role)
+            .setIssuedAt(new Date())
+            .setExpiration(new Date(System.currentTimeMillis() + expiration))
+            .signWith(SignatureAlgorithm.HS256, secret)
+            .compact();
+    }
+
+    public String getRoleFromToken(String token) {
+        return Jwts.parser()
+            .setSigningKey(secret)
+            .parseClaimsJws(token)
+            .getBody()
+            .get("role", String.class);
     }
 
     public String getUsernameFromToken(String token) {
