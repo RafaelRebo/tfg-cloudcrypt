@@ -4,6 +4,8 @@ import com.cloudcrypt.config.ConfigPathResolver;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
 import com.cloudcrypt.service.setup.SetupService;
 import com.cloudcrypt.config.CryptoConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +18,8 @@ import java.util.Map;
 @RequestMapping("/api/setup")
 public class SetupController {
 
+    private static final Logger log = LoggerFactory.getLogger(SetupController.class);
+
     private final SetupService setupService;
     private final CryptoConfig cryptoConfig;
 
@@ -27,13 +31,16 @@ public class SetupController {
     @GetMapping("/status")
     public ResponseEntity<Map<String, Boolean>> checkStatus() {
         File prodConfig = ConfigPathResolver.getConfigFile();
+        boolean isInstalled = prodConfig.exists();
+        log.debug("INSTALACIÓN: Verificando estado de instalación. ¿Detectado properties?: {}", isInstalled);
         Map<String, Boolean> response = new HashMap<>();
-        response.put("installed", prodConfig.exists());
+        response.put("installed", isInstalled);
         return ResponseEntity.ok(response);
     }
 
     @PostMapping("/test-db")
     public ResponseEntity<String> testDatabaseConnection(@RequestBody SetupRequestDto request) throws java.sql.SQLException {
+        log.info("INSTALACIÓN: Verificando conexión JDBC con [{}:{}]", request.getDbHost(), request.getDbPort());
         setupService.testDatabaseConnection(request);
         return ResponseEntity.ok("Conexión con el motor MySQL establecida con éxito.");
     }
@@ -42,6 +49,8 @@ public class SetupController {
     public ResponseEntity<String> finalizeInstallation(
             @ModelAttribute SetupRequestDto request,
             @RequestParam(value = "avatar", required = false) MultipartFile avatar) throws java.io.IOException {
+
+        log.warn("INSTALACIÓN: Inicializando cuenta de administrador @{}.", request.getAdminUsername());
         String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
         setupService.writeConfigurationProperties(request, savedAvatarPath);
 
@@ -51,6 +60,7 @@ public class SetupController {
 
     @GetMapping("/crypto-specs")
     public ResponseEntity<Map<String, Object>> getLiveCryptoSpecs() {
+        log.debug("INSTALACIÓN: Guardando parámetros de configuración criptográfica");
         Map<String, Object> specs = new HashMap<>();
         specs.put("hashAlgo", cryptoConfig.getHashAlgorithm());
         specs.put("symAlgo", cryptoConfig.getSymmetricAlgorithm());
@@ -60,7 +70,10 @@ public class SetupController {
 
     private void executeAsynchronousShutdown() {
         new Thread(() -> {
-            try { Thread.sleep(2000); } catch (InterruptedException ignored) {}
+            try {
+                log.warn("INSTALACIÓN: Reiniciando sistema...");
+                Thread.sleep(2000);
+            } catch (InterruptedException ignored) {}
             System.exit(0);
         }).start();
     }

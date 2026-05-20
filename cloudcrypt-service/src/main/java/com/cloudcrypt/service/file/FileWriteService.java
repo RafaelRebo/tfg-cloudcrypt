@@ -9,15 +9,19 @@ import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.util.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.io.InputStream;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class FileWriteService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileWriteService.class);
+
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
     private final UserRepository userRepository;
@@ -41,6 +45,7 @@ public class FileWriteService {
     @Transactional(rollbackFor = Exception.class)
     public FileDto uploadFile(FileUploadRequestDto request, String username) {
         UserEntity owner = userRepository.findByUsername(username);
+        log.debug("OPERACIÓN: Evaluando restricciones de cuota para el usuario [{}]. Subida entrante: {} bytes.", username, request.getFile().getSize());
         quotaUtils.checkQuota(username, request.getFile().getSize());
 
         FileEntity parent = null;
@@ -72,9 +77,11 @@ public class FileWriteService {
             key.setEncryptedKey(request.getEncryptedFileKey());
             fileKeyRepository.save(key);
 
+            log.info("OPERACIÓN: Fichero de datos guardado. ID Asignado: {}, Checksum: {}.", saved.getId(), file.getChecksum());
             return fileMapper.toDto(saved, username);
         } catch (Exception e) {
             if (storagePathCancel != null) {
+                log.error("OPERACIÓN: Abortando operación y purgando: {}", storagePathCancel);
                 try { storageUtils.deletePhysicalFile(storagePathCancel); } catch (Exception ignored) {}
             }
             throw new InternalStorageException("Fallo crítico al empaquetar y cifrar el flujo del archivo.");
@@ -87,7 +94,7 @@ public class FileWriteService {
             throw new InputValidationException("El nombre de la carpeta es inválido.");
         }
 
-        UserEntity owner = userRepository.findByUsername(username);
+        log.info("OPERACIÓN: Solicitud de creación de directorio para [{}]. Nombre: '{}'.", username, name.trim());
         FileEntity parent = null;
         if (parentId != null) {
             parent = fileRepository.findByIdAndOwner_Username(parentId, username)
@@ -110,6 +117,7 @@ public class FileWriteService {
 
     @Transactional
     public FileDto toggleStar(Long id, String username){
+        log.debug("OPERACIÓN: Cambiando estado destacado del recurso ID: {} para [{}].", id, username);
         FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(id, username)
                 .orElseThrow(() -> new InstanceNotFoundException("Acceso denegado al metadato privado."));
         fileKey.setStarred(!fileKey.isStarred());
@@ -119,6 +127,7 @@ public class FileWriteService {
     @Transactional
     public void moveFiles(List<Long> fileIds, Long targetParentId, String username){
         FileEntity newParent = null;
+        log.info("OPERACIÓN: Moviendo {} recursos hacia {}.", fileIds.size(), targetParentId);
 
         if (targetParentId != null) {
             newParent = fileRepository.findByIdAndOwner_Username(targetParentId, username)
@@ -143,6 +152,7 @@ public class FileWriteService {
             entity.setFolderPath((newParent == null) ? "/" : buildPath(newParent));
             fileRepository.save(entity);
         }
+        log.info("OPERACIÓN: Elementos movidos.");
     }
 
     @Transactional
@@ -154,6 +164,7 @@ public class FileWriteService {
             throw new InputValidationException("No se puede renombrar un elemento que está en la papelera.");
         }
 
+        log.info("OPERACIÓN: Solicitud de renombramiento para ID {}. Nombre anterior: '{}', Nombre nuevo: '{}'.", id, file.getFileName(), newName);
         Optional<FileEntity> conflict = (file.getParent() == null)
                 ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, newName)
                 : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, newName, file.getParent().getId());
@@ -190,6 +201,7 @@ public class FileWriteService {
     public void copyFiles(List<Long> fileIds, Long targetParentId, String newName, String username){
         UserEntity owner = userRepository.findByUsername(username);
         FileEntity targetParent = (targetParentId != null) ? fileRepository.findById(targetParentId).orElse(null) : null;
+        log.info("Operación: Duplicando lote de {} elementos para el búnker de [{}].", fileIds.size(), username);
 
         String targetFolderPath = "/";
         if (targetParent != null) {
@@ -220,6 +232,7 @@ public class FileWriteService {
         clone.setFolderPath(targetFolderPath);
 
         FileEntity savedClone = fileRepository.save(clone);
+        log.debug("Clonación: Copiado nodo de metadatos lógicos. Antiguo ID: {} -> Nuevo ID: {}.", source.getId(), savedClone.getId());
 
         fileKeyRepository.findByFileIdAndUser_Username(source.getId(), username).ifPresent(oldKey -> {
             FileKeyEntity newKey = new FileKeyEntity();

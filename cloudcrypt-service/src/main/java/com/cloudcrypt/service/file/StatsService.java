@@ -4,12 +4,16 @@ import com.cloudcrypt.config.StorageConfig;
 import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.model.UserEntity;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import java.util.HashMap;
 import java.util.Map;
 
 @Service
 public class StatsService {
+
+    private static final Logger log = LoggerFactory.getLogger(StatsService.class);
 
     private final FileRepository fileRepository;
     private final StorageConfig storageConfig;
@@ -22,6 +26,7 @@ public class StatsService {
     }
 
     public Map<String, Object> getUserStats(String username) {
+        log.debug("OPERACIÓN: Consultando ocupación en disco para el usuario: @{}", username);
         long totalSize = fileRepository.getTotalUsageByUser(username);
         long fileCount = fileRepository.countFilesByUser(username);
 

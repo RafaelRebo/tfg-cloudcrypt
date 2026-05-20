@@ -6,6 +6,8 @@ import com.cloudcrypt.exceptions.UserAlreadyExistsException;
 import com.cloudcrypt.mapper.UserMapper;
 import com.cloudcrypt.model.UserEntity;
 import com.cloudcrypt.repository.user.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +18,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
@@ -28,8 +33,11 @@ public class UserService {
 
     public UserDto register(String username, String password, String fullName, String email, String avatar, String salt){
         if (userRepository.findByUsername(username) != null) {
+            log.warn("REGISTRO: Intento de registro abortado. El ID de usuario [{}] ya está en uso.", username);
             throw new UserAlreadyExistsException("El usuario '" + username + "' ya está registrado.");
         }
+
+        log.info("REGISTRO: Creado nuevo usuario: @{}.", username);
         String encodedPassword = passwordEncoder.encode(preHash(password));
         UserEntity user = userRepository.createUser(username, encodedPassword, fullName, email, avatar);
         user.setSalt(salt);
@@ -38,14 +46,19 @@ public class UserService {
     }
 
     public UserDto authenticate(String username, String rawPassword){
+        log.debug("REGISTRO: Evaluando credenciales para @{}.", username);
         UserEntity user = userRepository.findByUsername(username);
+
         if (user != null && passwordEncoder.matches(preHash(rawPassword), user.getPassword())) {
+            log.info("REGISTRO: Sesión autorizada para el usuario: @{}.", username);
             UserDto dto = userMapper.toDto(user);
             dto.setFullName(user.getFullName());
             dto.setAvatarUrl(user.getAvatarUrl());
             return dto;
+        } else {
+            log.warn("REGISTRO: Intento de login fallido. Credenciales erróneas para el usuario: [{}].", username);
+            throw new InvalidCredentialsException("Las credenciales son incorrectas o el usuario no existe");
         }
-        else throw new InvalidCredentialsException("Las credenciales son incorrectas o el usuario no existe");
     }
 
     public List<UserDto> searchOtherUsers(String query, String currentUsername) {
@@ -67,14 +80,19 @@ public class UserService {
             throw new com.cloudcrypt.exceptions.InstanceNotFoundException("Usuario inexistente.");
         }
 
+        log.info("OPERACIÓN: Procesando cambios de perfil de @{}.", oldUsername);
+
         if (request.getNewUsername() != null && !request.getNewUsername().trim().isEmpty() && !request.getNewUsername().equals(oldUsername)) {
             if (userRepository.findByUsername(request.getNewUsername()) != null) {
+                log.warn("OPERACIÓN: Cancelado cambio de ID de usuario. Conflicto por duplicidad sobre '{}'.", request.getNewUsername());
                 throw new UserAlreadyExistsException("El ID de usuario '" + request.getNewUsername() + "' ya está registrado.");
             }
+            log.warn("OPERACIÓN: El usuario cambió su ID único de @{} a @{}.", oldUsername, request.getNewUsername().trim());
             user.setUsername(request.getNewUsername().trim());
         }
 
         if (request.getNewPassword() != null && !request.getNewPassword().isEmpty()) {
+            log.info("OPERACIÓN: El usuario @{} modificó su credencial por rotación de claves.", user.getUsername());
             user.setPassword(passwordEncoder.encode(preHash(request.getNewPassword())));
         }
 

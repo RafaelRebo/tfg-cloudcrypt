@@ -6,6 +6,8 @@ import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.util.PathUtils;
 import com.cloudcrypt.util.StorageUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
@@ -14,6 +16,8 @@ import java.util.List;
 
 @Service
 public class TrashService {
+
+    private static final Logger log = LoggerFactory.getLogger(TrashService.class);
 
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
@@ -31,13 +35,14 @@ public class TrashService {
     }
 
     public void deleteFile(Long id, String username, boolean forcePermanent){
+        log.debug("OPERACIÓN: Evaluando solicitud de borrado para recurso ID: {} (Solicitante: {}, Forzar Permanente: {})", id, username, forcePermanent);
         var entityOpt = fileRepository.findByIdAndOwner_Username(id, username);
 
         if (entityOpt.isPresent()) {
             FileEntity entity = entityOpt.get();
 
             if (forcePermanent || entity.getDeletedAt() != null) {
-                // --- FASE 1: RECOLECCIÓN EN MEMORIA ---
+                log.info("OPERACIÓN: Borrando definitivamente para '{}' el elemento {}", entity.getFileName(), entity.getId());
                 List<FileEntity> descendants = new ArrayList<>();
                 List<String> pathsToDelete = new ArrayList<>();
 
@@ -59,14 +64,18 @@ public class TrashService {
 
                 executePhysicalDeleteTransaction(entity, descendants);
 
+                int diskPurgeCounter = 0;
                 for (String storagePath : pathsToDelete) {
                     try {
                         storageUtils.deletePhysicalFile(storagePath);
+                        diskPurgeCounter++;
                     } catch (IOException e) {
-                        System.err.println("Advertencia de consistencia de disco: Paquete huérfano omitido en: " + storagePath);
+                        log.error("OPERACIÓN: Archivo físico inamovible en: {}. Operación omitida.", storagePath);
                     }
                 }
+                log.info("OPERACIÓN: Borrado finalizado. Eliminados exitosamente {} ficheros del disco.", diskPurgeCounter);
             } else {
+                log.info("OPERACIÓN: Marcando recurso '{}' (ID: {}) como movido a papelera.", entity.getFileName(), entity.getId());
                 executeLogicalDeleteTransaction(entity);
             }
             return;
@@ -80,6 +89,7 @@ public class TrashService {
         FileEntity entity = fileRepository.findByIdAndHasAccess(id, username)
                 .orElseThrow(() -> new InstanceNotFoundException("No se encontró el recurso para restaurar."));
 
+        log.info("OPERACIÓN: Solicitud de rescate de papelera para '{}' (Propietario: [@{}])", entity.getFileName(), username);
         folderService.restoreParentHierarchy(entity.getOwner().getUsername(), entity.getFolderPath());
         fileRepository.restoreFile(entity.getId());
 
@@ -114,6 +124,7 @@ public class TrashService {
         FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
                 .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
 
+        log.info("OPERACIÓN: El usuario invitado [{}] renunció a sus privilegios sobre el recurso ID: {}.", username, id);
         fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
 
         if ("application/x-directory".equals(sharedEntity.getFileType())) {

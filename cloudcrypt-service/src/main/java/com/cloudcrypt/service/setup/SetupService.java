@@ -2,9 +2,10 @@ package com.cloudcrypt.service.setup;
 
 import com.cloudcrypt.config.ConfigPathResolver;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.IOException;
@@ -22,9 +23,12 @@ import java.util.UUID;
 @Service
 public class SetupService {
 
+    private static final Logger log = LoggerFactory.getLogger(SetupService.class);
+
     public void testDatabaseConnection(SetupRequestDto request) throws SQLException {
         String url = "jdbc:mysql://" + request.getDbHost() + ":" + request.getDbPort() + "/?serverTimezone=UTC";
         try (Connection conn = DriverManager.getConnection(url, request.getDbUser(), request.getDbPass())) {
+            log.info("INSTALACIÓN: Conexión saliente JDBC exitosa con el motor de base de datos.");
         }
     }
 
@@ -35,6 +39,7 @@ public class SetupService {
 
         Path avatarDir = Paths.get(uploadDir, "avatars");
         if (!Files.exists(avatarDir)) {
+            log.debug("INSTALACIÓN: Carpeta de avatares inexistente. Creando ruta: {}", avatarDir);
             Files.createDirectories(avatarDir);
         }
 
@@ -56,9 +61,10 @@ public class SetupService {
         }
 
         File propertiesFile = ConfigPathResolver.getConfigFile();
+        log.warn("INSTALACIÓN: Escribiendo archivo de configuración en: {}", propertiesFile.getAbsolutePath());
 
         try (BufferedWriter writer = Files.newBufferedWriter(propertiesFile.toPath(), StandardCharsets.UTF_8)) {
-            writer.write("# ARCHIVO GENERADO POR CLOUDCRYPT\n");
+            writer.write("# ARCHIVO GENERADO AUTOMÁTICAMENTE POR CLOUDCRYPT\n");
 
             writer.write("spring.datasource.url=jdbc:mysql://" + request.getDbHost() + ":" + request.getDbPort() + "/" + request.getDbName() + "?createDatabaseIfNotExist=true&serverTimezone=UTC\n");
             writer.write("spring.datasource.username=" + request.getDbUser() + "\n");
@@ -89,7 +95,12 @@ public class SetupService {
             writer.write("app.setup.admin-email=" + request.getAdminEmail() + "\n");
             writer.write("app.setup.admin-avatar=" + savedAvatarPath + "\n");
 
+            writer.write("logging.file.name=./config/logs/cloudcrypt.log\n");
+            writer.write("logging.logback.rollingpolicy.max-file-size=10MB\n");
+            writer.write("logging.logback.rollingpolicy.max-history=7\n");
+
             writer.flush();
+            log.info("INSTALACIÓN: Archivo properties generado.");
         }
     }
 }

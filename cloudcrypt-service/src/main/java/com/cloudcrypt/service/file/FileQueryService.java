@@ -1,4 +1,3 @@
-// com/cloudcrypt/service/file/FileQueryService.java
 package com.cloudcrypt.service.file;
 
 import com.cloudcrypt.dto.file.FileDto;
@@ -10,10 +9,11 @@ import com.cloudcrypt.model.FileKeyEntity;
 import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.util.StorageUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
@@ -23,6 +23,9 @@ import java.util.stream.Collectors;
 
 @Service
 public class FileQueryService {
+
+    private static final Logger log = LoggerFactory.getLogger(FileQueryService.class);
+
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
     private final FileMapper fileMapper;
@@ -37,6 +40,7 @@ public class FileQueryService {
     }
 
     public Page<FileDto> getFilesByFolder(String username, Long parentId, String category, Pageable pageable) {
+        log.debug("OPERACIÓN: Obteniendo elementos para el usuario [{}] en la categoría '{}' y carpeta: {}.", username, category, parentId);
         Page<FileEntity> entities;
         if ("trash".equals(category) && parentId == null) entities = fileRepository.findTrashRoot(username, pageable);
         else if ("shared".equals(category)) entities = fileRepository.findSharedWithMe(username, parentId, pageable);
@@ -52,15 +56,23 @@ public class FileQueryService {
     }
 
     public FileDto getFileById(Long id, String username) {
+        log.debug("OPERACIÓN: Verificando permisos de lectura del recurso ID: {} para el usuario [{}].", id, username);
         return fileRepository.findByIdAndHasAccess(id, username)
                 .map(f -> fileMapper.toDto(f, username))
-                .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado."));
+                .orElseThrow(() -> {
+                    log.warn("OPERACIÓN: El usuario [{}] intentó leer el recurso restringido ID: {}.", username, id);
+                    return new InstanceNotFoundException("Archivo no encontrado o acceso denegado.");
+                });
     }
 
     public String getEncryptedFileKey(Long fileId, String username) {
+        log.debug("OPERACIÓN: Recuperando clave simétrica para recurso ID: {} (Usuario: [{}]).", fileId, username);
         return fileKeyRepository.findByFileIdAndUser_Username(fileId, username)
                 .map(FileKeyEntity::getEncryptedKey)
-                .orElseThrow(() -> new InstanceNotFoundException("Sin acceso a la llave criptográfica."));
+                .orElseThrow(() -> {
+                    log.warn("OPERACIÓN: Violación de acceso para el recurso ID: {} por [@{}].", fileId, username);
+                    return new InstanceNotFoundException("Sin acceso a la llave criptográfica.");
+                });
     }
 
     public InputStream getFileDownloadStream(Long id, String username) {
@@ -72,17 +84,20 @@ public class FileQueryService {
         }
 
         if (entity.getStoragePath() == null || !storageUtils.exists(entity.getStoragePath())) {
+            log.error("OPERACIÓN: El ID {} existe, pero su archivo físico ha desaparecido de '{}'.", id, entity.getStoragePath());
             throw new InternalStorageException("Error: El archivo físico no existe en el almacenamiento.");
         }
 
         try {
             return storageUtils.getRawStream(entity.getStoragePath());
         } catch (IOException e) {
+            log.error("OPERACIÓN: Excepción de I/O crítica al leer el fichero físico en: {}", entity.getStoragePath());
             throw new InternalStorageException("Error de lectura en el disco del servidor.");
         }
     }
 
     public Map<String, Object> checkExistsById(String username, String fileName, Long parentId) {
+        log.debug("OPERACIÓN: Comprobando colisión de nombres de archivo para '{}' en {}.", fileName, parentId);
         Optional<FileEntity> existing = (parentId == null)
                 ? fileRepository.findByOwner_UsernameAndFileNameAndParentIsNullAndDeletedAtIsNull(username, fileName)
                 : fileRepository.findByOwner_UsernameAndFileNameAndParentIdAndDeletedAtIsNull(username, fileName, parentId);

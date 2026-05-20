@@ -10,15 +10,19 @@ import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.util.PathUtils;
 import jakarta.persistence.EntityManager;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class ShareService {
+
+    private static final Logger log = LoggerFactory.getLogger(ShareService.class);
+
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
     private final UserRepository userRepository;
@@ -40,9 +44,15 @@ public class ShareService {
                 .orElseThrow(() -> new FileAccessDeniedException("No tienes permisos sobre este recurso."));
         ensureOwnerHasKey(file, ownerUsername);
 
+        log.info("OPERACIÓN: El propietario [{}] comparte el recurso ID: {} con {} usuario(s).",
+                ownerUsername, fileId, requests.size());
+
         for (ShareRequestDto req : requests) {
             UserEntity target = userRepository.findByUsername(req.getTargetUsername());
-            if (target == null) continue;
+            if (target == null) {
+                log.warn("OPERACIÓN: Destinatario inválido omitido. El usuario '@{}' no existe.", req.getTargetUsername());
+                continue;
+            }
 
             FileKeyEntity fileKey = fileKeyRepository.findByFileIdAndUser_Username(fileId, target.getUsername())
                     .orElse(new FileKeyEntity());
@@ -57,6 +67,7 @@ public class ShareService {
 
     @Transactional
     public void shareBatch(List<ShareRequestDto> requests, String ownerUsername){
+        log.info("OPERACIÓN: Procesando compartición en bloque iniciada por [{}]. Elementos: {}.", ownerUsername, requests.size());
         List<FileKeyEntity> keysToSave = new ArrayList<>();
 
         for (ShareRequestDto req : requests) {
@@ -86,6 +97,7 @@ public class ShareService {
 
         if (!keysToSave.isEmpty()) {
             fileKeyRepository.saveAll(keysToSave);
+            log.debug("OPERACIÓN: Inyectadas {} claves asimétricas para compartición.", keysToSave.size());
         }
     }
 
@@ -94,6 +106,8 @@ public class ShareService {
         FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
                 .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado a este elemento"));
 
+        log.info("OPERACIÓN: Revocando privilegios al usuario @{} sobre el recurso ID: {} por orden del dueño [{}].",
+                targetUsername, fileId, ownerUsername);
         fileKeyRepository.deleteByFileIdAndUser_Username(fileId, targetUsername);
 
         if ("application/x-directory".equals(file.getFileType())) {

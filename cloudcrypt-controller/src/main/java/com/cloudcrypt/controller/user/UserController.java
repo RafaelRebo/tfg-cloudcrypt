@@ -7,11 +7,12 @@ import com.cloudcrypt.service.user.AvatarService;
 import com.cloudcrypt.service.user.UserKeyService;
 import com.cloudcrypt.service.user.UserService;
 import com.cloudcrypt.config.JwtUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -19,6 +20,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
     private final JwtUtils jwtUtils;
@@ -41,6 +44,7 @@ public class UserController {
             @RequestParam(required = false) String email,
             @RequestPart(value = "avatar", required = false) MultipartFile avatarFile) {
 
+        log.info("REGISTRO: Registrando ID de usuario: [{}].", username);
         String avatarUrl = avatarService.storeAvatar(avatarFile);
         UserDto userDto = userService.register(username, password, fullName, email, avatarUrl, salt);
         String token = jwtUtils.generateToken(userDto.getUsername(), userDto.getRole());
@@ -58,6 +62,7 @@ public class UserController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(@RequestParam String username, @RequestParam String password) {
+        log.info("REGISTRO: Verificando credenciales de acceso para el usuario: [{}].", username);
         UserDto user = userService.authenticate(username, password);
         String token = jwtUtils.generateToken(user.getUsername(), user.getRole());
 
@@ -84,8 +89,10 @@ public class UserController {
             @ModelAttribute UpdateProfileRequest request) {
 
         String oldUsername = auth.getName();
+        log.warn("OPERACIÓN: El usuario [{}] ha modificado su perfil", oldUsername);
 
         if (request.getNewEncryptedPrivateKey() != null && !request.getNewEncryptedPrivateKey().isEmpty()) {
+            log.warn("OPERACIÓN: Rotación de claves ejecutada para el usuario [{}]", oldUsername);
             KeyRequestDto keyDto = new KeyRequestDto();
             Map<String, Object> publicInfo = userKeyService.getPublicInfo(oldUsername);
             keyDto.setPublicKey((String) publicInfo.get("publicKey"));
@@ -99,7 +106,6 @@ public class UserController {
         }
 
         UserDto updatedUser = userService.updateProfile(oldUsername, request, avatarUrl);
-
         String token = jwtUtils.generateToken(updatedUser.getUsername(), updatedUser.getRole());
 
         Map<String, Object> response = new HashMap<>();

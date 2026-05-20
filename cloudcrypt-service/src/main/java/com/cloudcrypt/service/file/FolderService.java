@@ -7,11 +7,15 @@ import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.repository.user.UserRepository;
 import com.cloudcrypt.util.PathUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class FolderService {
+
+    private static final Logger log = LoggerFactory.getLogger(FolderService.class);
 
     private final FileRepository fileRepository;
     private final FileKeyRepository fileKeyRepository;
@@ -26,37 +30,36 @@ public class FolderService {
         this.pathUtils = pathUtils;
     }
 
-
     @Transactional
     public FileEntity ensureExists(String username, String folderName, FileEntity parent) {
+        log.debug("OPERACIÓN: Asegurando la existencia de la carpeta '{}' para @{}.", folderName, username);
         UserEntity owner = userRepository.findByUsername(username);
 
         return fileRepository.findByOwner_UsernameAndFileNameAndParentAndDeletedAtIsNull(username, folderName, parent)
-            .orElseGet(() -> {
+                .orElseGet(() -> {
+                    log.info("OPERACIÓN: Creando subdirectorio automático ausente: '{}'.", folderName);
+                    FileEntity newFolder = new FileEntity();
+                    newFolder.setFileName(folderName);
+                    newFolder.setFileType("application/x-directory");
+                    newFolder.setOwner(owner);
+                    newFolder.setParent(parent);
+                    newFolder.setFileSize(0L);
 
-                FileEntity newFolder = new FileEntity();
-                newFolder.setFileName(folderName);
-                newFolder.setFileType("application/x-directory");
-                newFolder.setOwner(owner);
-                newFolder.setParent(parent);
-                newFolder.setFileSize(0L);
+                    String path = (parent == null) ? "/" :
+                            (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
+                    newFolder.setFolderPath(path);
 
-                String path = (parent == null) ? "/" :
-                        (parent.getFolderPath().equals("/") ? "/" + parent.getFileName() : parent.getFolderPath() + "/" + parent.getFileName());
-                newFolder.setFolderPath(path);
+                    FileEntity savedFolder = fileRepository.save(newFolder);
 
-                FileEntity savedFolder = fileRepository.save(newFolder);
+                    FileKeyEntity folderKey = new FileKeyEntity();
+                    folderKey.setFile(savedFolder);
+                    folderKey.setUser(owner);
+                    folderKey.setEncryptedKey("FOLDER_PERMISSION");
+                    folderKey.setStarred(false);
+                    fileKeyRepository.save(folderKey);
 
-
-                FileKeyEntity folderKey = new FileKeyEntity();
-                folderKey.setFile(savedFolder);
-                folderKey.setUser(owner);
-                folderKey.setEncryptedKey("FOLDER_PERMISSION");
-                folderKey.setStarred(false);
-                fileKeyRepository.save(folderKey);
-
-                return savedFolder;
-            });
+                    return savedFolder;
+                });
     }
 
     @Transactional
