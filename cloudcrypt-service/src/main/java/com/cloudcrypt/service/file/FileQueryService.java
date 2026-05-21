@@ -1,6 +1,7 @@
 package com.cloudcrypt.service.file;
 
 import com.cloudcrypt.dto.file.FileDto;
+import com.cloudcrypt.exceptions.InputValidationException;
 import com.cloudcrypt.exceptions.InstanceNotFoundException;
 import com.cloudcrypt.exceptions.InternalStorageException;
 import com.cloudcrypt.mapper.FileMapper;
@@ -93,7 +94,7 @@ public class FileQueryService {
                 .orElseThrow(() -> new InstanceNotFoundException("Elemento no encontrado."));
 
         if ("application/x-directory".equals(entity.getFileType())) {
-            throw new IllegalArgumentException("No se puede descargar un directorio como flujo de datos plano.");
+            throw new InputValidationException("No se puede descargar un directorio como flujo de datos plano.");
         }
 
         if (entity.getStoragePath() == null || !storageUtils.exists(entity.getStoragePath())) {
