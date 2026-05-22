@@ -158,7 +158,7 @@ public class FileWriteService {
     }
 
     @Transactional
-    public FileEntity renameFile(Long id, String newName, String username){
+    public FileDto renameFile(Long id, String newName, String username){
         FileEntity file = fileRepository.findByIdAndOwner_Username(id, username)
                 .orElseThrow(() -> new InputValidationException("Elemento no encontrado o acceso denegado."));
 
@@ -196,7 +196,8 @@ public class FileWriteService {
         }
 
         file.setFileName(newName);
-        return fileRepository.save(file);
+        FileEntity savedFile = fileRepository.save(file);
+        return fileMapper.toDto(savedFile, username);
     }
 
     @Transactional(rollbackFor = Exception.class)

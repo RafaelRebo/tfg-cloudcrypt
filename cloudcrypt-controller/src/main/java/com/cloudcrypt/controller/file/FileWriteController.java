@@ -47,8 +47,7 @@ public class FileWriteController {
     @PostMapping("/{id}/rename")
     public ResponseEntity<?> renameFile(Authentication auth, @PathVariable Long id, @RequestParam("name") String newName) {
         log.info("OPERACIÓN: El usuario [{}] renombró el recurso ID: {} a '{}'.", auth.getName(), id, newName);
-        fileWriteService.renameFile(id, newName, auth.getName());
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(fileWriteService.renameFile(id, newName, auth.getName()));
     }
 
     @PostMapping("/copy")
