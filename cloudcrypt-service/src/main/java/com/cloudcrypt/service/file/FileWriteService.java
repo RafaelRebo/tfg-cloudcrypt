@@ -86,7 +86,7 @@ public class FileWriteService {
                 log.error("OPERACIÓN: Abortando operación y purgando: {}", storagePathCancel);
                 try { storageUtils.deletePhysicalFile(storagePathCancel); } catch (Exception ignored) {}
             }
-            throw new InternalStorageException("Fallo crítico al empaquetar y cifrar el flujo del archivo.");
+            throw new InternalStorageException("Fallo del servidor al empaquetar y cifrar el flujo del archivo.");
         }
     }
 
@@ -100,7 +100,7 @@ public class FileWriteService {
         FileEntity parent = null;
         if (parentId != null) {
             parent = fileRepository.findByIdAndOwner_Username(parentId, username)
-                    .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado al directorio contenedor."));
+                    .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado al directorio."));
         }
 
         FileEntity folder = folderService.ensureExists(username, name.trim(), parent);

@@ -43,7 +43,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
     public ResponseEntity<?> handleDataIntegrity(org.springframework.dao.DataIntegrityViolationException ex) {
         ex.printStackTrace();
-        return buildResponse("Conflicto de integridad: El registro ya existe o viola las restricciones del sistema.",
+        return buildResponse("Conflicto: El registro ya existe o viola las restricciones del sistema.",
                 HttpStatus.CONFLICT);
     }
 

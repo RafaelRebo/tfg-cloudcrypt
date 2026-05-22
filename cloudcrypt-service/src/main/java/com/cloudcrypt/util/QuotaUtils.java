@@ -32,7 +32,7 @@ public class QuotaUtils {
         if (currentUsage + newFileSize > maxQuotaForUser) {
             long disponible = (maxQuotaForUser > currentUsage) ? (maxQuotaForUser - currentUsage) : 0L;
 
-            throw new QuotaExceededException("Cuota excedida en el búnker. Disponible para nuevas subidas: "
+            throw new QuotaExceededException("Cuota excedida. Quedan disponibles: "
                     + (disponible / (1024 * 1024)) + " MB");
         }
     }

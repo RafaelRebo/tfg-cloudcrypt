@@ -28,7 +28,7 @@ public class SetupService {
     public void testDatabaseConnection(SetupRequestDto request) throws SQLException {
         String url = "jdbc:mysql://" + request.getDbHost() + ":" + request.getDbPort() + "/?serverTimezone=UTC";
         try (Connection conn = DriverManager.getConnection(url, request.getDbUser(), request.getDbPass())) {
-            log.info("INSTALACIÓN: Conexión saliente JDBC exitosa con el motor de base de datos.");
+            log.info("INSTALACIÓN: Conexión JDBC exitosa con el motor de base de datos.");
         }
     }
 

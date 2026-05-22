@@ -55,7 +55,7 @@ public class SetupController {
         setupService.writeConfigurationProperties(request, savedAvatarPath);
 
         executeAsynchronousShutdown();
-        return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando el ecosistema criptográfico...");
+        return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando...");
     }
 
     @GetMapping("/crypto-specs")

@@ -106,7 +106,7 @@ class SetupControllerTest {
                         .param("adminPassword", "pass1")
                         .param("uploadDir", "/uploads"))
                 .andExpect(status().isOk())
-                .andExpect(content().string("Configuración guardada con éxito. Reiniciando el ecosistema criptográfico..."));
+                .andExpect(content().string("Configuración guardada con éxito. Reiniciando..."));
     }
 
     // ==========================================

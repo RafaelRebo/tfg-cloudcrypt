@@ -1,6 +1,8 @@
 package com.cloudcrypt;
 
 import com.cloudcrypt.config.ConfigPathResolver;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -20,6 +22,8 @@ import java.security.MessageDigest;
 @EnableJpaRepositories(basePackages = "com.cloudcrypt.repository")
 @EntityScan(basePackages = "com.cloudcrypt.model")
 public class CloudCryptApplication {
+
+    private static final Logger log = LoggerFactory.getLogger(CloudCryptApplication.class);
 
     public static void main(String[] args) {
         SpringApplication app = new SpringApplication(CloudCryptApplication.class);
@@ -60,7 +64,7 @@ public class CloudCryptApplication {
 
                     userRepository.save(admin);
                 } catch (Exception e) {
-                    System.err.println("Error al derivar la clave del admin: " + e.getMessage());
+                    log.error("SETUP: No se pudo procesar la creación de la cuenta de administrador.", e);
                 }
             }
         };

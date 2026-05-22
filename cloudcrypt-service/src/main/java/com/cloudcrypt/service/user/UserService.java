@@ -2,6 +2,7 @@ package com.cloudcrypt.service.user;
 
 import com.cloudcrypt.dto.user.UpdateProfileRequestDto;
 import com.cloudcrypt.dto.user.UserDto;
+import com.cloudcrypt.exceptions.InstanceNotFoundException;
 import com.cloudcrypt.exceptions.InvalidCredentialsException;
 import com.cloudcrypt.exceptions.UserAlreadyExistsException;
 import com.cloudcrypt.mapper.UserMapper;
@@ -78,7 +79,7 @@ public class UserService {
     public UserDto updateProfile(String oldUsername, UpdateProfileRequestDto request, String newAvatarUrl) {
         UserEntity user = userRepository.findByUsername(oldUsername);
         if (user == null) {
-            throw new com.cloudcrypt.exceptions.InstanceNotFoundException("Usuario inexistente.");
+            throw new InstanceNotFoundException("Usuario a actualizar inexistente.");
         }
 
         log.info("OPERACIÓN: Procesando cambios de perfil de @{}.", oldUsername);
@@ -122,7 +123,7 @@ public class UserService {
             }
             return hexString.toString();
         } catch (Exception e) {
-            throw new RuntimeException("Fallo en el pre-hash", e);
+            throw new RuntimeException("Fallo en operación de pre-hash", e);
         }
     }
 }

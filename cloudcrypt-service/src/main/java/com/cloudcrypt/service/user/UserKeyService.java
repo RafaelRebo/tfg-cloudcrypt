@@ -50,7 +50,7 @@ public class UserKeyService {
         UserKeyEntity keys = userKeyRepository.findById(user.getId())
                 .orElseThrow(() -> {
                     log.warn("OPERACIÓN: El usuario @{} carece de claves.", username);
-                    return new InstanceNotFoundException("El usuario no tiene llaves generadas");
+                    return new InstanceNotFoundException("El usuario no tiene claves generadas");
                 });
 
         Map<String, Object> response = new HashMap<>();
@@ -65,7 +65,7 @@ public class UserKeyService {
 
         return userKeyRepository.findById(user.getId())
                 .map(UserKeyEntity::getEncryptedPrivateKey)
-                .orElseThrow(() -> new InstanceNotFoundException("El usuario no tiene llaves registradas"));
+                .orElseThrow(() -> new InstanceNotFoundException("El usuario no tiene claves registradas"));
     }
 
     @Transactional
@@ -75,7 +75,7 @@ public class UserKeyService {
         if (user == null) throw new InstanceNotFoundException("Usuario no encontrado");
 
         UserKeyEntity userKeys = userKeyRepository.findById(user.getId())
-                .orElseThrow(() -> new InstanceNotFoundException("El usuario no posee un llavero relacional instanciado"));
+                .orElseThrow(() -> new InstanceNotFoundException("El usuario no posee un keyring creado"));
 
         userKeys.setEncryptedPrivateKey(newEncryptedPrivateKey);
         userKeyRepository.save(userKeys);

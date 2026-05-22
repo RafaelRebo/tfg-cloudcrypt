@@ -45,7 +45,7 @@ public class AvatarService {
 
         } catch (IOException e) {
             log.error("OPERACIÓN: Fallo al guardar avatar en la carpeta uploads.");
-            throw new RuntimeException("Error crítico de E/S al guardar el avatar en el disco: " + e.getMessage(), e);
+            throw new RuntimeException("Error de E/S al guardar el avatar en el disco: " + e.getMessage(), e);
         }
     }
 }

@@ -124,7 +124,7 @@ public class TrashService {
         FileEntity sharedEntity = fileRepository.findByIdAndHasAccess(id, username)
                 .orElseThrow(() -> new InstanceNotFoundException("Archivo no encontrado o acceso denegado"));
 
-        log.info("OPERACIÓN: El usuario invitado [{}] renunció a sus privilegios sobre el recurso ID: {}.", username, id);
+        log.info("OPERACIÓN: El usuario invitado [{}] renunció al recurso compartido con ID: {}.", username, id);
         fileKeyRepository.deleteByFileIdAndUser_Username(id, username);
 
         if ("application/x-directory".equals(sharedEntity.getFileType())) {

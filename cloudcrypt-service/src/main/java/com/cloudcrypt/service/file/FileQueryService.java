@@ -73,7 +73,7 @@ public class FileQueryService {
                 .map(FileKeyEntity::getEncryptedKey)
                 .orElseThrow(() -> {
                     log.warn("OPERACIÓN: Violación de acceso para el recurso ID: {} por [@{}].", fileId, username);
-                    return new InstanceNotFoundException("Sin acceso a la llave criptográfica.");
+                    return new InstanceNotFoundException("Sin acceso a la clave del recurso.");
                 });
     }
 
@@ -94,18 +94,18 @@ public class FileQueryService {
                 .orElseThrow(() -> new InstanceNotFoundException("Elemento no encontrado."));
 
         if ("application/x-directory".equals(entity.getFileType())) {
-            throw new InputValidationException("No se puede descargar un directorio como flujo de datos plano.");
+            throw new InputValidationException("No se puede descargar un directorio directamente.");
         }
 
         if (entity.getStoragePath() == null || !storageUtils.exists(entity.getStoragePath())) {
             log.error("OPERACIÓN: El ID {} existe, pero su archivo físico ha desaparecido de '{}'.", id, entity.getStoragePath());
-            throw new InternalStorageException("Error: El archivo físico no existe en el almacenamiento.");
+            throw new InternalStorageException("El archivo físico no existe en el almacenamiento.");
         }
 
         try {
             return storageUtils.getRawStream(entity.getStoragePath());
         } catch (IOException e) {
-            log.error("OPERACIÓN: Excepción de I/O crítica al leer el fichero físico en: {}", entity.getStoragePath());
+            log.error("OPERACIÓN: Excepción de E/S al leer el fichero físico en: {}", entity.getStoragePath());
             throw new InternalStorageException("Error de lectura en el disco del servidor.");
         }
     }

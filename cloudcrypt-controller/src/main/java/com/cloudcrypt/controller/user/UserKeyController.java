@@ -25,7 +25,7 @@ public class UserKeyController {
     public ResponseEntity<String> registerKeys(@RequestBody KeyRequestDto request, Authentication auth) {
         log.warn("OPERACIÓN: Claves asimétricas registradas para el usuario [{}].", auth.getName());
         userKeyService.registerKeys(auth.getName(), request);
-        return ResponseEntity.ok("Llaves registradas correctamente");
+        return ResponseEntity.ok("Claves de usuario registradas correctamente");
     }
 
     @GetMapping("/public/{username}")

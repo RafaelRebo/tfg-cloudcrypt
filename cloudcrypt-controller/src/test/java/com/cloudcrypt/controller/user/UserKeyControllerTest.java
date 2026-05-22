@@ -61,7 +61,7 @@ class UserKeyControllerTest {
                         .content(jsonPayload)
                         .principal(mockAuth))
                 .andExpect(status().isOk())
-                .andExpect(content().string("Llaves registradas correctamente")); // Verificamos que se devuelve mensaje de éxito
+                .andExpect(content().string("Claves de usuario registradas correctamente")); // Verificamos que se devuelve mensaje de éxito
 
         // Verificamos que se llamó una vez al service para registrar las claves
         verify(userKeyService, times(1)).registerKeys(eq("user1"), any(KeyRequestDto.class));

@@ -45,7 +45,7 @@ public class UserDeleteService {
 
     public void purgeUserFully(Long userId) {
         UserEntity user = userRepository.findById(userId)
-                .orElseThrow(() -> new InstanceNotFoundException("Usuario inexistente en la plataforma."));
+                .orElseThrow(() -> new InstanceNotFoundException("Usuario a borrar inexistente."));
 
         log.warn("OPERACIÓN: Borrando completamente usuario @{}.", user.getUsername());
 
@@ -68,7 +68,7 @@ public class UserDeleteService {
                 storageUtils.deletePhysicalFile(storagePath);
                 filesPurgedCount++;
             } catch (Exception e) {
-                log.error("OPERACIÓN: Bloque huérfano inamovible en: '{}'. Ignorado.", storagePath);
+                log.error("OPERACIÓN: Bloque inamovible en: '{}'. Ignorado.", storagePath);
             }
         }
         log.info("OPERACIÓN: Borrados exitosamente {} ficheros del disco duro para el usuario destruido.", filesPurgedCount);
