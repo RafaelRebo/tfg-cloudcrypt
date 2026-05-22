@@ -113,10 +113,38 @@ public class TrashService {
 
     @Transactional(rollbackFor = Exception.class)
     protected void executePhysicalDeleteTransaction(FileEntity entity, List<FileEntity> descendants) {
-        if (!descendants.isEmpty()) {
-            fileRepository.deleteAllInBatch(descendants);
+        List<FileEntity> allFilesToDelete = new ArrayList<>();
+        allFilesToDelete.add(entity);
+        allFilesToDelete.addAll(descendants);
+
+        for (FileEntity file : allFilesToDelete) {
+            fileKeyRepository.deleteByFileIdAndUser_Username(file.getId(), entity.getOwner().getUsername());
         }
-        fileRepository.delete(entity);
+
+        List<FileEntity> files = new ArrayList<>();
+        List<FileEntity> folders = new ArrayList<>();
+
+        for (FileEntity f : allFilesToDelete) {
+            if ("application/x-directory".equals(f.getFileType())) {
+                folders.add(f);
+            } else {
+                files.add(f);
+            }
+        }
+
+        if (!files.isEmpty()) {
+            fileRepository.deleteAllInBatch(files);
+        }
+
+        folders.sort((f1, f2) -> {
+            String p1 = f1.getFolderPath().equals("/") ? "/" + f1.getFileName() : f1.getFolderPath() + "/" + f1.getFileName();
+            String p2 = f2.getFolderPath().equals("/") ? "/" + f2.getFileName() : f2.getFolderPath() + "/" + f2.getFileName();
+            return Integer.compare(p2.length(), p1.length());
+        });
+
+        for (FileEntity folder : folders) {
+            fileRepository.deleteAllInBatch(List.of(folder));
+        }
     }
 
     @Transactional(rollbackFor = Exception.class)

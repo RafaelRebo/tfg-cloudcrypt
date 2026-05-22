@@ -107,7 +107,7 @@ public class TrashServiceTest {
         trashService.deleteFile(101L, "user1", true); // Forzamos el borrado definitivo con el flag
 
         // Valida que se borró de la base de datos y, ahora sí, también del almacenamiento físico
-        verify(fileRepository, times(1)).delete(plainFile);
+        verify(fileRepository, times(1)).deleteAllInBatch(anyList());
         verify(storageUtils, times(1)).deletePhysicalFile("uploads/1/file101.enc");
     }
 
@@ -120,7 +120,7 @@ public class TrashServiceTest {
         trashService.deleteFile(101L, "user1", false); // Ya estaba en la papelera, se borra aun sin el flag
 
         // Valida que se borró de la base de datos y también del almacenamiento físico
-        verify(fileRepository).delete(plainFile);
+        verify(fileRepository, times(1)).deleteAllInBatch(anyList());
         verify(storageUtils).deletePhysicalFile("uploads/1/file101.enc");
     }
 
@@ -141,8 +141,7 @@ public class TrashServiceTest {
         trashService.deleteFile(50L, "user1", true);
 
         // Verificamos que se borró tanto la carpeta como el fichero que había dentro
-        verify(fileRepository).deleteAllInBatch(anyList());
-        verify(fileRepository).delete(folderEntity);
+        verify(fileRepository, times(2)).deleteAllInBatch(anyList());
         verify(storageUtils).deletePhysicalFile("uploads/1/file102.enc");
     }
 
@@ -156,7 +155,7 @@ public class TrashServiceTest {
         assertDoesNotThrow(() -> trashService.deleteFile(101L, "user1", true));
 
         // La transacción finaliza igualmente
-        verify(fileRepository).delete(plainFile);
+        verify(fileRepository, times(1)).deleteAllInBatch(anyList());
     }
 
     // ==========================================
@@ -175,6 +174,7 @@ public class TrashServiceTest {
         // No se borra el fichero físico ni de la BD, solo se borra la clave que le daba acceso compartido a user2 al fichero de ID 101
         verify(fileKeyRepository, times(1)).deleteByFileIdAndUser_Username(101L, "user2");
         verify(fileRepository, never()).delete(any());
+        verify(fileRepository, never()).deleteAllInBatch(anyList());
         verify(fileRepository, never()).markAsDeleted(anyLong());
     }
 
