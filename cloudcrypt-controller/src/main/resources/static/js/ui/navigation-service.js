@@ -167,12 +167,12 @@ const AppNavigationMethods = {
             const idsToMove = JSON.parse(event.dataTransfer.getData("text/plain"));
             if (!idsToMove || idsToMove.length === 0) return;
 
-            this.status = "Relocalizando elementos...";
+            this.status = "Ubicando elementos...";
             let targetId = targetPath === '/' ? null : (targetFolderId || this.folderIdMap.get(targetPath) || null);
 
             const res = await API.moveFiles(idsToMove, targetId);
             if (res.ok) {
-                this.showInfo("Elementos relocalizados.");
+                this.showInfo("Elementos movidos.");
                 await this.refreshAppData();
             } else {
                 const errorMsg = await API.extractErrorMessage(res);

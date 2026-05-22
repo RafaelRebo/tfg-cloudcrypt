@@ -18,7 +18,7 @@ const AuthService = {
                     await this.setupUserCrypto(username, password, data.salt);
                 }
             } catch (e) {
-                console.error("Fallo al inicializar la identidad en el Worker:", e);
+                console.error("Fallo al inicializar la identidad:", e);
             }
             return true;
         }
@@ -28,7 +28,7 @@ const AuthService = {
     async setupUserCrypto(username, password, userSalt) {
         const cryptoPackage = await CryptoService.generateAndPackageKeys(password, userSalt);
         const res = await API.registerUserKeys(cryptoPackage.publicKeyStr, cryptoPackage.encryptedPrivateKeyBase64);
-        if (!res.ok) throw new Error("El servidor rechazó las llaves asimétricas.");
+        if (!res.ok) throw new Error("El servidor rechazó las claves asimétricas.");
         return res;
     },
 
@@ -94,17 +94,17 @@ const AppAuthMethods = {
                         hasCrypto = true;
                     }
                 } catch (cryptoErr) {
-                    console.warn("Llavero asimétrico ausente en el servidor. Preparando aprovisionamiento en caliente...");
+                    console.warn("Claves asimétricas ausentes en el servidor.");
                 }
 
                 if (!hasCrypto) {
-                    this.status = "Generando llavero criptográfico de autoridad raíz...";
+                    this.status = "Generando claves personalizadas...";
                     try {
                         await AuthService.setupUserCrypto(this.username, secureKey, data.salt);
-                        this.showInfo("¡Llavero de Administrador aprovisionado y guardado con éxito!");
+                        this.showInfo("Claves inicializadas con éxito");
                     } catch (setupErr) {
-                        console.error("Error en el auto-setup del admin:", setupErr);
-                        this.showError("No se pudo firmar la gobernanza criptográfica del administrador.");
+                        console.error("Error en inicialización de claves:", setupErr);
+                        this.showError("No se pudieron inicializar las claves");
                     } finally {
                         this.status = "";
                     }
@@ -120,7 +120,7 @@ const AppAuthMethods = {
                 this.showError(errorMsg);
             }
         } catch (e) {
-            this.showError("Error al iniciar la pasarela de sesión segura.");
+            this.showError("Error en el proceso de autenticación");
         }
     },
 
@@ -135,7 +135,7 @@ const AppAuthMethods = {
                 return;
             }
 
-            this.status = "Generando entropía y sal de seguridad única...";
+            this.status = "Generando claves personalizadas...";
 
             const entropyBuffer = new Uint8Array(16);
             window.crypto.getRandomValues(entropyBuffer);
@@ -158,7 +158,7 @@ const AppAuthMethods = {
             if (!res.ok) throw new Error(await API.extractErrorMessage(res));
 
             const loginRes = await API.login(this.regUsername, masterKey);
-            if (!loginRes.ok) throw new Error("Fallo de autenticación post-registro.");
+            if (!loginRes.ok) throw new Error("Fallo en el proceso de autenticación");
 
             const loginData = await loginRes.json();
 
@@ -181,7 +181,7 @@ const AppAuthMethods = {
             this.regFullName = ''; this.regEmail = ''; this.regUsername = '';
             this.regPassword = ''; this.regConfirmPassword = ''; this.regAcceptZk = false;
 
-            this.status = "Configurando sobres e identidad criptográfica...";
+            this.status = "Configurando claves personales...";
             await AuthService.setupUserCrypto(this.regUsername, masterKey, loginData.salt);
 
             this.isLoggedIn = true;
@@ -198,7 +198,7 @@ const AppAuthMethods = {
         try {
             await CryptoService.wipeIdentity();
         } catch (e) {
-            console.error("Error al purgar el contenedor criptográfico:", e);
+            console.error("Error al eliminar claves:", e);
         }
         AuthService.logout();
         this.isLoggedIn = false;

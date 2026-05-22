@@ -20,7 +20,7 @@ const AppUserMethods = {
         this.profileModal.activeTab = tab;
 
         if (tab === 3) {
-            this.status = "Recuperando auditoría de almacenamiento global...";
+            this.status = "Obteniendo estadísticas globales...";
             try {
                 const stats = await API.getAdminStorageStats();
 
@@ -40,7 +40,7 @@ const AppUserMethods = {
 
                 this.profileModal.adminStats = stats;
             } catch (e) {
-                this.showError("No tienes privilegios suficientes para inspeccionar el almacenamiento.");
+                this.showError("No tienes privilegios suficientes.");
                 this.profileModal.activeTab = 1;
             } finally {
                 this.status = "";
@@ -50,7 +50,7 @@ const AppUserMethods = {
 
     async executeBatchAdminUpdate() {
         this.profileModal.isProcessing = true;
-        this.status = "Iniciando transacciones de gobernanza en bloque...";
+        this.status = "Iniciando actualización de parámetros...";
 
         try {
             const filterUsers = this.profileModal.adminStats.users.filter(u => u.username !== this.username);
@@ -76,12 +76,12 @@ const AppUserMethods = {
                 await Promise.all(taskWorklist);
             }
 
-            this.showInfo("¡Gobernanza global actualizada e instalada con éxito!");
+            this.showInfo("Ajustes aplicados con éxito");
             this.profileModal.active = false;
             await this.refreshAppData();
 
         } catch (e) {
-            this.showError(e.message || "Fallo al consolidar el lote de políticas.");
+            this.showError(e.message || "Fallo al guardar los ajustes.");
         } finally {
             this.profileModal.isProcessing = false;
             this.status = "";
@@ -103,13 +103,13 @@ const AppUserMethods = {
                 return;
             }
             if (!this.profileModal.currentPassword) {
-                this.showError("Introduce tu contraseña actual para autorizar la rotación de claves.");
+                this.showError("Introduce tu contraseña actual.");
                 return;
             }
         }
 
         this.profileModal.isProcessing = true;
-        this.status = "Iniciando protocolo de actualización segura...";
+        this.status = "Iniciando protocolo de actualización...";
 
         try {
             const formData = new FormData();
@@ -123,18 +123,18 @@ const AppUserMethods = {
             let newMasterKey = sessionStorage.getItem('fileKey');
 
             if (credentialsChanged) {
-                this.status = "Derivando parámetros de seguridad actuales...";
+                this.status = "Obteniendo parámetros actuales...";
                 const currentValidationKey = await AuthService.deriveMasterKey(this.username, this.profileModal.currentPassword);
 
                 if (currentValidationKey !== sessionStorage.getItem('fileKey')) {
                     throw new Error("La contraseña actual introducida es incorrecta.");
                 }
 
-                this.status = "Calculando nueva Master Key corporativa...";
+                this.status = "Calculando nueva clave...";
                 const updatedClearPassword = this.profileModal.newPassword || this.profileModal.currentPassword;
                 newMasterKey = await AuthService.deriveMasterKey(this.profileModal.newUsername, updatedClearPassword);
 
-                this.status = "Recifrando clave privada RSA en el Web Worker...";
+                this.status = "Recalculando clave privada...";
                 const { reEncryptedPrivateKeyBase64 } = await CryptoService.rotateIdentityKeys(newMasterKey, localStorage.getItem('userSalt'));
 
                 formData.append("newUsername", this.profileModal.newUsername);
@@ -142,7 +142,7 @@ const AppUserMethods = {
                 formData.append("newEncryptedPrivateKey", reEncryptedPrivateKeyBase64);
             }
 
-            this.status = "Transmitiendo cambios estructurales al búnker...";
+            this.status = "Aplicando cambios en el servidor...";
             const res = await API.updateProfile(formData);
 
             if (res.ok) {
@@ -160,7 +160,7 @@ const AppUserMethods = {
                 localStorage.setItem('email', data.email || '');
                 sessionStorage.setItem('fileKey', newMasterKey);
 
-                this.showInfo("¡Identidad y credenciales actualizadas con éxito!");
+                this.showInfo("¡Credenciales actualizadas con éxito!");
                 this.profileModal.active = false;
                 await this.refreshAppData();
             } else {
@@ -168,7 +168,7 @@ const AppUserMethods = {
             }
 
         } catch (e) {
-            this.showError(e.message || "Fallo crítico en la rotación de identidades.");
+            this.showError(e.message || "Fallo en el cambio de credenciales.");
         } finally {
             this.profileModal.isProcessing = false;
             this.status = "";
@@ -210,17 +210,17 @@ const AppUserMethods = {
     },
 
     async executeDeleteUser(userId, targetUsername) {
-        this.status = `Ejecutando purga criptográfica y física de ${targetUsername}...`;
+        this.status = `Ejecutando eliminación de ${targetUsername}...`;
         try {
             const res = await API.deleteUser(userId);
             if (res.ok) {
-                this.showInfo(`El usuario @${targetUsername} y toda su infraestructura han sido eliminados.`);
+                this.showInfo(`El usuario @${targetUsername} ha sido eliminado.`);
                 await this.setProfileTab(3);
             } else {
                 throw new Error(await API.extractErrorMessage(res));
             }
         } catch (e) {
-            this.showError(e.message || "Fallo al purgar el usuario del sistema.");
+            this.showError(e.message || "Fallo al eliminar el usuario del sistema.");
         } finally {
             this.status = "";
         }

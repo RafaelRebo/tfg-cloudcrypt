@@ -587,7 +587,7 @@
             <template v-else>
                 <div class="share-loader-container">
                     <div class="upload-spinner share-loader-spinner"></div>
-                    <strong class="share-loader-title">Aplicando configuración de seguridad</strong>
+                    <strong class="share-loader-title">Aplicando configuración</strong>
                     <p class="share-loader-status">{{ status }}</p>
                 </div>
             </template>
@@ -685,7 +685,7 @@
             </div>
             <div class="ctx-item" @click="$refs.folderInput.click(); closeContextMenu();">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/><polyline points="12 10 12 16"/><polyline points="9 13 12 10 15 13"/></svg>
-                <span>Subir carpeta entera</span>
+                <span>Subir carpeta</span>
             </div>
             <div v-if="clipboard.items.length > 0" class="dropdown-divider"></div>
             <div v-if="clipboard.items.length > 0" class="ctx-item" @click="handlePaste(); closeContextMenu();" style="font-weight: bold; color: var(--accent-blue);">
@@ -702,13 +702,13 @@
             <div>
                 <h2 class="share-modal-title">
                     <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    <span>Gobernanza de Identidad y Credenciales</span>
+                    <span>Configuración de perfil</span>
                 </h2>
-                <p class="share-modal-filename">Gestiona tus datos lógicos, claves de cifrado y métricas de almacenamiento.</p>
+                <p class="share-modal-filename">Gestiona tus datos y credenciales.</p>
 
                 <div class="profile-modal-tabs">
                     <div class="profile-tab-item" :class="{ active: profileModal.activeTab === 1 }" @click="profileModal.activeTab = 1">1. Datos de Perfil</div>
-                    <div class="profile-tab-item" :class="{ active: profileModal.activeTab === 2 }" @click="profileModal.activeTab = 2">2. Seguridad Crítica</div>
+                    <div class="profile-tab-item" :class="{ active: profileModal.activeTab === 2 }" @click="profileModal.activeTab = 2">2. Seguridad</div>
                     <div v-if="userRole === 'ADMIN'" class="profile-tab-item" :class="{ active: profileModal.activeTab === 3 }" @click="setProfileTab(3)">3. Administración</div>
                 </div>
 
@@ -732,7 +732,7 @@
 
                         <div v-if="userAvatarUrl" class="profile-avatar-delete-zone">
                             <input type="checkbox" id="delAvatar" v-model="profileModal.removeAvatar" class="checkbox-danger">
-                            <label for="delAvatar" class="share-list-label" style="cursor: pointer; color: var(--danger); margin: 0;">Eliminar foto de perfil actual</label>
+                            <label for="delAvatar" class="share-list-label" style="cursor: pointer; color: var(--danger); margin: 0;">Eliminar foto de perfil</label>
                         </div>
                     </div>
 
@@ -764,7 +764,7 @@
                     <div v-if="profileModal.activeTab === 3 && userRole === 'ADMIN'" class="admin-stats-grid">
                         <div class="admin-metric-card" style="display: flex; justify-content: space-between; align-items: center; padding: 1rem 1.2rem;">
                             <div>
-                                <span class="share-list-label">Consumo Global en Carpeta del Servidor</span>
+                                <span class="share-list-label">Consumo global en el servidor</span>
                                 <strong style="font-size: 1.3rem; color: var(--accent-blue); display: block; margin-top: 4px;">
                                     {{ formatSize(profileModal.adminStats.globalUsedBytes) }}
                                 </strong>
@@ -777,7 +777,7 @@
                         </div>
 
                         <div class="admin-metric-card" style="padding-top: 0.5rem;">
-                            <span class="share-list-label">Desglose de Auditoría por Volumen de Usuario</span>
+                            <span class="share-list-label">Desglose por usuarios</span>
                             <div class="admin-table-scroll">
                                 <table class="admin-data-table">
                                     <thead>
@@ -818,7 +818,7 @@
 
                                         <td>
                                             <select v-model="userStat.role" :disabled="userStat.username === username" class="auth-input" style="padding: 4px 8px; font-size: 0.8rem; background: #1e293b; cursor: pointer;">
-                                                <option value="USER">USER</option>
+                                                <option value="USER">USUARIO</option>
                                                 <option value="ADMIN">ADMIN</option>
                                             </select>
                                         </td>
@@ -850,7 +850,7 @@
                 </button>
 
                 <button @click="executeBatchAdminUpdate" v-else :disabled="profileModal.isProcessing" class="btn-modal btn-confirm">
-                    {{ profileModal.isProcessing ? 'Guardando lote...' : 'Guardar Cambios Globales' }}
+                    {{ profileModal.isProcessing ? 'Procesando...' : 'Aplicar Cambios' }}
                 </button>
             </div>
         </div>

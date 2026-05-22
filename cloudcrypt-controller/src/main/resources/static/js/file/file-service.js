@@ -1,6 +1,6 @@
 const FileService = {
    async downloadFile(fileId, fileName, _, context) {
-       context.status = "Descargando y descifrando...";
+       context.status = "Descargando y descifrando fichero...";
        try {
            const res = await API.download(fileId);
            if (!res.ok) {
@@ -27,7 +27,7 @@ const FileService = {
            window.URL.revokeObjectURL(url);
 
            context.status = "";
-           context.showInfo("Archivo descargado correctamente.");
+           context.showInfo("Fichero descargado correctamente.");
        } catch (err) {
            context.status = "";
            context.showError(err.message);
@@ -97,7 +97,7 @@ const FileService = {
                        throw fileError;
                    } finally {
                        completedCount++;
-                       context.status = `Procesando elementos en paralelo (${completedCount}/${filesToProcess.length})...`;
+                       context.status = `Procesando elementos (${completedCount}/${filesToProcess.length})...`;
                    }
                }
            };
@@ -108,7 +108,7 @@ const FileService = {
 
            await Promise.all(workers);
 
-           context.status = "Empaquetando estructura en archivo ZIP...";
+           context.status = "Comprimiendo en archivo ZIP...";
            const zipBlob = await zip.generateAsync({ type: "blob" });
 
            const url = window.URL.createObjectURL(zipBlob);
@@ -132,7 +132,7 @@ const FileService = {
         let proceed = false;
 
         if (isTrashed) {
-            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente del disco duro?`, true);
+            proceed = await context.askConfirmation(`¿Eliminar "${file.fileName}" permanentemente?`, true);
         } else if (isShared) {
             proceed = await context.askConfirmation(`¿Quitar tu acceso a "${file.fileName}"?`, true);
         } else {
@@ -299,7 +299,7 @@ const AppFileMethods = {
                 this.showError(errorMsg);
             }
         } catch (e) {
-            this.showError("Error inesperado al instanciar el directorio.");
+            this.showError("Error inesperado al crear el directorio.");
         }
     },
 
@@ -315,7 +315,7 @@ const AppFileMethods = {
                 this.status = "Vista previa cargada.";
             } catch (e) {
                 this.status = "";
-                this.showError(e.message || "No se ha podido descifrar o renderizar el archivo.");
+                this.showError(e.message || "No se ha podido descifrar el archivo.");
             }
         }
     },
@@ -379,7 +379,7 @@ const AppFileMethods = {
                 }
             }));
 
-            this.showInfo(`Metadatos actualizados para ${count} elementos.`);
+            this.showInfo(`Destacados ${count} elementos.`);
             this.clearSelection();
             await this.refreshAppData();
         } catch (e) {
@@ -419,7 +419,7 @@ const AppFileMethods = {
         if (count === 0) return;
 
         const isTrash = this.currentCategory === 'trash';
-        const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos del almacenamiento físico?` : `¿Mover ${count} elementos a la papelera?`;
+        const msg = isTrash ? `¿Eliminar permanentemente ${count} elementos?` : `¿Mover ${count} elementos a la papelera?`;
 
         if (await this.askConfirmation(msg, true)) {
             this.status = "Eliminando elementos...";
@@ -432,7 +432,7 @@ const AppFileMethods = {
                     }
                 }));
 
-                this.showInfo(`${count} elementos purgados.`);
+                this.showInfo(`${count} elementos eliminados.`);
                 this.selectedIds = [];
                 await this.refreshAppData();
             } catch (e) {
@@ -472,7 +472,7 @@ const AppFileMethods = {
                         this.showError(errorMsg);
                     }
                 } catch (e) {
-                    this.showError("Fallo crítico de comunicación.");
+                    this.showError("Fallo de comunicación con el servidor.");
                 } finally {
                     this.confirmModal.active = false;
                     this.confirmModal.isInput = false;
@@ -501,7 +501,7 @@ const AppFileMethods = {
             return;
         }
 
-        this.status = "Preparando descarga unificada en ZIP...";
+        this.status = "Preparando descarga en ZIP...";
         try {
             const zip = new JSZip();
             const tasks = [];
@@ -566,7 +566,7 @@ const AppFileMethods = {
                         throw err;
                     } finally {
                         completedCount++;
-                        this.status = `Descifrando y empaquetando lote (${completedCount}/${tasks.length})...`;
+                        this.status = `Descifrando y preparando ZIP (${completedCount}/${tasks.length})...`;
                     }
                 }
             };
@@ -574,7 +574,7 @@ const AppFileMethods = {
             const workers = Array(Math.min(CONCURRENCY_LIMIT, tasks.length)).fill(null).map(() => workerTask());
             await Promise.all(workers);
 
-            this.status = "Generando archivo comprimido final...";
+            this.status = "Generando archivo comprimido...";
             const zipBlob = await zip.generateAsync({ type: "blob" });
 
             const url = window.URL.createObjectURL(zipBlob);
@@ -584,7 +584,7 @@ const AppFileMethods = {
             a.click();
             window.URL.revokeObjectURL(url);
 
-            this.showInfo(`¡Descarga masiva de ${tasks.length} elementos completada!`);
+            this.showInfo(`Descarga de ${tasks.length} elementos completada`);
         } catch (e) {
             this.showError(e.message);
         } finally {

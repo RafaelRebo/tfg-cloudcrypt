@@ -7,7 +7,7 @@ createApp({
             loading: false,
             dbTesting: false,
 
-            message: 'Configure el socket TCP y las credenciales de enlace para su motor MySQL.',
+            message: 'Configura las credenciales de acceso a tu servidor de MySQL',
             messageType: 'info',
 
             adminConfirmPassword: '',
@@ -44,16 +44,16 @@ createApp({
             this.messageType = 'info';
             switch(this.currentStep) {
                 case 1:
-                    this.message = 'Configure el socket TCP y las credenciales de enlace para su motor MySQL.';
+                    this.message = 'Configura las credenciales de acceso a tu servidor de MySQL';
                     break;
                 case 2:
-                    this.message = 'Defina las capacidades físicas del disco del servidor y los límites per-user.';
+                    this.message = 'Define el directorio de almacenamiento físico y cuotas por usuario.';
                     break;
                 case 3:
-                    this.message = 'Sintonice la gobernanza criptográfica global que blindará los Web Workers.';
+                    this.message = 'Configura los algoritmos de cifrado y verificación de integridad.';
                     break;
                 case 4:
-                    this.message = 'Establezca la identidad raíz del Administrador Maestro del ecosistema.';
+                    this.message = 'Configura las credenciales del usuario administrador predeterminado.';
                     break;
             }
         },
@@ -79,7 +79,7 @@ createApp({
 
         async testDatabase() {
             this.dbTesting = true;
-            this.message = 'Validando conector JDBC y privilegios de esquema con MySQL...';
+            this.message = 'Validando conexión con MySQL...';
             this.messageType = 'info';
 
             try {
@@ -98,7 +98,7 @@ createApp({
                     this.messageType = 'error';
                 }
             } catch (e) {
-                this.message = 'Error de infraestructura: No hay comunicación con el backend de Spring.';
+                this.message = 'Error de comunicación con el servidor';
                 this.messageType = 'error';
             } finally {
                 this.dbTesting = false;
@@ -107,28 +107,28 @@ createApp({
 
         async submitSetup() {
             if (!this.form.adminUsername.trim()) {
-                this.message = 'Error: El Nombre de Usuario (User ID) es obligatorio.';
+                this.message = 'El ID de usuario es obligatorio';
                 this.messageType = 'error';
                 return;
             }
             if (!this.form.adminPassword || !this.adminConfirmPassword) {
-                this.message = 'Error: Debe rellenar la contraseña y su confirmación.';
+                this.message = 'Debes rellenar y confirmar la contraseña.';
                 this.messageType = 'error';
                 return;
             }
             if (this.form.adminPassword !== this.adminConfirmPassword) {
-                this.message = 'Error: Las contraseñas del administrador no coinciden.';
+                this.message = 'Las contraseñas no coinciden';
                 this.messageType = 'error';
                 return;
             }
             if (!this.form.adminFullName.trim() || !this.form.adminEmail.trim()) {
-                this.message = 'Error: El nombre completo y el correo del administrador son obligatorios.';
+                this.message = 'Debes rellenar el nombre completo y el correo';
                 this.messageType = 'error';
                 return;
             }
 
             this.loading = true;
-            this.message = 'Escribiendo propiedades persistentes y levantando entropía para JWT...';
+            this.message = 'Escribiendo parámetros...';
             this.messageType = 'info';
 
             const bytesInMb = 1024 * 1024;
@@ -163,14 +163,14 @@ createApp({
                     this.message = text;
                     this.messageType = 'success';
 
-                    let seconds = 8;
+                    let seconds = 5;
                     const interval = setInterval(() => {
                         seconds--;
                         if (seconds <= 0) {
                             clearInterval(interval);
                             window.location.href = '/';
                         } else {
-                            this.message = `Aprovisionamiento completado con éxito. Reiniciando servidor físico de Spring Boot... Redirigiendo en ${seconds}s.`;
+                            this.message = `Instalación finalizada... Apagando en ${seconds}s.`;
                         }
                     }, 1000);
 
@@ -180,7 +180,7 @@ createApp({
                     this.loading = false;
                 }
             } catch (e) {
-                this.message = 'Error crítico: Caída de la conexión de red durante la transmisión.';
+                this.message = 'Error de conexión de red.';
                 this.messageType = 'error';
                 this.loading = false;
             }

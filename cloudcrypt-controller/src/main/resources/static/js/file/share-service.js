@@ -34,7 +34,7 @@ const AppShareMethods = {
 
     async executeShare() {
         this.shareModal.isProcessing = true;
-        this.status = "Analizando dependencias y jerarquías lógicas...";
+        this.status = "Analizando dependencias...";
 
         try {
             let fileIdsToShare = [];
@@ -51,7 +51,7 @@ const AppShareMethods = {
 
             fileIdsToShare = [...new Set(fileIdsToShare)];
 
-            this.status = `Descargando paquete masivo de llaves del propietario (${fileIdsToShare.length} unidades)...`;
+            this.status = `Descargando claves del propietario (${fileIdsToShare.length} unidades)...`;
 
             const batchKeysRes = await API.getFileKeysBatch(fileIdsToShare);
             if (!batchKeysRes.ok) throw new Error("El búnker de CloudCrypt rechazó la descarga en bloque de las llaves raíz.");
@@ -63,14 +63,14 @@ const AppShareMethods = {
             for (const targetUser of targetUsers) {
                 const targetUsername = targetUser.username || targetUser;
 
-                this.status = `Descargando credencial pública de @${targetUsername}...`;
+                this.status = `Descargando clave de de @${targetUsername}...`;
 
                 const pubKeyData = await API.getUserPublicKey(targetUsername);
                 if (!pubKeyData || !pubKeyData.publicKey) {
                     throw new Error(`No se pudo obtener la clave pública del usuario @${targetUsername}`);
                 }
 
-                this.status = `Cifrando sobres digitales en Web Worker para @${targetUsername}...`;
+                this.status = `Cifrando archivos para @${targetUsername}...`;
 
                 for (const fileId of fileIdsToShare) {
                     const ownerEncryptedKey = ownerKeysMap[fileId];
@@ -93,7 +93,7 @@ const AppShareMethods = {
                 throw new Error("No hay llaves válidas para procesar en la transacción.");
             }
 
-            this.status = "Transmitiendo transacción masiva de gobernanza al búnker...";
+            this.status = "Transmitiendo compartición al servidor...";
 
             const saveRes = await API.shareFilesBatch(sharePayload);
             if (!saveRes.ok) throw new Error("El servidor rechazó el lote de compartición masivo.");
@@ -103,7 +103,7 @@ const AppShareMethods = {
             await this.refreshAppData();
 
         } catch (e) {
-            this.showError(e.message || "Fallo crítico en la delegación de accesos compartidos.");
+            this.showError(e.message || "Fallo en la gestión de accesos compartidos.");
         } finally {
             this.shareModal.isProcessing = false;
             this.status = "";

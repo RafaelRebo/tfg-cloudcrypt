@@ -107,7 +107,7 @@ const AppSelectionMethods = {
         this.selectedIds = this.displayFiles.map(f => f.id);
 
         if (this.allUserFiles.length < this.totalElements) {
-            this.status = "Seleccionando la totalidad de los archivos del directorio...";
+            this.status = "Seleccionando los archivos del directorio...";
             try {
                 let pageToFetch = this.currentPage + 1;
                 let gathering = true;
@@ -255,7 +255,7 @@ const AppSelectionMethods = {
                 this.showError(errorMsg);
             }
         } catch (e) {
-            this.showError("No se ha podido procesar la reubicación por arrastre.");
+            this.showError("No se han podido mover los archivos.");
         }
     },
 };

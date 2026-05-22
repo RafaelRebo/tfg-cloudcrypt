@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>CloudCrypt - Asistente de Instalación</title>
+    <title>CloudCrypt - Instalación</title>
     <link rel="icon" type="image/png" href="img/favicon.png">
     <link rel="stylesheet" href="css/setup.css">
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
@@ -12,8 +12,8 @@
 <div id="app" v-cloak class="setup-container">
     <header class="setup-header">
         <img src="img/cryptblanco.png" class="setup-logo" alt="CloudCrypt">
-        <h1 class="setup-title">Asistente de Configuración</h1>
-        <p class="setup-subtitle">Despliegue automatizado de infraestructura y gobernanza criptográfica</p>
+        <h1 class="setup-title">Asistente de Instalación</h1>
+        <p class="setup-subtitle">Despliegue automatizado de Cloudcrypt</p>
     </header>
 
     <div class="setup-tabs">
@@ -56,16 +56,16 @@
             </div>
             <div style="text-align: right; margin-top: 5px;">
                 <button type="button" @click="testDatabase" :disabled="loading || dbTesting" class="btn btn-secondary">
-                    Probar Conexión JDBC
+                    Probar Conexión
                 </button>
             </div>
         </div>
 
         <div v-if="currentStep === 2">
             <div class="form-group">
-                <label>Ruta Física del Directorio de Almacenamiento</label>
-                <input type="text" v-model="form.uploadDir" class="form-control" placeholder="Ej: C:/Users/rafa-/Pictures/Saved Images">
-                <small class="help-text">Introduzca la ruta absoluta (ej: C:/CloudCrypt/storage) o relativa (ej: uploads) del disco.</small>
+                <label>Ruta de almacenamiento de ficheros</label>
+                <input type="text" v-model="form.uploadDir" class="form-control" placeholder="Ej: C:/Users/user/documents">
+                <small class="help-text">Introduzca la ruta absoluta o relativa del disco.</small>
             </div>
 
             <div class="form-row">
@@ -95,27 +95,27 @@
         <div v-if="currentStep === 3">
             <div class="form-row">
                 <div class="form-group">
-                    <label>Algoritmo de Integridad (Server Hash)</label>
+                    <label>Algoritmo de Integridad (Hash)</label>
                     <select v-model="form.hashAlgo" class="form-control">
                         <option value="SHA-256">SHA-256 (Recomendado)</option>
-                        <option value="SHA-512">SHA-512 (Máxima seguridad)</option>
+                        <option value="SHA-512">SHA-512</option>
                     </select>
                 </div>
                 <div class="form-group">
-                    <label>Algoritmo Simétrico (Web Worker)</label>
+                    <label>Algoritmo de encriptado de ficheros</label>
                     <select v-model="form.symAlgo" class="form-control">
-                        <option value="AES/GCM/NoPadding">AES-GCM (Autenticado)</option>
-                        <option value="AES/CBC/PKCS5Padding">AES-CBC (Clásico)</option>
+                        <option value="AES/GCM/NoPadding">AES-GCM (recomendado)</option>
+                        <option value="AES/CBC/PKCS5Padding">AES-CBC</option>
                     </select>
                 </div>
             </div>
             <div class="form-row">
                 <div class="form-group">
-                    <label>Robustez Asimétrica (Identidades RSA)</label>
+                    <label>Longitud de claves asimétricas de usuarios</label>
                     <select v-model="form.asymKeySize" class="form-control">
-                        <option value="2048">2048 bits (Estándar Balanceado)</option>
-                        <option value="3072">3072 bits (Cumplimiento ANSSI)</option>
-                        <option value="4048">4048 bits (Grado Militar)</option>
+                        <option value="2048">2048 bits</option>
+                        <option value="3072">3072 bits</option>
+                        <option value="4048">4048 bits</option>
                     </select>
                 </div>
             </div>
@@ -128,7 +128,7 @@
                     <input type="text" v-model="form.adminFullName" class="form-control" placeholder="Super Administrador">
                 </div>
                 <div class="form-group">
-                    <label>Nombre de Usuario (User ID)</label>
+                    <label>ID de usuario</label>
                     <input type="text" v-model="form.adminUsername" class="form-control" placeholder="admin">
                 </div>
             </div>
@@ -147,7 +147,7 @@
                 </div>
             </div>
             <div class="form-group">
-                <label>Foto de Perfil Primaria (Opcional)</label>
+                <label>Foto de Perfil (Opcional)</label>
                 <input type="file" ref="avatarInput" accept="image/*" class="form-control file-input">
             </div>
         </div>
