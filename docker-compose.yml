@@ -1,16 +1,32 @@
+version: '3.8'
+
 services:
-  mysql-db:
+  cloudcrypt-db:
     image: mysql:8.0
-    container_name: mysql_storage_service
-    restart: always
+    container_name: cloudcrypt-database
     environment:
-      - MYSQL_ROOT_PASSWORD=root
-      - MYSQL_DATABASE=cloudcrypt_db
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: cloudcrypt_db
     ports:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
+    restart: unless-stopped
+
+  cloudcrypt-app:
+    build: .
+    container_name: cloudcrypt-server
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./uploads:/app/uploads
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://cloudcrypt-db:3306/cloudcrypt_db?allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root
+    depends_on:
+      - cloudcrypt-db
+    restart: unless-stopped
 
 volumes:
   mysql_data:
-    driver: local
