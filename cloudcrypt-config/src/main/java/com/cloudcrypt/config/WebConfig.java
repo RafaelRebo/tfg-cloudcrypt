@@ -6,6 +6,7 @@ import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import java.nio.file.Paths;
 
+// Clase que permite mapear los avatares al directorio físico del almacenamiento donde se encuentran
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 

@@ -13,22 +13,24 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Collections; // 🌟 NUEVO IMPORT
 
+// Clase que intercepta las peticiones HTTP recibidas y que valida los tokens JWT para la autenticación segura de los usuarios
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
     private final JwtUtils jwtUtils;
 
     public JwtRequestFilter(JwtUtils jwtUtils) { this.jwtUtils = jwtUtils; }
 
+    // Función que extrae la cabecera Authorization de las peticiones, la valida, y asigna el rol del usuario en base a ella
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
 
-        String authHeader = request.getHeader("Authorization");
+        String authHeader = request.getHeader("Authorization"); // Recuperamos la cabecera Authorization
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String token = authHeader.substring(7);
-            if (jwtUtils.validateToken(token)) {
+            if (jwtUtils.validateToken(token)) { // Validamos la cabecera
                 String username = jwtUtils.getUsernameFromToken(token);
-                String role = jwtUtils.getRoleFromToken(token);
+                String role = jwtUtils.getRoleFromToken(token); // Obtenemos el rol adecuado que le corresponde al usuario
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         username, null, Collections.singletonList(authority));

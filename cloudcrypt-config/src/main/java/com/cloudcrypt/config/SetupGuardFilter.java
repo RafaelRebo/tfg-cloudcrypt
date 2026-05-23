@@ -10,10 +10,12 @@ import org.springframework.stereotype.Component;
 import java.io.File;
 import java.io.IOException;
 
+// Clase de utilidad que intercepta, con máxima prioridad, las peticiones HTTP para forzar la instalación de la app si se detecta que no lo está
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class SetupGuardFilter implements Filter {
 
+    // Función que redirige al usuario a la página de instalación (setup.html) si la aplicación no está instalada
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
@@ -22,7 +24,7 @@ public class SetupGuardFilter implements Filter {
         HttpServletResponse res = (HttpServletResponse) response;
         String path = req.getRequestURI();
 
-        boolean isInstalled = ConfigPathResolver.getConfigFile().exists();
+        boolean isInstalled = ConfigPathResolver.getConfigFile().exists(); // Se asume que si no existe el fichero .properties generado durante la instalación, es que la app no está instalada
 
         if (!isInstalled) {
             boolean isSetupRequest = path.equals("/setup.html")

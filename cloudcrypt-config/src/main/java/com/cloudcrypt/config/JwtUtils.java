@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 
 import java.util.Date;
 
+// Clase de utilidad para generar, leer y validar tokens JWT
 @Component
 public class JwtUtils {
 
@@ -16,6 +17,7 @@ public class JwtUtils {
     @Value("${app.jwt.expiration-ms}")
     private long expiration;
 
+    // Genera un token JWT firmado para un usuario con un rol determinado asignado
     public String generateToken(String username, String role) {
         return Jwts.builder()
             .setSubject(username)
@@ -26,6 +28,7 @@ public class JwtUtils {
             .compact();
     }
 
+    // Extrae el rol de un usuario a partir de un token
     public String getRoleFromToken(String token) {
         return Jwts.parser()
             .setSigningKey(secret)
@@ -34,6 +37,7 @@ public class JwtUtils {
             .get("role", String.class);
     }
 
+    // Extrae el username a partir de un token
     public String getUsernameFromToken(String token) {
         return Jwts.parser()
                 .setSigningKey(secret)
@@ -42,6 +46,7 @@ public class JwtUtils {
                 .getSubject();
     }
 
+    // Comprueba la validez de un token, mirando que la firma no haya expirado
     public boolean validateToken(String token) {
         try {
             Jwts.parser().setSigningKey(secret).parseClaimsJws(token);

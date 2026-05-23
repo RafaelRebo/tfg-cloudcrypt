@@ -14,9 +14,12 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.spec.KeySpec;
 
 @SpringBootApplication(scanBasePackages = "com.cloudcrypt")
 @EnableJpaRepositories(basePackages = "com.cloudcrypt.repository")
@@ -43,8 +46,7 @@ public class CloudCryptApplication {
             @Value("${app.setup.admin-password:}") String adminPass,
             @Value("${app.setup.admin-fullname:}") String adminName,
             @Value("${app.setup.admin-email:}") String adminEmail,
-            @Value("${app.setup.admin-avatar:}") String adminAvatar,
-            @Value("${app.crypto.hash-algorithm:SHA-256}") String hashAlgo) {
+            @Value("${app.setup.admin-avatar:}") String adminAvatar) {
 
         return args -> {
             if (!adminUser.isEmpty() && userRepository.count() == 0) {
@@ -58,7 +60,7 @@ public class CloudCryptApplication {
                 admin.setSalt(dynamicAdminSalt);
 
                 try {
-                    String clientSideDerivedKey = javaDeriveMasterKey(adminUser, adminPass, hashAlgo);
+                    String clientSideDerivedKey = javaDeriveMasterKey(adminUser, adminPass);
                     String secureBcryptInput = internalSha256(clientSideDerivedKey);
                     admin.setPassword(passwordEncoder.encode(secureBcryptInput));
 
@@ -70,10 +72,13 @@ public class CloudCryptApplication {
         };
     }
 
-    private String javaDeriveMasterKey(String username, String password, String algorithm) throws Exception {
-        String input = username.toLowerCase() + password;
-        MessageDigest digest = MessageDigest.getInstance(algorithm);
-        byte[] hashBytes = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+    private String javaDeriveMasterKey(String username, String password) throws Exception {
+        byte[] salt = username.toLowerCase().getBytes(StandardCharsets.UTF_8);
+
+        KeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 100000, 256);
+        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
+
+        byte[] hashBytes = factory.generateSecret(spec).getEncoded();
 
         StringBuilder hexString = new StringBuilder();
         for (byte b : hashBytes) {

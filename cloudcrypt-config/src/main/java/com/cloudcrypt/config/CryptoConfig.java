@@ -3,6 +3,7 @@ package com.cloudcrypt.config;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
 
+// Clase auxiliar usada en la configuración de los algoritmos criptográficos y de hashing en el fichero .properties de la app
 @Configuration
 public class CryptoConfig {
 
