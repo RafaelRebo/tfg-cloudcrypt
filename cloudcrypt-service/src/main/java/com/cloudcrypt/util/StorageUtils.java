@@ -1,4 +1,3 @@
-// com/cloudcrypt/util/StorageUtils.java
 package com.cloudcrypt.util;
 
 import com.cloudcrypt.config.CryptoConfig;

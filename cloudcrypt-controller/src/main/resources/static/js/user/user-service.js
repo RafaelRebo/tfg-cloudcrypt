@@ -194,8 +194,8 @@ const AppUserMethods = {
     promptDeleteUser(userStat) {
         this.confirmModal = {
             active: true,
-            title: `¿Purgar al usuario ${userStat.username}?`,
-            message: `Esta acción es irreversible y destructiva. Se eliminarán de forma física todos sus ficheros cifrados del disco del servidor, su historial relacional, su avatar corporativo y su llavero de claves asimétricas. El usuario dejará de existir.`,
+            title: `¿Eliminar al usuario ${userStat.username}?`,
+            message: `Esta acción es irreversible. Se eliminarán todos sus ficheros del disco y sus claves criptográficas.`,
             isInput: false,
             buttonText: "Eliminar Todo",
             isDestructive: true,
