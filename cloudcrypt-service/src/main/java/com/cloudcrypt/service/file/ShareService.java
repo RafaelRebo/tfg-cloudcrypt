@@ -103,6 +103,12 @@ public class ShareService {
 
     @Transactional
     public void revokeAccess(Long fileId, String targetUsername, String ownerUsername){
+        if (ownerUsername.equals(targetUsername)) {
+            log.info("OPERACIÓN: El usuario @{} renuncia a su propio acceso sobre el recurso ID: {}.", targetUsername, fileId);
+            fileKeyRepository.deleteByFileIdAndUser_Username(fileId, targetUsername);
+            return;
+        }
+
         FileEntity file = fileRepository.findByIdAndOwner_Username(fileId, ownerUsername)
                 .orElseThrow(() -> new FileAccessDeniedException("Acceso denegado a este elemento"));
 

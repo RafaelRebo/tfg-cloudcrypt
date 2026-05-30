@@ -258,4 +258,55 @@ const AppSelectionMethods = {
             this.showError("No se han podido mover los archivos.");
         }
     },
+
+    async handleSelectionDelete() {
+        if (this.selectedIds.length === 0) return;
+
+        if (this.currentCategory === 'shared') {
+            let msg = "";
+            if (this.selectedIds.length === 1) {
+                const file = this.allUserFiles.find(f => f.id === this.selectedIds[0]);
+                const fileName = file ? file.fileName : "este elemento";
+                msg = `¿Quitar tu acceso a "${fileName}"?`;
+            } else {
+                msg = `¿Quitar tu acceso a los ${this.selectedIds.length} elementos seleccionados?`;
+            }
+
+            this.confirmModal = {
+                active: true,
+                title: '¿Estás seguro?',
+                message: msg,
+                isInput: false,
+                isDuplicateMode: false,
+                isDestructive: true,
+                buttonText: 'Confirmar',
+                onConfirm: async () => {
+                    this.confirmModal.active = false;
+                    this.status = "Revocando accesos...";
+                    try {
+                        for (const id of this.selectedIds) {
+                            await fetch(`/api/files/${id}/share/revoke?target=${this.username}`, {
+                                method: 'DELETE',
+                                headers: API.getAuthHeader()
+                            });
+                        }
+                        this.showInfo("Accesos compartidos revocados con éxito.");
+                        this.selectedIds = [];
+                        await this.refreshAppData();
+                    } catch (e) {
+                        this.showError("Error al procesar la revocación en bloque.");
+                    } finally {
+                        this.status = "";
+                    }
+                },
+                onCancel: () => {
+                    this.confirmModal.active = false;
+                }
+            };
+        } else {
+            if (typeof this.deleteSelected === 'function') {
+                await this.deleteSelected();
+            }
+        }
+    },
 };

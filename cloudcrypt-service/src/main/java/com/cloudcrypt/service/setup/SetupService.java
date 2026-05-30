@@ -54,6 +54,26 @@ public class SetupService {
         return "/static/avatars/" + uniqueFilename;
     }
 
+    public void assertAndCreateStorageDirectory(String uploadDir) throws IOException {
+        if (uploadDir == null || uploadDir.trim().isEmpty()) {
+            throw new IOException("La ruta de almacenamiento de archivos no puede estar vacía.");
+        }
+
+        Path path = Paths.get(uploadDir);
+
+        if (!Files.exists(path)) {
+            log.info("INSTALACIÓN: El directorio '{}' no existe. Intentando creación...", uploadDir);
+            Files.createDirectories(path);
+        } else {
+            if (!Files.isDirectory(path)) {
+                throw new IOException("La ruta especificada existe pero no es un directorio válido.");
+            }
+            if (!Files.isWritable(path)) {
+                throw new IOException("El servidor no tiene permisos de escritura en el directorio especificado.");
+            }
+        }
+    }
+
     public void writeConfigurationProperties(SetupRequestDto request, String savedAvatarPath) throws IOException {
         File configDir = ConfigPathResolver.getConfigDir();
         if (!configDir.exists()) {

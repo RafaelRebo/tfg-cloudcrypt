@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
+import java.io.IOException;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,23 +41,43 @@ public class SetupController {
     }
 
     @PostMapping("/test-db")
-    public ResponseEntity<String> testDatabaseConnection(@RequestBody SetupRequestDto request) throws java.sql.SQLException {
+    public ResponseEntity<String> testDatabaseConnection(@RequestBody SetupRequestDto request) {
         log.info("INSTALACIÓN: Verificando conexión JDBC con [{}:{}]", request.getDbHost(), request.getDbPort());
-        setupService.testDatabaseConnection(request);
-        return ResponseEntity.ok("Conexión con el motor MySQL establecida con éxito.");
+        try {
+            setupService.testDatabaseConnection(request);
+            return ResponseEntity.ok("Conexión con el motor MySQL establecida con éxito.");
+        } catch (SQLException e) {
+            log.error("INSTALACIÓN: Error al conectar con la base de datos: {}", e.getMessage());
+            return ResponseEntity.status(400).body("No se pudo conectar a MySQL: Verifica los parámetros.");
+        }
     }
 
     @PostMapping(value = "/submit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<String> finalizeInstallation(
             @ModelAttribute SetupRequestDto request,
-            @RequestParam(value = "avatar", required = false) MultipartFile avatar) throws java.io.IOException {
+            @RequestParam(value = "avatar", required = false) MultipartFile avatar) {
 
-        log.warn("INSTALACIÓN: Inicializando cuenta de administrador @{}.", request.getAdminUsername());
-        String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
-        setupService.writeConfigurationProperties(request, savedAvatarPath);
+        log.warn("INSTALACIÓN: Validando entorno antes de inicializar cuenta de administrador.");
 
-        executeAsynchronousShutdown();
-        return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando...");
+        try {
+            setupService.testDatabaseConnection(request);
+
+            setupService.assertAndCreateStorageDirectory(request.getUploadDir());
+
+            log.info("INSTALACIÓN: Entorno verificado. Inicializando cuenta @{}.", request.getAdminUsername());
+            String savedAvatarPath = setupService.storeAdminAvatar(request.getUploadDir(), avatar);
+            setupService.writeConfigurationProperties(request, savedAvatarPath);
+
+            executeAsynchronousShutdown();
+            return ResponseEntity.ok("Configuración guardada con éxito. Reiniciando...");
+
+        } catch (SQLException e) {
+            log.error("INSTALACIÓN ABORTADA: Parámetros de base de datos no válidos: {}", e.getMessage());
+            return ResponseEntity.status(400).body("Error: No se puede finalizar la instalación si la conexión con MySQL falla.");
+        } catch (IOException e) {
+            log.error("INSTALACIÓN ABORTADA: Error de almacenamiento: {}", e.getMessage());
+            return ResponseEntity.status(400).body("Error de Almacenamiento: " + e.getMessage());
+        }
     }
 
     @GetMapping("/crypto-specs")

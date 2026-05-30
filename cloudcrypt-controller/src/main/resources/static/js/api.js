@@ -312,5 +312,13 @@ const API = {
             },
             body: JSON.stringify(sharePayload)
         });
+    },
+
+    async getSharedUsers(fileId) {
+        const res = await fetch(`/api/files/${fileId}/shared-users`, {
+            headers: this.getAuthHeader()
+        });
+        if (!res.ok) return [];
+        return res.json();
     }
 };

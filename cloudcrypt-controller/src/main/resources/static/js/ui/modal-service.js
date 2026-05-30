@@ -39,7 +39,7 @@ const AppModalMethods = {
                         await new Promise(r => setTimeout(r, 100));
 
                         const proceed = await this.askConfirmation(
-                            `Ya existe una carpeta llamada "${name}". ¿Deseas crear otra con el mismo nombre?`
+                            `Ya existe una carpeta llamada "${name}". ¿Deseas sobrescribirla?`
                         );
 
                         if (!proceed) return;

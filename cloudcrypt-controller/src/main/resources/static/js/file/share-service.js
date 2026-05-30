@@ -4,11 +4,45 @@ const AppShareMethods = {
         this.shareModal.fileName = file.fileName;
         this.shareModal.isFolder = file.fileType === 'application/x-directory';
         this.shareModal.searchQuery = '';
-        this.shareModal.selectedUsers = [];
+        this.shareModal.selectedUsers = []; // Inicializamos como array de cadenas (Strings) plano
         this.shareModal.searchResults = [];
         this.shareModal.active = true;
 
+        try {
+            const sharedUsernames = await API.getSharedUsers(file.id);
+            this.shareModal.selectedUsers = sharedUsernames;
+        } catch (e) {
+            console.error("Error al recuperar los accesos iniciales:", e);
+        }
+
         this.onUserSearchInput();
+    },
+
+    async handleCheckboxToggle(username) {
+        const isChecked = this.shareModal.selectedUsers.includes(username);
+
+        if (!isChecked) {
+            try {
+                this.status = `Revocando acceso a @${username}...`;
+
+                const res = await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${username}`, {
+                    method: 'DELETE',
+                    headers: API.getAuthHeader()
+                });
+
+                if (res.ok) {
+                    this.showInfo(`Acceso revocado correctamente a ${username}`);
+                } else {
+                    this.shareModal.selectedUsers.push(username);
+                    this.showError("El servidor denegó la revocación del acceso.");
+                }
+            } catch (e) {
+                this.shareModal.selectedUsers.push(username);
+                this.showError("Error de comunicación al revocar privilegios.");
+            } finally {
+                this.status = "";
+            }
+        }
     },
 
     closeShareModal() {
@@ -16,7 +50,7 @@ const AppShareMethods = {
     },
 
     removeUserFromShare(user) {
-        this.shareModal.selectedUsers = this.shareModal.selectedUsers.filter(u => u !== user);
+        this.shareModal.selectedUsers = this.shareModal.selectedUsers.filter(u => u.username != user.username);
     },
 
     openMassShareModal() {
@@ -33,6 +67,12 @@ const AppShareMethods = {
     },
 
     async executeShare() {
+        if (this.shareModal.selectedUsers.length === 0) {
+            this.closeShareModal();
+            await this.refreshAppData();
+            return;
+        }
+
         this.shareModal.isProcessing = true;
         this.status = "Analizando dependencias...";
 
@@ -120,10 +160,36 @@ const AppShareMethods = {
     },
 
     selectUser(user) {
-        if (!this.shareModal.selectedUsers.includes(user)) {
-            this.shareModal.selectedUsers.push(user);
+        if (!this.shareModal.selectedUsers.includes(user.username)) {
+            this.shareModal.selectedUsers.push(user.username);
         }
         this.shareModal.searchQuery = '';
         this.shareModal.searchResults = [];
+    },
+
+    async revokeUserAccessImmediately(username) {
+        if (!this.shareModal.fileId) return;
+
+        this.shareModal.isProcessing = true;
+        this.status = `Revocando acceso a ${username}...`;
+
+        try {
+            const res = await fetch(`/api/files/${this.shareModal.fileId}/share/revoke?target=${username}`, {
+                method: 'DELETE',
+                headers: API.getAuthHeader()
+            });
+
+            if (res.ok) {
+                this.shareModal.selectedUsers = this.shareModal.selectedUsers.filter(u => u.username !== username);
+                this.showInfo(`Acceso revocado a ${username}`);
+            } else {
+                throw new Error("El servidor rechazó la revocación.");
+            }
+        } catch (e) {
+            this.showError(e.message || "No se pudo revocar el acceso.");
+        } finally {
+            this.shareModal.isProcessing = false;
+            this.status = "";
+        }
     }
 };
