@@ -24,7 +24,9 @@ const FileService = {
            a.href = url;
            a.download = fileName;
            a.click();
-           window.URL.revokeObjectURL(url);
+           setTimeout(() => {
+               window.URL.revokeObjectURL(url);
+           }, 10000);
 
            context.status = "";
            context.showInfo("Fichero descargado correctamente.");
@@ -116,7 +118,9 @@ const FileService = {
            a.href = url;
            a.download = `${folderName}.zip`;
            a.click();
-           window.URL.revokeObjectURL(url);
+           setTimeout(() => {
+               window.URL.revokeObjectURL(url);
+           }, 10000);
 
            context.status = "";
            context.showInfo(`Carpeta "${folderName}" descargada con éxito.`);
@@ -582,7 +586,9 @@ const AppFileMethods = {
             a.href = url;
             a.download = (selectedItems.length === 1) ? `${selectedItems[0].fileName}.zip` : 'cloud_crypt_export.zip';
             a.click();
-            window.URL.revokeObjectURL(url);
+            setTimeout(() => {
+                window.URL.revokeObjectURL(url);
+            }, 10000);
 
             this.showInfo(`Descarga de ${tasks.length} elementos completada`);
         } catch (e) {
