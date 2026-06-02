@@ -7,6 +7,7 @@ import com.cloudcrypt.exceptions.InternalStorageException;
 import com.cloudcrypt.mapper.FileMapper;
 import com.cloudcrypt.model.FileEntity;
 import com.cloudcrypt.model.FileKeyEntity;
+import com.cloudcrypt.model.UserEntity;
 import com.cloudcrypt.repository.file.FileRepository;
 import com.cloudcrypt.repository.keys.FileKeyRepository;
 import com.cloudcrypt.util.StorageUtils;
@@ -370,13 +371,19 @@ public class FileQueryServiceTest {
     @Test
     @DisplayName("QRY-22: Validación de rutas en comparticiones recursivas")
     void getRecursiveFilesForSharing_Success_WithRootPathCheck() {
+        // Creación del propietario para evitar NullPointerException en el service
+        UserEntity owner = new com.cloudcrypt.model.UserEntity();
+        owner.setUsername("user1");
+
         // Hacemos que el usuario user1 tenga una carpeta llamada "compartida"
         FileEntity folderRoot = new FileEntity();
         folderRoot.setId(201L);
         folderRoot.setFileName("compartida");
         folderRoot.setFolderPath("/");
+        folderRoot.setOwner(owner); //  Asignamos el dueño al objeto simulado
 
-        when(fileRepository.findByIdAndOwner_Username(201L, "user1")).thenReturn(Optional.of(folderRoot));
+        when(fileRepository.findByIdAndHasAccess(201L, "user1")).thenReturn(Optional.of(folderRoot));
+
         // Simulamos que al escanear la ruta "/compartida" hay un fichero dentro
         when(fileRepository.findAllByOwnerAndRecursivePathList("user1", "/compartida", 201L))
                 .thenReturn(List.of(fileEntity));

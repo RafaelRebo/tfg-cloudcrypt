@@ -123,11 +123,18 @@ public class FileQueryService {
     }
 
     public List<FileDto> getRecursiveFilesForSharing(Long folderId, String username) {
-        FileEntity folder = fileRepository.findByIdAndOwner_Username(folderId, username)
+        log.debug("OPERACIÓN: Recuperando archivos recursivos para la carpeta ID: {} (Usuario ejecutor: [{}])", folderId, username);
+
+        FileEntity folder = fileRepository.findByIdAndHasAccess(folderId, username)
                 .orElseThrow(() -> new InstanceNotFoundException("La carpeta solicitada no existe o no tienes acceso."));
+
+        String realOwner = folder.getOwner().getUsername();
+
         String fullPath = folder.getFolderPath().equals("/") ? "/" + folder.getFileName() : folder.getFolderPath() + "/" + folder.getFileName();
-        return fileRepository.findAllByOwnerAndRecursivePathList(username, fullPath, folderId).stream()
-                .map(f -> fileMapper.toDto(f, username)).collect(Collectors.toList());
+
+        return fileRepository.findAllByOwnerAndRecursivePathList(realOwner, fullPath, folderId).stream()
+                .map(f -> fileMapper.toDto(f, username))
+                .collect(Collectors.toList());
     }
 
     public Page<FileDto> searchFiles(String username, String query, Pageable pageable) {

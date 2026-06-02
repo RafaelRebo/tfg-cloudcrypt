@@ -404,7 +404,9 @@
                     </div>
                 </div> </div> </main>
     </div>
-    <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;" @click.self="confirmModal.onCancel">
+    <div v-if="confirmModal.active" class="preview-overlay" style="z-index: 20000;"
+         @mousedown.self="confirmModal.bgClick = true"
+         @click.self="confirmModal.bgClick && (confirmModal.onCancel(), confirmModal.bgClick = false)">
         <div class="auth-card" style="max-width: 440px; text-align: left; padding: 2rem;">
             <h2 style="margin-bottom: 0.8rem; display: flex; align-items: center; gap: 12px;">
                 <span style="display: flex; align-items: center;">
@@ -484,7 +486,9 @@
 
         </div>
     </div>
-    <div v-if="preview.active" class="preview-overlay" @click.self="closePreview">
+    <div v-if="preview.active" class="preview-overlay"
+         @mousedown.self="preview.bgClick = true"
+         @click.self="preview.bgClick && (closePreview(), preview.bgClick = false)">
         <div class="preview-window">
             <div class="preview-header">
                 <div class="preview-title">
@@ -517,7 +521,9 @@
             </div>
         </div>
     </div>
-    <div v-if="shareModal.active" class="preview-overlay" @click.self="closeShareModal">
+    <div v-if="shareModal.active" class="preview-overlay"
+         @mousedown.self="shareModal.bgClick = true"
+         @click.self="shareModal.bgClick && (closeShareModal(), shareModal.bgClick = false)">
         <div class="auth-card share-modal-card">
 
             <template v-if="!shareModal.isProcessing">
@@ -695,7 +701,9 @@
             </div>
         </template>
     </div>
-    <div v-if="profileModal && profileModal.active" class="preview-overlay profile-overlay-blur" @click.self="profileModal.active = false">
+    <div v-if="profileModal && profileModal.active" class="preview-overlay profile-overlay-blur"
+         @mousedown.self="profileModal.bgClick = true"
+         @click.self="profileModal.bgClick && (profileModal.active = false, profileModal.bgClick = false)">
         <div class="auth-card share-modal-card profile-modal-card" @mousedown.stop>
 
             <button class="btn-close-modal" @click="profileModal.active = false">✕</button>
