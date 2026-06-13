@@ -115,7 +115,8 @@ self.onmessage = async (e) => {
             throw new Error(`Operación criptográfica no soportada en el hilo del Worker: ${type}`);
         }
     } catch (error) {
-        self.postMessage({ id, status: 'ERROR', error: error.message });
+        const message = error.message || "Error al procesar el elemento";
+        self.postMessage({ id, status: 'ERROR', error: message });
     }
 };
 

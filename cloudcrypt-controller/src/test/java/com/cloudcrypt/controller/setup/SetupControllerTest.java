@@ -9,6 +9,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,6 +33,7 @@ class SetupControllerTest {
     private MockMvc mockMvc;
     private SetupService setupService;
     private CryptoConfig cryptoConfig;
+    private ConfigurableApplicationContext context;
 
     @BeforeEach
     void setUp() {
@@ -39,7 +41,7 @@ class SetupControllerTest {
         cryptoConfig = Mockito.mock(CryptoConfig.class);
 
         // Construcción del entorno
-        mockMvc = MockMvcBuilders.standaloneSetup(new SetupController(setupService, cryptoConfig)).build();
+        mockMvc = MockMvcBuilders.standaloneSetup(new SetupController(setupService, cryptoConfig,context)).build();
     }
 
     // ==========================================

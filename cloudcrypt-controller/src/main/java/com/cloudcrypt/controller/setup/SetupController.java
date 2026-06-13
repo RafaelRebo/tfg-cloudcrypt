@@ -3,9 +3,11 @@ package com.cloudcrypt.controller.setup;
 import com.cloudcrypt.config.ConfigPathResolver;
 import com.cloudcrypt.dto.setup.SetupRequestDto;
 import com.cloudcrypt.service.setup.SetupService;
+import org.springframework.boot.SpringApplication;
 import com.cloudcrypt.config.CryptoConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -24,10 +26,12 @@ public class SetupController {
 
     private final SetupService setupService;
     private final CryptoConfig cryptoConfig;
+    private final ConfigurableApplicationContext context;
 
-    public SetupController(SetupService setupService, CryptoConfig cryptoConfig) {
+    public SetupController(SetupService setupService, CryptoConfig cryptoConfig, ConfigurableApplicationContext context) {
         this.setupService = setupService;
         this.cryptoConfig = cryptoConfig;
+        this.context = context;
     }
 
     @GetMapping("/status")
@@ -93,10 +97,13 @@ public class SetupController {
     private void executeAsynchronousShutdown() {
         new Thread(() -> {
             try {
-                log.warn("INSTALACIÓN: Reiniciando sistema...");
                 Thread.sleep(2000);
             } catch (InterruptedException ignored) {}
-            System.exit(0);
+
+            log.info("SISTEMA: Reiniciando tras instalación.");
+
+            int exitCode = SpringApplication.exit(context, () -> 0);
+            System.exit(exitCode);
         }).start();
     }
 }
