@@ -36,6 +36,14 @@ const AuthService = {
         return res;
     },
 
+    async deriveAuthHash(masterKey) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(masterKey);
+        const hashBuffer = await window.crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    },
+
     // Al salir, se eliminan todas las credenciales de sesión del almacenamiento local del navegador
     logout() {
         localStorage.removeItem('jwtToken');
@@ -92,7 +100,8 @@ const AppAuthMethods = {
     async handleLogin() {
         try {
             const secureKey = await AuthService.deriveMasterKey(this.username, this.password);
-            const res = await API.login(this.username, secureKey);
+            const authHash = await AuthService.deriveAuthHash(secureKey);
+            const res = await API.login(this.username, authHash);
 
             if (res.ok) {
                 const data = await res.json();
@@ -172,10 +181,10 @@ const AppAuthMethods = {
             const generatedUserSalt = Array.from(entropyBuffer).map(b => b.toString(16).padStart(2, '0')).join('');
 
             const masterKey = await AuthService.deriveMasterKey(this.regUsername, this.regPassword);
-
+            const authHash = await AuthService.deriveAuthHash(masterKey);
             const formData = new FormData();
             formData.append("username", this.regUsername);
-            formData.append("password", masterKey);
+            formData.append("password", authHash);
             formData.append("fullName", this.regFullName);
             formData.append("email", this.regEmail);
             formData.append("salt", generatedUserSalt);
@@ -188,7 +197,7 @@ const AppAuthMethods = {
             if (!res.ok) throw new Error(await API.extractErrorMessage(res));
 
             // Una vez registrado ya hacemos login automáticamente
-            const loginRes = await API.login(this.regUsername, masterKey);
+            const loginRes = await API.login(this.regUsername, authHash);
             if (!loginRes.ok) throw new Error("Fallo en el proceso de autenticación");
 
             const loginData = await loginRes.json();
